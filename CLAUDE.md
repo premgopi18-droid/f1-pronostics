@@ -51,6 +51,14 @@ Built by two people (names TBD). UI language: French. Code language: English.
 
 Credentials are in `.env.local` (not committed).
 
+## Git workflow
+
+GitHub Flow : `main` toujours deployable, une branche par feature.
+
+- Branche : `feat/<nom-court>` (ex: `feat/lib-data`, `feat/scoring-trigger`)
+- Ne jamais pousser directement sur `main`
+- PR pour merger, même en solo
+
 ## Naming conventions
 
 - **Language**: all identifiers, types, functions, and variables in English — no exceptions

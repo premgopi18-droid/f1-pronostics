@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase'
+import { createServiceClient } from '@/lib/supabase'
 import type { DriverResult } from '@/lib/scoring/types'
 
 // ── Lecture ───────────────────────────────────────────────────────────────
@@ -6,7 +6,7 @@ import type { DriverResult } from '@/lib/scoring/types'
 export async function getResultsForSession(
   sessionId: string,
 ): Promise<Map<string, DriverResult>> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('session_results')
     .select('position, dnf, fastest_lap, drivers!driver_id(code)')
@@ -32,7 +32,7 @@ export async function getResultsForSession(
 export async function getConstructorDriversMap(
   season: number,
 ): Promise<Map<string, string[]>> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('drivers')
     .select('code, constructors!constructor_id(code)')
@@ -58,7 +58,7 @@ export async function upsertSessionResults(
   season: number,
   results: Map<string, DriverResult>,
 ): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   // Résolution code → UUID pour les pilotes de cette saison
   const codes = Array.from(results.keys())

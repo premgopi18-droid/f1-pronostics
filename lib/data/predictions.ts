@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase'
+import { createServiceClient } from '@/lib/supabase'
 
 export interface PredictionRow {
   userId:  string
@@ -10,7 +10,7 @@ export interface PredictionRow {
 export async function getPredictionsForSession(
   sessionId: string,
 ): Promise<PredictionRow[]> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('predictions')
     .select('user_id, entries')
@@ -25,7 +25,7 @@ export async function getPredictionsForSession(
 export async function getFastestLapForSession(
   sessionId: string,
 ): Promise<Map<string, string>> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('fastest_lap_predictions')
     .select('user_id, drivers!driver_id(code)')
@@ -35,6 +35,8 @@ export async function getFastestLapForSession(
 
   const result = new Map<string, string>()
   for (const row of data ?? []) {
+    // Embed via FK (`drivers!driver_id`) = relation many-to-one → PostgREST renvoie
+    // un objet (pas un tableau). À confirmer en intégration (test plan).
     const driver = (row.drivers as unknown) as ({ code: string } | null)
     if (driver) result.set(row.user_id, driver.code)
   }
@@ -47,7 +49,7 @@ export async function getSeasonPredictions(
   season: number,
   type: 'wdc' | 'wcc',
 ): Promise<PredictionRow[]> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('season_predictions')
     .select('user_id, entries')

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase'
+import { createServiceClient } from '@/lib/supabase'
 import type { ScoreKey, SessionScore, SessionType } from '@/lib/scoring/types'
 
 export interface SeasonScoreRow {
@@ -16,15 +16,15 @@ export async function getCurrentScoresForGP(
   gpId: string,
   leagueId: string,
 ): Promise<Map<ScoreKey, SessionScore>> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   // 1. Sessions de ce GP
-  const { data: sessions, error: sessError } = await supabase
+  const { data: sessions, error: sessionsError } = await supabase
     .from('sessions')
     .select('id, type')
     .eq('gp_id', gpId)
 
-  if (sessError) throw sessError
+  if (sessionsError) throw sessionsError
 
   const sessionIds = (sessions ?? []).map((s) => s.id as string)
   const typeById   = new Map((sessions ?? []).map((s) => [s.id as string, s.type as SessionType]))
@@ -59,30 +59,38 @@ export async function getCurrentScoresForGP(
 export async function getPendingSessionScores(): Promise<
   { id: string; gpId: string; season: number; type: SessionType }[]
 > {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
+
+  // PostgREST n'exécute pas de sous-requête SQL dans un filtre `in` (il attend une
+  // liste de valeurs, pas une string `SELECT …`). On récupère donc d'abord les
+  // session_id déjà scorés, puis on les exclut — garantit l'idempotence Phase 1.
+  const { data: scored, error: scoredError } = await supabase
+    .from('scores')
+    .select('session_id')
+  if (scoredError) throw scoredError
+  const scoredIds = new Set((scored ?? []).map((row) => row.session_id as string))
+
   const { data, error } = await supabase
     .from('sessions')
     .select('id, gp_id, season, type')
     .not('results_confirmed_at', 'is', null)
-    .not('id', 'in',
-      // Exclure les sessions déjà scorées
-      `(SELECT DISTINCT session_id FROM scores)`,
-    )
 
   if (error) throw error
-  return (data ?? []).map((row) => ({
-    id:     row.id as string,
-    gpId:   row.gp_id as string,
-    season: row.season as number,
-    type:   row.type as SessionType,
-  }))
+  return (data ?? [])
+    .filter((row) => !scoredIds.has(row.id as string))
+    .map((row) => ({
+      id:     row.id as string,
+      gpId:   row.gp_id as string,
+      season: row.season as number,
+      type:   row.type as SessionType,
+    }))
 }
 
 // GPs dont la course est scorée mais scoring_finalized_at est null
 export async function getPendingItemResolutions(): Promise<
   { id: string; season: number }[]
 > {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('grands_prix')
     .select('id, season, sessions!inner(id, type, results_confirmed_at, scores(id))')
@@ -109,7 +117,7 @@ export async function upsertBaseScores(
   season:    number,
   userScores: { userId: string; score: SessionScore }[],
 ): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const now = new Date().toISOString()
 
   const rows = userScores.map(({ userId, score }) => ({
@@ -137,17 +145,21 @@ export async function updateFinalScores(
   leagueId: string,
   scores:   Map<ScoreKey, SessionScore>,
 ): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   // Résolution sessionType → sessionId pour ce GP
-  const { data: sessions, error: sessError } = await supabase
+  const { data: sessions, error: sessionsError } = await supabase
     .from('sessions')
     .select('id, type')
     .eq('gp_id', gpId)
 
-  if (sessError) throw sessError
+  if (sessionsError) throw sessionsError
   const idByType = new Map((sessions ?? []).map((s) => [s.type as string, s.id as string]))
 
+  // N UPDATE en parallèle (1 par (user, session)) — valeurs distinctes par ligne,
+  // sur des lignes déjà créées en Phase 1. Volume faible (~membres × sessions par
+  // GP), exécuté par le cron : un upsert groupé devrait réémettre toutes les
+  // colonnes NOT NULL, on garde donc l'UPDATE ciblé. Cf. discussion PR #1.
   await Promise.all(
     Array.from(scores.entries()).map(([key, score]) => {
       const [userId, sessionType] = key.split(':')
@@ -169,7 +181,7 @@ export async function upsertSeasonScores(
   season:   number,
   rows:     SeasonScoreRow[],
 ): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const now = new Date().toISOString()
 
   const { error } = await supabase
@@ -193,7 +205,7 @@ export async function upsertSeasonScores(
 }
 
 export async function markGPFinalized(gpId: string): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { error } = await supabase
     .from('grands_prix')
     .update({ scoring_finalized_at: new Date().toISOString() })

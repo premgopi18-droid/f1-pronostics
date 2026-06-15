@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase'
+import { createServiceClient } from '@/lib/supabase'
 import type { ItemPayload, PlayedItem, SessionType } from '@/lib/scoring/types'
 
 // ── Mapper DB (snake_case) → TypeScript (camelCase) ──────────────────────
@@ -56,12 +56,15 @@ export async function getItemsForGP(
   gpId: string,
   leagueId: string,
 ): Promise<PlayedItem[]> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('items_played')
     .select('id, user_id, item_type, payload, was_shielded, effect_applied')
     .eq('gp_id', gpId)
     .eq('league_id', leagueId)
+    // Spec scoring §3.1 (COLLECTE) — n'inclure que les items pas encore résolus,
+    // sinon une relance de la Phase 2 ré-appliquerait des effets déjà comptés.
+    .is('resolved_at', null)
 
   if (error) throw error
 
@@ -79,7 +82,7 @@ export async function getItemsForGP(
 // Appelé après applyItemEffects — persiste was_shielded, effect_applied,
 // resolved_at, et points_stolen pour les Wild Cards.
 export async function markItemsResolved(items: PlayedItem[]): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   await Promise.all(
     items.map((item) => {

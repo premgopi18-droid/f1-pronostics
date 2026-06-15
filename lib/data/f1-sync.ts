@@ -1,11 +1,11 @@
-import { createClient } from '@/lib/supabase'
+import { createServiceClient } from '@/lib/supabase'
 import type { SessionType } from '@/lib/scoring/types'
 import type { CalendarEntry, ConstructorEntry, DriverEntry } from '@/lib/f1/jolpica'
 
 // Appelé depuis /api/f1/sync — synchronise calendrier + pilotes + écuries depuis Jolpica
 
 export async function upsertConstructors(entries: ConstructorEntry[]): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { error } = await supabase
     .from('constructors')
     .upsert(
@@ -21,19 +21,11 @@ export async function upsertConstructors(entries: ConstructorEntry[]): Promise<v
 
 export async function upsertDrivers(entries: DriverEntry[]): Promise<void> {
   if (entries.length === 0) return
-  const supabase = await createClient()
-  const season = entries[0].season
+  const supabase = createServiceClient()
 
-  // Résolution code écurie → UUID constructor_id
-  const { data: constructors, error: cError } = await supabase
-    .from('constructors')
-    .select('id, code')
-    .eq('season', season)
-
-  if (cError) throw cError
-  // Note : entries n'ont pas de constructorCode — le mapping est fait via l'API Jolpica
-  // Les drivers sont upsertés sans constructor_id ici ; le lien est mis à jour par
-  // upsertDriverConstructorLinks() appelé séparément avec les standings Jolpica.
+  // Note : entries n'ont pas de constructorCode — le mapping écurie→pilote est fait
+  // séparément par upsertDriverConstructorLinks() avec les standings Jolpica. Les
+  // drivers sont donc upsertés ici sans constructor_id.
   const { error } = await supabase
     .from('drivers')
     .upsert(
@@ -47,14 +39,12 @@ export async function upsertDrivers(entries: DriverEntry[]): Promise<void> {
       { onConflict: 'season,code' },
     )
   if (error) throw error
-
-  void constructors // utilisé par la version avec constructorCode si nécessaire
 }
 
 export async function upsertGrandsPrix(
   entries: CalendarEntry[],
 ): Promise<Map<number, string>> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('grands_prix')
     .upsert(
@@ -80,7 +70,7 @@ export async function upsertSessions(
   season:   number,
   sessions: { type: SessionType; startsAt: string }[],
 ): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { error } = await supabase
     .from('sessions')
     .upsert(
@@ -97,7 +87,7 @@ export async function upsertSessions(
 
 // Appelé une fois les résultats officiels Jolpica stockés — déclenche le scoring
 export async function confirmSessionResults(sessionId: string): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { error } = await supabase
     .from('sessions')
     .update({ results_confirmed_at: new Date().toISOString() })
@@ -109,7 +99,7 @@ export async function getSessionId(
   gpId: string,
   type: SessionType,
 ): Promise<string | null> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('sessions')
     .select('id')

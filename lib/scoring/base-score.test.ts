@@ -42,8 +42,8 @@ describe('computeBaseScore — Monaco race', () => {
 })
 
 describe('computeFastestLap', () => {
-  it('Alice prédit NOR (correct) → +1', () => {
-    expect(computeFastestLap('NOR', monacoResults)).toBe(1)
+  it('Alice prédit NOR (correct) → +7', () => {
+    expect(computeFastestLap('NOR', monacoResults)).toBe(7)
   })
 
   it('Bob prédit VER (incorrect) → 0', () => {
@@ -56,10 +56,10 @@ describe('computeFastestLap', () => {
 })
 
 describe('computeSessionBaseScore — score total avec FL', () => {
-  it('Alice : positions (21) + FL bonus (1) = 22', () => {
+  it('Alice : positions (21) + FL bonus (7) = 28', () => {
     const result = computeSessionBaseScore(aliceEntries, 'NOR', monacoResults, 'race')
-    expect(result.baseScore).toBe(22)
-    expect(result.finalScore).toBe(22)
+    expect(result.baseScore).toBe(28)
+    expect(result.finalScore).toBe(28)
     expect(result.exactPositions).toBe(1)
   })
 
@@ -87,13 +87,15 @@ describe('cas limites', () => {
     expect(exactPositions).toBe(0)
   })
 
-  it('sprint_race : seules 8 positions scorées', () => {
-    const entries = ['VER','LEC','NOR','PIA','RUS','ALO','SAI','HAM','STR','OCO']
+  it('longueur scorée par session : race=22, qualifying=10, sprint_qualifying=5, sprint_race=8', () => {
+    const entries = Array.from({ length: 22 }, (_, i) => `D${i + 1}`)
     const results = new Map<string, DriverResult>(
       entries.map((c, i) => [c, { position: i + 1, fastestLap: false }])
     )
-    const { breakdown } = computeBaseScore(entries, results, 'sprint_race')
-    expect(breakdown).toHaveLength(8) // STR et OCO non scorés
+    expect(computeBaseScore(entries, results, 'race').breakdown).toHaveLength(22)
+    expect(computeBaseScore(entries, results, 'qualifying').breakdown).toHaveLength(10)
+    expect(computeBaseScore(entries, results, 'sprint_qualifying').breakdown).toHaveLength(5)
+    expect(computeBaseScore(entries, results, 'sprint_race').breakdown).toHaveLength(8)
   })
 
   it('pilote absent du results map → 0 pts', () => {

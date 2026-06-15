@@ -159,9 +159,9 @@ describe('Block driver', () => {
   })
 
   it('block ne touche pas le bonus FL (non dans breakdown)', () => {
-    // 22 pts = 21 position + 1 FL bonus (non dans breakdown)
+    // 28 pts = 21 position + 7 FL bonus (non dans breakdown)
     const scores = new Map<ScoreKey, SessionScore>([
-      ['alice:race', makeScore(22, 1, [
+      ['alice:race', makeScore(28, 1, [
         makeEntry('VER', 1, 1, 5),
         makeEntry('NOR', 4, 3, 2),
       ])],
@@ -172,7 +172,7 @@ describe('Block driver', () => {
 
     applyItemEffects(items, scores, emptyCtx)
 
-    expect(scores.get('alice:race')!.finalScore).toBe(20) // 22 - 2 pts NOR, +1 FL survit
+    expect(scores.get('alice:race')!.finalScore).toBe(26) // 28 - 2 pts NOR, +7 FL survit
   })
 
   it('exact_positions inchangé après un block', () => {

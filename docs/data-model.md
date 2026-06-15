@@ -204,7 +204,7 @@ Une ligue est une entité **persistante** — pas de colonne `season`. La même 
 
 ### `predictions`
 
-Une ligne par user par session. Le top 10 est stocké en JSONB — pas de table séparée.
+Une ligne par user par session. L'ordre prédit est stocké en JSONB — pas de table séparée. La longueur dépend de la session (voir `is_valid`).
 
 > **Trade-off codes vs UUIDs** : `entries` stocke des codes pilotes (`"VER"`) plutôt que des UUIDs. Choix délibéré pour la lisibilité et la simplicité du JSONB. Le moteur de scoring mappe code → UUID via la table `drivers` au moment du calcul. Pas d'intégrité référentielle sur ce champ — acceptable à cette échelle.
 
@@ -216,7 +216,7 @@ Une ligne par user par session. Le top 10 est stocké en JSONB — pas de table 
 | season | INTEGER | |
 | entries | JSONB | `["VER","NOR","LEC","HAM","RUS","ALO","SAI","PIA","STR","OCO"]` — ordre = classement prédit |
 | submitted_at | TIMESTAMPTZ | |
-| is_valid | BOOLEAN | false si prédiction incomplète ou non soumise. Longueur attendue : 10 pour `qualifying`, `sprint_qualifying`, `race` — 8 pour `sprint_race`. La validation est session-type-dépendante. |
+| is_valid | BOOLEAN | false si prédiction incomplète ou non soumise. Longueur attendue : 10 pour `qualifying`, 22 pour `race` (ordre complet de la grille), 5 pour `sprint_qualifying`, 8 pour `sprint_race`. La validation est session-type-dépendante. |
 
 **Contrainte :** UNIQUE (user_id, session_id)
 
@@ -375,7 +375,7 @@ Historique de chaque item joué. Le champ `payload` stocke les données spécifi
     { "predicted": "NOR", "actual_position": 3, "predicted_position": 2, "points": 2 },
     { "predicted": "LEC", "actual_position": 5, "predicted_position": 3, "points": 1 }
   ],
-  "fastest_lap": { "predicted": "VER", "actual": "VER", "points": 1 },
+  "fastest_lap": { "predicted": "VER", "actual": "VER", "points": 7 },
   "items": {
     "block_applied": { "driver": "HAM", "points_zeroed": 5 },
     "wild_card_received": { "from_user": "bob", "points_stolen": 6 },

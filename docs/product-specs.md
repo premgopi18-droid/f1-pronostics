@@ -78,8 +78,8 @@ Application web (PWA) de pronostics Formula 1 entre amis. Les utilisateurs rejoi
 | Pronostic | Description | Verrouillage |
 |---|---|---|
 | Top 10 Qualifications | Ordre exact des 10 premiers (Q1/Q2/Q3) | Début des qualifications (Q1) |
-| Top 10 Course | Ordre exact des 10 premiers | Départ de la course |
-| Meilleur tour en course | 1 pilote parmi les 20 | Départ de la course |
+| Ordre complet Course | Ordre exact de toute la grille (22 pilotes — 11 écuries en 2026) | Départ de la course |
+| Meilleur tour en course | 1 pilote parmi les 22 | Départ de la course |
 
 #### Week-end sprint (5 pronostics)
 
@@ -87,11 +87,11 @@ Format 2026 : Sprint Qualifying (vendredi) → Sprint Race (samedi matin) → Qu
 
 | Pronostic | Description | Verrouillage |
 |---|---|---|
-| Top 10 Sprint Qualifying | Ordre exact des 10 premiers | Début de la Sprint Qualifying (vendredi) |
+| Top 5 Sprint Qualifying | Ordre exact des 5 premiers | Début de la Sprint Qualifying (vendredi) |
 | Top 8 Sprint Race | Ordre exact des 8 premiers (seuls les top 8 marquent des points en sprint) | Départ du Sprint (samedi matin) |
 | Top 10 Qualifications | Ordre exact des 10 premiers (Q1/Q2/Q3) | Début des qualifications GP (samedi après-midi) |
-| Top 10 Course | Ordre exact des 10 premiers | Départ de la course (dimanche) |
-| Meilleur tour en course | 1 pilote parmi les 20 | Départ de la course (dimanche) |
+| Ordre complet Course | Ordre exact de toute la grille (22 pilotes) | Départ de la course (dimanche) |
+| Meilleur tour en course | 1 pilote parmi les 22 | Départ de la course (dimanche) |
 
 **Règle générale** : chaque pronostic peut être modifié librement jusqu'au début de la session correspondante. Le verrouillage est par session, pas par week-end.
 
@@ -139,7 +139,7 @@ Sessions secondaires — barème volontairement plus faible pour refléter leur 
 
 | Bonus | Points |
 |---|---|
-| Meilleur tour en course correct | +1 pt |
+| Meilleur tour en course correct | +7 pts |
 
 > Pas de bonus pole position — déjà récompensée par le score exact de P1 en qualifications.
 
@@ -171,7 +171,7 @@ Même barème pour les qualifications et la course — l'effort de prédiction e
 #### Pronostic non soumis ou incomplet
 
 - Chaque session est indépendante — oublier les qualifications n'empêche pas de soumettre pour la course
-- Un top 10 incomplet (moins de 10 positions remplies) est **invalide** — traité comme une non-soumission
+- Un pronostic incomplet (moins de positions remplies que la longueur attendue de la session : 10 en qualif, 22 en course, 5 en sprint qualif, 8 en sprint race) est **invalide** — traité comme une non-soumission
 - Score = **0 point** pour la session concernée
 - Un statut spécifique est affiché dans le classement pour signaler la non-participation (libellé humoristique à définir dans l'UI)
 

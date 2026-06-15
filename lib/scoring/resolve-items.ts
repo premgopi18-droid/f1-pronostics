@@ -17,7 +17,7 @@ type ItemResolver = (
   ctx: ResolutionContext,
 ) => void
 
-function key(userId: string, sessionType: string): ScoreKey {
+function scoreKey(userId: string, sessionType: string): ScoreKey {
   return `${userId}:${sessionType}` as ScoreKey
 }
 
@@ -55,7 +55,7 @@ function resolveBlock(
   if (item.payload.type !== 'block_driver') return
   const { targetUserId, sessionType, driverCode } = item.payload
 
-  const victim = scores.get(key(targetUserId, sessionType))
+  const victim = scores.get(scoreKey(targetUserId, sessionType))
   if (!victim) { item.effectApplied = false; return }
 
   const pts = victim.breakdown.find(e => e.code === driverCode)?.pts ?? 0
@@ -80,8 +80,8 @@ export function resolveWildCards(
     if (wc.payload.type !== 'wild_card') continue
     const { targetUserId, sessionType } = wc.payload
 
-    const victimKey   = key(targetUserId, sessionType)
-    const attackerKey = key(wc.userId, sessionType)
+    const victimKey   = scoreKey(targetUserId, sessionType)
+    const attackerKey = scoreKey(wc.userId, sessionType)
     const stolen      = Math.floor((snapshot.get(victimKey) ?? 0) / 2)
 
     const victim   = scores.get(victimKey)
@@ -105,7 +105,7 @@ function resolveDouble(
   _ctx: ResolutionContext,
 ): void {
   if (item.payload.type !== 'double_points') return
-  const score = scores.get(key(item.userId, item.payload.sessionType))
+  const score = scores.get(scoreKey(item.userId, item.payload.sessionType))
   if (score) { score.finalScore *= 2; item.effectApplied = true }
 }
 
@@ -123,7 +123,7 @@ function resolveDnfPrediction(
   // DNS (dnf absent/false) = item wasted — seul dnf=true déclenche le bonus
   const confirmed = ctx.raceResults.get(item.payload.driverCode)?.dnf === true
   if (confirmed) {
-    const score = scores.get(key(item.userId, 'race'))
+    const score = scores.get(scoreKey(item.userId, 'race'))
     if (score) score.finalScore += ITEM_BONUS_POINTS.dnf_prediction
   }
   item.effectApplied = confirmed
@@ -144,7 +144,7 @@ function resolveUnderdogTop5(
   const finishedTop5 = racePos !== null && racePos <= 5
 
   if (isUnderdog && finishedTop5) {
-    const score = scores.get(key(item.userId, 'race'))
+    const score = scores.get(scoreKey(item.userId, 'race'))
     if (score) score.finalScore += ITEM_BONUS_POINTS.underdog_top5
   }
   item.effectApplied = isUnderdog && finishedTop5
@@ -162,7 +162,7 @@ function resolveNoPointsTeam(
     return pos !== null && pos !== undefined && pos <= 10
   })
   if (!teamScored) {
-    const score = scores.get(key(item.userId, 'race'))
+    const score = scores.get(scoreKey(item.userId, 'race'))
     if (score) score.finalScore += ITEM_BONUS_POINTS.no_points_team
   }
   item.effectApplied = !teamScored

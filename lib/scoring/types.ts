@@ -14,7 +14,7 @@ export type ItemPayload =
 
 export type GPItemType = Exclude<ItemPayload['type'], 'wdc_move' | 'wcc_move'>
 
-export type DriverResult = { position: number | null; fastestLap: boolean }
+export type DriverResult = { position: number | null; fastestLap: boolean; dnf?: boolean }
 
 /** `${userId}:${sessionType}` — clé O(1) pour la Map des scores */
 export type ScoreKey = `${string}:${string}`
@@ -36,14 +36,16 @@ export interface SessionScore {
 export interface ResolutionContext {
   raceResults:        Map<string, DriverResult>
   qualifyingResults:  Map<string, DriverResult>
+  constructorDrivers: Map<string, string[]>   // constructorCode → [driverCode1, driverCode2]
   leagueId:           string
   gpId:               string
 }
 
 export interface PlayedItem {
-  id:          string
-  userId:      string
-  type:        GPItemType
-  payload:     ItemPayload
-  wasShielded: boolean
+  id:            string
+  userId:        string
+  type:          GPItemType
+  payload:       ItemPayload
+  wasShielded:   boolean
+  effectApplied: boolean
 }

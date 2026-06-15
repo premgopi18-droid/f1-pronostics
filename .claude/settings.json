@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "Write-Output '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Reminder: if any decision was made in this conversation (feature rule, tech choice, TBD resolved), update docs/product-specs.md before responding.\"}}'",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ]
+  }
+}

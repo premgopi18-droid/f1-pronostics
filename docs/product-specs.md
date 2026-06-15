@@ -33,9 +33,8 @@ Application web (PWA) de pronostics Formula 1 entre amis. Les utilisateurs rejoi
 
 ### 3.1 Authentification & Profil
 
-- Inscription / connexion par email + mot de passe
-- Connexion via Google (OAuth)
-- Connexion via Apple (Sign in with Apple)
+- Connexion via Google OAuth uniquement (v1 — décision juin 2026)
+- Email/password et Apple Sign In ajoutables facilement via Supabase Auth si besoin ultérieur
 - Profil utilisateur : pseudo, avatar
 - Historique personnel des pronostics et scores
 - **Pseudo** : modifiable (sous réserve de disponibilité)

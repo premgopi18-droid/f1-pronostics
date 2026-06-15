@@ -51,6 +51,13 @@ Built by two people (names TBD). UI language: French. Code language: English.
 
 Credentials are in `.env.local` (not committed).
 
+## Naming conventions
+
+- **Language**: all identifiers, types, functions, and variables in English — no exceptions
+- **No abbreviations**: `positionsToScore` not `n`, `points` not `pts`, `results` not `res`
+- **Casing**: camelCase for functions/variables, PascalCase for types/interfaces, SCREAMING_SNAKE_CASE for config constants, kebab-case for file names
+- **Comments**: French is fine (UI is French, team is French)
+
 ## Key decisions
 
 - PWA first, native app (Expo) possible later via same Supabase backend

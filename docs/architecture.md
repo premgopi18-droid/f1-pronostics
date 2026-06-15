@@ -54,10 +54,19 @@
     jolpica.ts                 → client Jolpica API + mappers → types domaine
     openf1.ts                  → client OpenF1 API (fallback résultats rapides)
 
-  supabase.ts                  → client Supabase (server-side uniquement)
+  supabase.ts                  → 2 clients : createClient() (cookie/RLS) + createServiceClient() (service-role)
 ```
 
 > **Règle d'import** : `/lib/scoring/` peut importer depuis lui-même et depuis `/lib/scoring/types`. Il ne peut **jamais** importer depuis `/lib/data/`, `/lib/f1/`, ou Supabase. Si tu te surprends à importer Supabase dans `/lib/scoring/`, la logique est au mauvais endroit.
+
+> **Frontière des clients Supabase** — il y a **deux** clients, et la confusion entre les deux est une faille de sécurité :
+>
+> | Client | RLS | Pour | Exemples |
+> |---|---|---|---|
+> | `createClient()` (cookie/RLS) | **appliqué** (`auth.uid()`) | toute lecture/écriture **déclenchée par une action utilisateur** | soumettre/voir ses pronos, afficher les pronos de la ligue après deadline, leaderboard affiché à l'écran |
+> | `createServiceClient()` (service-role) | **bypassé** | batch **cron/sync de confiance** (protégés par `CRON_SECRET`), sans utilisateur connecté | tout `/lib/data/`, appelé par le scoring et la sync F1 |
+>
+> **`/lib/data/` utilise exclusivement `createServiceClient()`** : le cron note tous les joueurs sans `auth.uid()`, donc le RLS le filtrerait à vide. En contrepartie, **aucune lecture issue d'une action utilisateur ne doit passer par `/lib/data/`** — elle bypasserait les policies (ex. secret des pronos avant deadline, restriction co-membre de ligue). Ces lectures UI passent par `createClient()` et leur propre requête, où le RLS décide ce que l'utilisateur a le droit de voir. Le futur leaderboard affiché à l'utilisateur en est l'exemple type : RLS, pas `/lib/data/`.
 
 ---
 

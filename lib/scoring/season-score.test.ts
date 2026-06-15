@@ -77,10 +77,11 @@ describe('computeSeasonScore — WCC', () => {
 
 describe('cas limites', () => {
   it('pilote absent du classement final → ignoré (0 pt, pas de crash)', () => {
+    // entries: VER(P1✓=8) NOR(P2✓=8) ABSENT(skip) LEC(P4→P3 Δ1=3) RUS(P5✓=8) ALO(P6✓=8) SAI(P7✓=8) HAM(P8✓=8) STR(P9✓=8) OCO(P10✓=8)
     const entries = ['VER','NOR','ABSENT','LEC','RUS','ALO','SAI','HAM','STR','OCO']
-    const { score } = computeSeasonScore(entries, wdcResults)
-    // VER exact (8), NOR exact (8), ABSENT ignoré, LEC prédit P4 réel P3 Δ1 (3), RUS exact (8) ...
-    expect(score).toBeGreaterThan(0) // pas de crash
+    const { score, bonus } = computeSeasonScore(entries, wdcResults)
+    expect(score).toBe(67) // P3 prédite = ABSENT → pas de bonus podium
+    expect(bonus).toBe(0)
   })
 
   it('liste vide → 0 pts', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyItemEffects, resolveShields, resolveWildCards } from './resolve-items'
+import { applyItemEffects, resolveWildCards } from './resolve-items'
 import type { BreakdownEntry, DriverResult, PlayedItem, ResolutionContext, ScoreKey, SessionScore } from './types'
 
 // ============================================================
@@ -19,7 +19,7 @@ function makeEntry(code: string, predictedPos: number, actualPos: number | null,
 }
 
 function makeItem(
-  overrides: Partial<PlayedItem> & Pick<PlayedItem, 'userId' | 'type' | 'payload'>,
+  overrides: Omit<PlayedItem, 'id' | 'wasShielded' | 'effectApplied'> & Partial<Pick<PlayedItem, 'wasShielded' | 'effectApplied'>>,
 ): PlayedItem {
   return {
     id:            'test-item',
@@ -48,8 +48,8 @@ describe('Monaco §6 — exemple intégration complet', () => {
       ['bob:race',   makeScore(44, 8)],
     ])
     const items: PlayedItem[] = [
-      makeItem({ id: 'wc1', userId: 'bob',   type: 'wild_card',     payload: { type: 'wild_card',    targetUserId: 'alice', sessionType: 'race' } }),
-      makeItem({ id: 'db1', userId: 'alice', type: 'double_points', payload: { type: 'double_points', sessionType: 'race' } }),
+      makeItem({ userId: 'bob',   payload: { type: 'wild_card',    targetUserId: 'alice', sessionType: 'race' } }),
+      makeItem({ userId: 'alice', payload: { type: 'double_points', sessionType: 'race' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
@@ -57,10 +57,10 @@ describe('Monaco §6 — exemple intégration complet', () => {
     expect(scores.get('alice:race')!.finalScore).toBe(22)
     expect(scores.get('bob:race')!.finalScore).toBe(55)
 
-    const wcItem = items.find(i => i.type === 'wild_card')!
-    expect((wcItem.payload as any).pointsStolen).toBe(11)
-    expect(wcItem.effectApplied).toBe(true)
-    expect(items.find(i => i.type === 'double_points')!.effectApplied).toBe(true)
+    const wc = items.find(i => i.payload.type === 'wild_card')!
+    expect((wc.payload as any).pointsStolen).toBe(11)
+    expect(wc.effectApplied).toBe(true)
+    expect(items.find(i => i.payload.type === 'double_points')!.effectApplied).toBe(true)
   })
 })
 
@@ -75,17 +75,16 @@ describe('Bouclier', () => {
       ['bob:race',   makeScore(40)],
     ])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'shield',    payload: { type: 'shield' } }),
-      makeItem({ userId: 'bob',   type: 'wild_card', payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
+      makeItem({ userId: 'alice', payload: { type: 'shield' } }),
+      makeItem({ userId: 'bob',   payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
 
-    // Wild Card annulé — scores inchangés
     expect(scores.get('alice:race')!.finalScore).toBe(20)
     expect(scores.get('bob:race')!.finalScore).toBe(40)
-    expect(items.find(i => i.type === 'wild_card')!.wasShielded).toBe(true)
-    expect(items.find(i => i.type === 'wild_card')!.effectApplied).toBe(false)
+    expect(items.find(i => i.payload.type === 'wild_card')!.wasShielded).toBe(true)
+    expect(items.find(i => i.payload.type === 'wild_card')!.effectApplied).toBe(false)
   })
 
   it('shield annule un block_driver entrant', () => {
@@ -93,14 +92,33 @@ describe('Bouclier', () => {
       ['alice:race', makeScore(20, 1, [makeEntry('VER', 1, 1, 5)])],
     ])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'shield',       payload: { type: 'shield' } }),
-      makeItem({ userId: 'bob',   type: 'block_driver', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
+      makeItem({ userId: 'alice', payload: { type: 'shield' } }),
+      makeItem({ userId: 'bob',   payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
 
-    expect(scores.get('alice:race')!.finalScore).toBe(20) // VER non bloqué
-    expect(items.find(i => i.type === 'block_driver')!.wasShielded).toBe(true)
+    expect(scores.get('alice:race')!.finalScore).toBe(20)
+    expect(items.find(i => i.payload.type === 'block_driver')!.wasShielded).toBe(true)
+  })
+
+  it('shield protège contre block ET wild_card simultanés', () => {
+    const scores = new Map<ScoreKey, SessionScore>([
+      ['alice:race', makeScore(20, 1, [makeEntry('VER', 1, 1, 5)])],
+      ['bob:race',   makeScore(30)],
+      ['carol:race', makeScore(25)],
+    ])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'shield' } }),
+      makeItem({ userId: 'bob',   payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
+      makeItem({ userId: 'carol', payload: { type: 'wild_card',    targetUserId: 'alice', sessionType: 'race' } }),
+    ]
+
+    applyItemEffects(items, scores, emptyCtx)
+
+    expect(scores.get('alice:race')!.finalScore).toBe(20) // aucun item n'a effet
+    expect(items.find(i => i.payload.type === 'block_driver')!.wasShielded).toBe(true)
+    expect(items.find(i => i.payload.type === 'wild_card')!.wasShielded).toBe(true)
   })
 })
 
@@ -117,49 +135,44 @@ describe('Block driver', () => {
       ])],
     ])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'bob', type: 'block_driver', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
+      makeItem({ userId: 'bob', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
 
-    expect(scores.get('alice:race')!.finalScore).toBe(15) // 20 - 5
+    expect(scores.get('alice:race')!.finalScore).toBe(15)
     expect(items[0].effectApplied).toBe(true)
   })
 
   it('block sur pilote DNF/0 pt → effectApplied false, score inchangé', () => {
     const scores = new Map<ScoreKey, SessionScore>([
-      ['alice:race', makeScore(10, 0, [
-        makeEntry('PER', 2, null, 0), // DNF → 0 pts
-      ])],
+      ['alice:race', makeScore(10, 0, [makeEntry('PER', 2, null, 0)])],
     ])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'bob', type: 'block_driver', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'PER' } }),
+      makeItem({ userId: 'bob', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'PER' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
 
-    expect(scores.get('alice:race')!.finalScore).toBe(10) // inchangé
+    expect(scores.get('alice:race')!.finalScore).toBe(10)
     expect(items[0].effectApplied).toBe(false)
   })
 
   it('block ne touche pas le bonus FL (non dans breakdown)', () => {
-    // Alice a 22 pts : 21 positions + 1 FL bonus
-    // NOR est dans le breakdown avec 2 pts (position)
-    // Bob bloque NOR → retire 2 pts de position, le +1 FL survit
+    // 22 pts = 21 position + 1 FL bonus (non dans breakdown)
     const scores = new Map<ScoreKey, SessionScore>([
       ['alice:race', makeScore(22, 1, [
         makeEntry('VER', 1, 1, 5),
-        makeEntry('NOR', 4, 3, 2), // 2 pts de position pour NOR
-        // +1 FL bonus intégré dans finalScore mais pas dans breakdown
+        makeEntry('NOR', 4, 3, 2),
       ])],
     ])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'bob', type: 'block_driver', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'NOR' } }),
+      makeItem({ userId: 'bob', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'NOR' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
 
-    expect(scores.get('alice:race')!.finalScore).toBe(20) // 22 - 2 (FL +1 survit)
+    expect(scores.get('alice:race')!.finalScore).toBe(20) // 22 - 2 pts NOR, +1 FL survit
   })
 
   it('exact_positions inchangé après un block', () => {
@@ -167,13 +180,33 @@ describe('Block driver', () => {
       ['alice:race', makeScore(20, 3, [makeEntry('VER', 1, 1, 5)])],
     ])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'bob', type: 'block_driver', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
+      makeItem({ userId: 'bob', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
 
-    expect(scores.get('alice:race')!.exactPositions).toBe(3) // inchangé
+    expect(scores.get('alice:race')!.exactPositions).toBe(3)
     expect(scores.get('alice:race')!.finalScore).toBe(15)
+  })
+
+  it('block + wild_card sur la même victime — block appliqué en premier', () => {
+    // Alice a 20 pts avec VER=5pts dans breakdown
+    // Bob bloque VER → alice passe à 15
+    // Carol vole via WC → snapshot=15, steal=floor(15/2)=7 → alice=8, carol=30+7=37
+    const scores = new Map<ScoreKey, SessionScore>([
+      ['alice:race', makeScore(20, 1, [makeEntry('VER', 1, 1, 5)])],
+      ['bob:race',   makeScore(40)],
+      ['carol:race', makeScore(30)],
+    ])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'bob',   payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
+      makeItem({ userId: 'carol', payload: { type: 'wild_card',    targetUserId: 'alice', sessionType: 'race' } }),
+    ]
+
+    applyItemEffects(items, scores, emptyCtx)
+
+    expect(scores.get('alice:race')!.finalScore).toBe(8)   // 20 - 5 (block) - 7 (WC)
+    expect(scores.get('carol:race')!.finalScore).toBe(37)  // 30 + 7
   })
 })
 
@@ -188,13 +221,13 @@ describe('Wild Card', () => {
       ['bob:race',   makeScore(10)],
     ])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'bob', type: 'wild_card', payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
+      makeItem({ userId: 'bob', payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
 
-    expect(scores.get('alice:race')!.finalScore).toBe(11) // 22 - 11
-    expect(scores.get('bob:race')!.finalScore).toBe(21)   // 10 + 11
+    expect(scores.get('alice:race')!.finalScore).toBe(11)
+    expect(scores.get('bob:race')!.finalScore).toBe(21)
   })
 
   it('Wild Card sur 0 pt → stolen=0, effectApplied=true', () => {
@@ -203,7 +236,7 @@ describe('Wild Card', () => {
       ['bob:race',   makeScore(30)],
     ])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'bob', type: 'wild_card', payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
+      makeItem({ userId: 'bob', payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
     ]
 
     applyItemEffects(items, scores, emptyCtx)
@@ -214,14 +247,14 @@ describe('Wild Card', () => {
     expect(items[0].effectApplied).toBe(true)
   })
 
-  it('Wild Cards mutuels (A→B et B→A) — résolution sur snapshot, pas en cascade', () => {
+  it('Wild Cards mutuels — résolution sur snapshot, pas en cascade', () => {
     const scores = new Map<ScoreKey, SessionScore>([
       ['alice:race', makeScore(20)],
       ['bob:race',   makeScore(30)],
     ])
     const items: PlayedItem[] = [
-      makeItem({ id: 'wc-ab', userId: 'alice', type: 'wild_card', payload: { type: 'wild_card', targetUserId: 'bob',   sessionType: 'race' } }),
-      makeItem({ id: 'wc-ba', userId: 'bob',   type: 'wild_card', payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
+      makeItem({ userId: 'alice', payload: { type: 'wild_card', targetUserId: 'bob',   sessionType: 'race' } }),
+      makeItem({ userId: 'bob',   payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
     ]
 
     resolveWildCards(items, scores)
@@ -229,8 +262,8 @@ describe('Wild Card', () => {
     // Snapshot: alice=20, bob=30
     // alice vole floor(30/2)=15 à bob
     // bob vole floor(20/2)=10 à alice
-    expect(scores.get('alice:race')!.finalScore).toBe(20 - 10 + 15) // 25
-    expect(scores.get('bob:race')!.finalScore).toBe(30 - 15 + 10)   // 25
+    expect(scores.get('alice:race')!.finalScore).toBe(25) // 20 - 10 + 15
+    expect(scores.get('bob:race')!.finalScore).toBe(25)   // 30 - 15 + 10
   })
 })
 
@@ -243,7 +276,7 @@ describe('DNF prediction', () => {
     const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(10)]])
     const raceResults = new Map<string, DriverResult>([['ALO', { position: null, fastestLap: false, dnf: true }]])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'dnf_prediction', payload: { type: 'dnf_prediction', driverCode: 'ALO' } }),
+      makeItem({ userId: 'alice', payload: { type: 'dnf_prediction', driverCode: 'ALO' } }),
     ]
 
     applyItemEffects(items, scores, { ...emptyCtx, raceResults })
@@ -256,7 +289,7 @@ describe('DNF prediction', () => {
     const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(10)]])
     const raceResults = new Map<string, DriverResult>([['ALO', { position: null, fastestLap: false, dnf: false }]])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'dnf_prediction', payload: { type: 'dnf_prediction', driverCode: 'ALO' } }),
+      makeItem({ userId: 'alice', payload: { type: 'dnf_prediction', driverCode: 'ALO' } }),
     ]
 
     applyItemEffects(items, scores, { ...emptyCtx, raceResults })
@@ -272,7 +305,7 @@ describe('Underdog top 5', () => {
     const qualifyingResults = new Map<string, DriverResult>([['GAS', { position: 15, fastestLap: false }]])
     const raceResults       = new Map<string, DriverResult>([['GAS', { position: 4,  fastestLap: false }]])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'underdog_top5', payload: { type: 'underdog_top5', driverCode: 'GAS' } }),
+      makeItem({ userId: 'alice', payload: { type: 'underdog_top5', driverCode: 'GAS' } }),
     ]
 
     applyItemEffects(items, scores, { ...emptyCtx, qualifyingResults, raceResults })
@@ -286,7 +319,7 @@ describe('Underdog top 5', () => {
     const qualifyingResults = new Map<string, DriverResult>([['GAS', { position: null, fastestLap: false }]])
     const raceResults       = new Map<string, DriverResult>([['GAS', { position: 3,   fastestLap: false }]])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'underdog_top5', payload: { type: 'underdog_top5', driverCode: 'GAS' } }),
+      makeItem({ userId: 'alice', payload: { type: 'underdog_top5', driverCode: 'GAS' } }),
     ]
 
     applyItemEffects(items, scores, { ...emptyCtx, qualifyingResults, raceResults })
@@ -299,12 +332,12 @@ describe('Underdog top 5', () => {
     const qualifyingResults = new Map<string, DriverResult>([['NOR', { position: 3, fastestLap: false }]])
     const raceResults       = new Map<string, DriverResult>([['NOR', { position: 1, fastestLap: true  }]])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'underdog_top5', payload: { type: 'underdog_top5', driverCode: 'NOR' } }),
+      makeItem({ userId: 'alice', payload: { type: 'underdog_top5', driverCode: 'NOR' } }),
     ]
 
     applyItemEffects(items, scores, { ...emptyCtx, qualifyingResults, raceResults })
 
-    expect(scores.get('alice:race')!.finalScore).toBe(10) // inchangé
+    expect(scores.get('alice:race')!.finalScore).toBe(10)
     expect(items[0].effectApplied).toBe(false)
   })
 })
@@ -318,7 +351,7 @@ describe('No points team', () => {
     ])
     const constructorDrivers = new Map([['HAAS', ['MAG', 'HUL']]])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'no_points_team', payload: { type: 'no_points_team', constructorCode: 'HAAS' } }),
+      makeItem({ userId: 'alice', payload: { type: 'no_points_team', constructorCode: 'HAAS' } }),
     ]
 
     applyItemEffects(items, scores, { ...emptyCtx, raceResults, constructorDrivers })
@@ -335,12 +368,29 @@ describe('No points team', () => {
     ])
     const constructorDrivers = new Map([['HAAS', ['MAG', 'HUL']]])
     const items: PlayedItem[] = [
-      makeItem({ userId: 'alice', type: 'no_points_team', payload: { type: 'no_points_team', constructorCode: 'HAAS' } }),
+      makeItem({ userId: 'alice', payload: { type: 'no_points_team', constructorCode: 'HAAS' } }),
     ]
 
     applyItemEffects(items, scores, { ...emptyCtx, raceResults, constructorDrivers })
 
     expect(scores.get('alice:race')!.finalScore).toBe(10)
     expect(items[0].effectApplied).toBe(false)
+  })
+})
+
+describe('Combos', () => {
+  it('double_points + dnf_prediction — bonus non doublé (appliqué après ×2)', () => {
+    // Alice a 10 pts, joue double (race) → 20 pts
+    // dnf_prediction sur ALO → +8 pts après le ×2 → 28 pts (pas 36)
+    const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(10)]])
+    const raceResults = new Map<string, DriverResult>([['ALO', { position: null, fastestLap: false, dnf: true }]])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'double_points',  sessionType: 'race' } }),
+      makeItem({ userId: 'alice', payload: { type: 'dnf_prediction', driverCode: 'ALO' } }),
+    ]
+
+    applyItemEffects(items, scores, { ...emptyCtx, raceResults })
+
+    expect(scores.get('alice:race')!.finalScore).toBe(28) // (10 × 2) + 8
   })
 })

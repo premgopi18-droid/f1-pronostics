@@ -1,7 +1,6 @@
 import { ITEM_BONUS_POINTS } from './constants'
 import type {
   GPItemType,
-  ItemPayload,
   PlayedItem,
   ScoreKey,
   SessionScore,
@@ -22,20 +21,21 @@ function key(userId: string, sessionType: string): ScoreKey {
   return `${userId}:${sessionType}` as ScoreKey
 }
 
-type OffensivePayload = Extract<ItemPayload, { type: 'block_driver' } | { type: 'wild_card' }>
-
 // ============================================================
 // Étape 2 — Boucliers
 // Modifie wasShielded/effectApplied sur les items offensifs in-place.
 // ============================================================
 
 export function resolveShields(items: PlayedItem[]): void {
-  for (const shield of items.filter(i => i.type === 'shield')) {
+  for (const shield of items) {
+    if (shield.payload.type !== 'shield') continue
     for (const offensive of items) {
-      if (offensive.type !== 'block_driver' && offensive.type !== 'wild_card') continue
-      const payload = offensive.payload as OffensivePayload
-      if (payload.targetUserId === shield.userId) {
-        offensive.wasShielded  = true
+      if (
+        offensive.payload.type !== 'block_driver' &&
+        offensive.payload.type !== 'wild_card'
+      ) continue
+      if (offensive.payload.targetUserId === shield.userId) {
+        offensive.wasShielded   = true
         offensive.effectApplied = false
       }
     }
@@ -52,20 +52,20 @@ function resolveBlock(
   scores: Map<ScoreKey, SessionScore>,
   _ctx: ResolutionContext,
 ): void {
-  const { targetUserId, sessionType, driverCode } =
-    item.payload as Extract<ItemPayload, { type: 'block_driver' }>
+  if (item.payload.type !== 'block_driver') return
+  const { targetUserId, sessionType, driverCode } = item.payload
 
   const victim = scores.get(key(targetUserId, sessionType))
   if (!victim) { item.effectApplied = false; return }
 
   const pts = victim.breakdown.find(e => e.code === driverCode)?.pts ?? 0
-  victim.finalScore   -= pts
-  item.effectApplied   = pts > 0
+  victim.finalScore -= pts
+  item.effectApplied = pts > 0
 }
 
 // ============================================================
 // Étape 4 — Wild Cards (résolution parallèle via snapshot)
-// Chaque vol est calculé sur le score ORIGINAL (pre-wildcard).
+// Chaque vol calculé sur le score ORIGINAL (pre-wildcard).
 // ============================================================
 
 export function resolveWildCards(
@@ -77,19 +77,21 @@ export function resolveWildCards(
   for (const [k, s] of scores) snapshot.set(k, s.finalScore)
 
   for (const wc of wcItems) {
-    const payload = wc.payload as Extract<ItemPayload, { type: 'wild_card' }>
-    const victimKey   = key(payload.targetUserId, payload.sessionType)
-    const attackerKey = key(wc.userId, payload.sessionType)
+    if (wc.payload.type !== 'wild_card') continue
+    const { targetUserId, sessionType } = wc.payload
 
-    const stolen   = Math.floor((snapshot.get(victimKey) ?? 0) / 2)
+    const victimKey   = key(targetUserId, sessionType)
+    const attackerKey = key(wc.userId, sessionType)
+    const stolen      = Math.floor((snapshot.get(victimKey) ?? 0) / 2)
+
     const victim   = scores.get(victimKey)
     const attacker = scores.get(attackerKey)
 
     if (victim)   victim.finalScore   -= stolen
     if (attacker) attacker.finalScore += stolen
 
-    payload.pointsStolen = stolen
-    wc.effectApplied     = true
+    wc.payload.pointsStolen = stolen
+    wc.effectApplied        = true
   }
 }
 
@@ -102,8 +104,8 @@ function resolveDouble(
   scores: Map<ScoreKey, SessionScore>,
   _ctx: ResolutionContext,
 ): void {
-  const { sessionType } = item.payload as Extract<ItemPayload, { type: 'double_points' }>
-  const score = scores.get(key(item.userId, sessionType))
+  if (item.payload.type !== 'double_points') return
+  const score = scores.get(key(item.userId, item.payload.sessionType))
   if (score) { score.finalScore *= 2; item.effectApplied = true }
 }
 
@@ -117,9 +119,9 @@ function resolveDnfPrediction(
   scores: Map<ScoreKey, SessionScore>,
   ctx: ResolutionContext,
 ): void {
-  const { driverCode } = item.payload as Extract<ItemPayload, { type: 'dnf_prediction' }>
-  // DNS (position null, dnf false/undefined) = item wasted — seul dnf=true déclenche le bonus
-  const confirmed = ctx.raceResults.get(driverCode)?.dnf === true
+  if (item.payload.type !== 'dnf_prediction') return
+  // DNS (dnf absent/false) = item wasted — seul dnf=true déclenche le bonus
+  const confirmed = ctx.raceResults.get(item.payload.driverCode)?.dnf === true
   if (confirmed) {
     const score = scores.get(key(item.userId, 'race'))
     if (score) score.finalScore += ITEM_BONUS_POINTS.dnf_prediction
@@ -132,12 +134,13 @@ function resolveUnderdogTop5(
   scores: Map<ScoreKey, SessionScore>,
   ctx: ResolutionContext,
 ): void {
-  const { driverCode } = item.payload as Extract<ItemPayload, { type: 'underdog_top5' }>
-  const qualPos = ctx.qualifyingResults.get(driverCode)?.position ?? null
-  const racePos = ctx.raceResults.get(driverCode)?.position ?? null
+  if (item.payload.type !== 'underdog_top5') return
+  const { driverCode } = item.payload
+  const qualPos  = ctx.qualifyingResults.get(driverCode)?.position ?? null
+  const racePos  = ctx.raceResults.get(driverCode)?.position ?? null
 
   // DNS qualif (position null) = hors top 10 par défaut → éligible
-  const isUnderdog  = qualPos === null || qualPos > 10
+  const isUnderdog   = qualPos === null || qualPos > 10
   const finishedTop5 = racePos !== null && racePos <= 5
 
   if (isUnderdog && finishedTop5) {
@@ -152,8 +155,8 @@ function resolveNoPointsTeam(
   scores: Map<ScoreKey, SessionScore>,
   ctx: ResolutionContext,
 ): void {
-  const { constructorCode } = item.payload as Extract<ItemPayload, { type: 'no_points_team' }>
-  const drivers  = ctx.constructorDrivers.get(constructorCode) ?? []
+  if (item.payload.type !== 'no_points_team') return
+  const drivers    = ctx.constructorDrivers.get(item.payload.constructorCode) ?? []
   const teamScored = drivers.some(code => {
     const pos = ctx.raceResults.get(code)?.position
     return pos !== null && pos !== undefined && pos <= 10
@@ -166,7 +169,9 @@ function resolveNoPointsTeam(
 }
 
 // ============================================================
-// Handler map (shield et wild_card dispatché séparément)
+// Handler map
+// shield et wild_card dispatché séparément (signatures différentes).
+// fia_penalty volontairement absent — nice-to-have non implémenté (voir product-specs §3.5).
 // ============================================================
 
 const RESOLVERS: Record<
@@ -190,7 +195,7 @@ export function applyItemEffects(
   ctx: ResolutionContext,
 ): Map<ScoreKey, SessionScore> {
   const active = (type: GPItemType) =>
-    items.filter(i => i.type === type && !i.wasShielded)
+    items.filter(i => i.payload.type === type && !i.wasShielded)
 
   resolveShields(items)
   active('block_driver').forEach(i => RESOLVERS.block_driver(i, scores, ctx))

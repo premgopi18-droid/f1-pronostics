@@ -44,8 +44,7 @@ export interface ResolutionContext {
 export interface PlayedItem {
   id:            string
   userId:        string
-  type:          GPItemType
-  payload:       ItemPayload
+  payload:       ItemPayload   // discriminer sur payload.type — pas de champ type redondant
   wasShielded:   boolean
   effectApplied: boolean
 }

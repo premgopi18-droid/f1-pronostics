@@ -4,6 +4,10 @@ import { SEASON_SCORE_TABLE, SEASON_PODIUM_BONUS } from './constants'
  * Calcule le score WDC ou WCC d'un utilisateur.
  * entries : codes ordonnés depuis season_predictions.entries
  * officialResults : code → position finale officielle
+ *
+ * Note wdc_move / wcc_move : ces items modifient season_predictions.entries en amont
+ * (dans le route handler), avant l'appel à cette fonction. Le moteur reçoit
+ * les entries déjà mutées — aucune logique de move ici.
  */
 export function computeSeasonScore(
   entries: string[],

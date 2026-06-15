@@ -1,3 +1,6 @@
+// Empêche tout import de ce module dans un bundle client (erreur de build) —
+// le client service-role ci-dessous porte la clé secrète, jamais côté navigateur.
+import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'

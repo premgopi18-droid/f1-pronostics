@@ -311,6 +311,8 @@ Stratégie double API — sources complémentaires, toutes deux gratuites et san
 
 > **Philosophie portabilité** : Supabase = couche données uniquement (PostgreSQL standard + Auth + Realtime). Toute la logique métier est dans Next.js — déplaçable sur n'importe quel hébergeur Node.js. Pas de lock-in sur les Edge Functions Supabase.
 
+> **Décision (juin 2026) — deux clients Supabase, frontière de sécurité.** La couche `/lib/data/` est appelée par le cron (scoring + sync F1) sans utilisateur connecté ; elle utilise donc un client **service-role** (`createServiceClient()`, clé `SUPABASE_SECRET_KEY`) qui **bypasse le RLS** pour lire/écrire les données de tous les joueurs. Toute lecture/écriture **déclenchée par une action utilisateur** (soumettre/voir ses pronos, afficher les pronos de la ligue après deadline, leaderboard à l'écran) passe au contraire par le client **cookie/RLS** (`createClient()`) et **jamais** par `/lib/data/`, pour que les policies (secret des pronos avant deadline, restriction co-membre de ligue) s'appliquent. Détail dans [architecture.md](architecture.md) (« Frontière des clients Supabase »).
+
 ### Architecture du projet Next.js
 
 Voir [docs/architecture.md](architecture.md) pour le détail complet des couches, patterns et règles d'import.

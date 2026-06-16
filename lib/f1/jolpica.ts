@@ -60,12 +60,11 @@ export interface CalendarEntry {
 }
 
 export interface DriverEntry {
-  season:        number
-  code:          string
-  driverId:      string
-  firstName:     string
-  lastName:      string
-  number:        number
+  season:    number
+  code:      string
+  firstName: string
+  lastName:  string
+  number:    number
 }
 
 export interface ConstructorEntry {
@@ -73,6 +72,11 @@ export interface ConstructorEntry {
   code:          string
   constructorId: string
   name:          string
+}
+
+export interface DriverConstructorLink {
+  driverCode:      string
+  constructorCode: string
 }
 
 // ============================================================
@@ -110,6 +114,13 @@ function mapQualifyingResult(result: JolpikaQualifyingResult): [string, DriverRe
     position:  parseInt(result.position, 10),
     fastestLap: false,
   }]
+}
+
+// Normalise un constructorId Jolpica ("red_bull") en code interne ("RED_BULL").
+// Source unique de la transformation — fetchConstructors et fetchDriverConstructorLinks
+// doivent produire des codes identiques, sinon getConstructorDriversMap ne matche plus.
+function toConstructorCode(constructorId: string): string {
+  return constructorId.toUpperCase().replace(/-/g, '_')
 }
 
 // ============================================================
@@ -185,7 +196,6 @@ export async function fetchDrivers(year: number): Promise<DriverEntry[]> {
   return data.MRData.DriverTable.Drivers.map((d) => ({
     season:    year,
     code:      d.code,
-    driverId:  d.driverId,
     firstName: d.givenName,
     lastName:  d.familyName,
     number:    parseInt(d.permanentNumber, 10),
@@ -198,8 +208,36 @@ export async function fetchConstructors(year: number): Promise<ConstructorEntry[
   }>(`/${year}/constructors`)
   return data.MRData.ConstructorTable.Constructors.map((c) => ({
     season:        year,
-    code:          c.constructorId.toUpperCase().replace(/-/g, '_'),   // "red_bull" → "RED_BULL"
+    code:          toConstructorCode(c.constructorId),   // "red_bull" → "RED_BULL"
     constructorId: c.constructorId,
     name:          c.name,
   }))
+}
+
+// Standings fin de saison / en cours — seule source Jolpica qui lie pilote ↔ écurie
+export async function fetchDriverConstructorLinks(year: number): Promise<DriverConstructorLink[]> {
+  const data = await jolpikaGet<{
+    MRData: {
+      StandingsTable: {
+        StandingsLists: {
+          DriverStandings: {
+            Driver:       JolpikaDriver
+            Constructors: JolpikaConstructor[]
+          }[]
+        }[]
+      }
+    }
+  }>(`/${year}/driverStandings`)
+
+  const standings = data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? []
+  return standings
+    .filter((s) => s.Constructors.length > 0)
+    .map((s) => ({
+      driverCode: s.Driver.code,
+      // Jolpica liste les écuries par ordre chronologique — on prend la dernière
+      // (= écurie actuelle). Edge case connu : si un pilote change d'équipe en cours
+      // de saison, getConstructorDriversMap sera inexact pour les courses antérieures
+      // au transfert (impact limité à l'item no_points_team, cas rarissime en F1).
+      constructorCode: toConstructorCode(s.Constructors[s.Constructors.length - 1].constructorId),
+    }))
 }

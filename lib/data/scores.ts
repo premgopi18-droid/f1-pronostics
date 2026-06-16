@@ -55,28 +55,32 @@ export async function getCurrentScoresForGP(
   return result
 }
 
-// Sessions dont les résultats sont confirmés mais pas encore scorées
-export async function getPendingSessionScores(): Promise<
-  { id: string; gpId: string; season: number; type: SessionType }[]
-> {
+// Sessions dont les résultats sont confirmés mais pas encore scorées pour cette ligue.
+// Filtrer par ligue permet : (1) de créer des ligues en cours de saison avec catch-up
+// automatique, (2) de rejouer indépendamment par ligue si le cron plante à mi-chemin.
+export async function getPendingSessionScores(
+  leagueId: string,
+): Promise<{ id: string; gpId: string; season: number; type: SessionType }[]> {
   const supabase = createServiceClient()
 
-  // PostgREST n'exécute pas de sous-requête SQL dans un filtre `in` (il attend une
-  // liste de valeurs, pas une string `SELECT …`). On récupère donc d'abord les
-  // session_id déjà scorés, puis on les exclut — garantit l'idempotence Phase 1.
-  const { data: scored, error: scoredError } = await supabase
-    .from('scores')
-    .select('session_id')
-  if (scoredError) throw scoredError
-  const scoredIds = new Set((scored ?? []).map((row) => row.session_id as string))
+  const [{ data: sessions, error: sessionsError }, { data: scored, error: scoredError }] =
+    await Promise.all([
+      supabase
+        .from('sessions')
+        .select('id, gp_id, season, type')
+        .not('results_confirmed_at', 'is', null),
+      supabase
+        .from('scores')
+        .select('session_id')
+        .eq('league_id', leagueId),
+    ])
 
-  const { data, error } = await supabase
-    .from('sessions')
-    .select('id, gp_id, season, type')
-    .not('results_confirmed_at', 'is', null)
+  if (sessionsError) throw sessionsError
+  if (scoredError)   throw scoredError
 
-  if (error) throw error
-  return (data ?? [])
+  const scoredIds = new Set((scored ?? []).map((r) => r.session_id as string))
+
+  return (sessions ?? [])
     .filter((row) => !scoredIds.has(row.id as string))
     .map((row) => ({
       id:     row.id as string,
@@ -161,17 +165,18 @@ export async function updateFinalScores(
   // GP), exécuté par le cron : un upsert groupé devrait réémettre toutes les
   // colonnes NOT NULL, on garde donc l'UPDATE ciblé. Cf. discussion PR #1.
   await Promise.all(
-    Array.from(scores.entries()).map(([key, score]) => {
+    Array.from(scores.entries()).map(async ([key, score]) => {
       const [userId, sessionType] = key.split(':')
       const sessionId = idByType.get(sessionType)
-      if (!sessionId) return Promise.resolve()
+      if (!sessionId) return
 
-      return supabase
+      const { error } = await supabase
         .from('scores')
         .update({ final_score: score.finalScore, computed_at: new Date().toISOString() })
         .eq('user_id', userId)
         .eq('league_id', leagueId)
         .eq('session_id', sessionId)
+      if (error) throw error
     }),
   )
 }

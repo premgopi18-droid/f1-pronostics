@@ -16,6 +16,7 @@ create or replace function public.create_league(
 )
 returns table (league_id uuid, invite_code text)
 language plpgsql
+set search_path = ''
 as $$
 declare
   v_league_id uuid;

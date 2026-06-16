@@ -15,7 +15,7 @@ export function JoinLeagueForm({ initialCode }: { initialCode?: string }) {
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="inviteCode" className="text-sm text-zinc-400">
-          Code d'invitation
+          {"Code d'invitation"}
         </label>
         <input
           id="inviteCode"

@@ -31,7 +31,10 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname
   const isAuthPath =
-    path.startsWith('/login') || path.startsWith('/api/auth')
+    path.startsWith('/login') ||
+    path.startsWith('/api/auth') ||
+    path.startsWith('/api/f1') ||
+    path.startsWith('/api/scores')
 
   if (!user && !isAuthPath) {
     return NextResponse.redirect(new URL('/login', request.url))

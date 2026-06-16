@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useSyncExternalStore } from 'react'
+
+const subscribeNoop = () => () => {}
+const getOrigin     = () => window.location.origin
+const getServerOrigin = () => ''
 
 export function InviteLink({ code }: { code: string }) {
-  const [fullUrl, setFullUrl] = useState('')
-  const [copied, setCopied]   = useState(false)
-
-  useEffect(() => {
-    setFullUrl(`${window.location.origin}/leagues/join?code=${code}`)
-  }, [code])
+  const origin  = useSyncExternalStore(subscribeNoop, getOrigin, getServerOrigin)
+  const fullUrl = origin ? `${origin}/leagues/join?code=${code}` : ''
+  const [copied, setCopied] = useState(false)
 
   const copy = async () => {
     try {
@@ -24,7 +25,7 @@ export function InviteLink({ code }: { code: string }) {
 
   return (
     <div className="bg-zinc-900 rounded-xl p-4 flex flex-col gap-3">
-      <p className="text-sm text-zinc-400">Lien d'invitation</p>
+      <p className="text-sm text-zinc-400">{"Lien d'invitation"}</p>
       <div className="flex items-center gap-2">
         <code className="text-zinc-300 text-sm font-mono bg-zinc-800 rounded px-3 py-1.5 flex-1 truncate min-w-0">
           {displayUrl}

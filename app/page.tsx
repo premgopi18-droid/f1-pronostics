@@ -15,11 +15,22 @@ export default async function HomePage() {
     .eq('id', user!.id)
     .single()
 
-  const { data: memberships } = await supabase
-    .from('league_members')
-    .select('league_id, leagues!league_id ( name )')
-    .eq('user_id', user!.id)
-    .eq('season', season)
+  const [{ data: memberships }, { data: nextGP }] = await Promise.all([
+    supabase
+      .from('league_members')
+      .select('league_id, leagues!league_id ( name )')
+      .eq('user_id', user!.id)
+      .eq('season', season),
+    supabase
+      .from('grands_prix')
+      .select('id, name, country, round')
+      .eq('season', season)
+      .eq('is_cancelled', false)
+      .is('scoring_finalized_at', null)
+      .order('round', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
   const leagues = (memberships ?? []).map((m) => {
     const league = (m.leagues as unknown) as { name: string } | null
@@ -43,6 +54,23 @@ export default async function HomePage() {
         <p className="text-zinc-400 text-sm">
           Bonjour, <span className="text-white font-medium">{profile?.pseudo}</span>
         </p>
+
+        {/* Prochain GP */}
+        {nextGP ? (
+          <Link
+            href={`/predictions/${nextGP.id as string}`}
+            className="flex items-center justify-between bg-red-600/10 hover:bg-red-600/20 border border-red-600/30 rounded-xl px-4 py-4 transition-colors"
+          >
+            <div>
+              <p className="text-xs text-red-400 font-medium uppercase tracking-wider mb-0.5">
+                Pronostics ouverts
+              </p>
+              <p className="text-white font-semibold">{nextGP.name as string}</p>
+              <p className="text-zinc-400 text-sm">{nextGP.country as string} · Round {nextGP.round as number}</p>
+            </div>
+            <span className="text-red-400 text-lg">→</span>
+          </Link>
+        ) : null}
 
         {/* Ligues */}
         {leagues.length > 0 ? (

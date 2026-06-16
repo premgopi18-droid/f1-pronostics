@@ -41,8 +41,10 @@ interface JolpikaRace {
   }
   date:   string   // race date YYYY-MM-DD
   time?:  string   // race time HH:MM:SSZ
-  FirstPractice?: { date: string; time: string }
-  Sprint?: { date: string; time: string }         // existe si sprint weekend
+  FirstPractice?:    { date: string; time: string }
+  Qualifying?:       { date: string; time: string }
+  SprintQualifying?: { date: string; time: string }  // shootout — Jolpica v1.4+
+  Sprint?:           { date: string; time: string }  // sprint race
   Results?:            JolpikaRaceResult[]
   QualifyingResults?:  JolpikaQualifyingResult[]
   SprintResults?:      JolpikaRaceResult[]
@@ -50,13 +52,18 @@ interface JolpikaRace {
 
 // Shapes renvoyés par les fonctions de sync (→ lib/data/)
 export interface CalendarEntry {
-  season:            number
-  round:             number
-  name:              string
-  circuit:           string
-  country:           string
-  isSprintWeekend:   boolean
-  weekendStartsAt:   string   // ISO 8601
+  season:              number
+  round:               number
+  name:                string
+  circuit:             string
+  country:             string
+  circuitShortName:    string        // locality Jolpica — best-effort pour OpenF1
+  isSprintWeekend:     boolean
+  weekendStartsAt:     string        // FP1 ou date course — ISO 8601
+  qualifyingStartsAt:  string
+  raceStartsAt:        string
+  sprintRaceStartsAt:  string | null
+  sprintQualStartsAt:  string | null
 }
 
 export interface DriverEntry {
@@ -172,19 +179,31 @@ export async function fetchCalendar(year: number): Promise<CalendarEntry[]> {
     `/${year}/races`,
   )
   return data.MRData.RaceTable.Races.map((race) => {
-    const fp1 = race.FirstPractice
+    const fp1  = race.FirstPractice
+    const qual = race.Qualifying
     const weekendStartsAt = fp1
       ? `${fp1.date}T${fp1.time}`
       : `${race.date}T${race.time ?? '00:00:00Z'}`
 
     return {
-      season:          parseInt(race.season, 10),
-      round:           parseInt(race.round, 10),
-      name:            race.raceName,
-      circuit:         race.Circuit.circuitName,
-      country:         race.Circuit.Location.country,
-      isSprintWeekend: !!race.Sprint,
+      season:             parseInt(race.season, 10),
+      round:              parseInt(race.round, 10),
+      name:               race.raceName,
+      circuit:            race.Circuit.circuitName,
+      country:            race.Circuit.Location.country,
+      circuitShortName:   race.Circuit.Location.locality,
+      isSprintWeekend:    !!race.Sprint,
       weekendStartsAt,
+      qualifyingStartsAt: qual
+        ? `${qual.date}T${qual.time}`
+        : `${race.date}T${race.time ?? '00:00:00Z'}`,  // fallback : date course
+      raceStartsAt:       `${race.date}T${race.time ?? '00:00:00Z'}`,
+      sprintRaceStartsAt: race.Sprint
+        ? `${race.Sprint.date}T${race.Sprint.time}`
+        : null,
+      sprintQualStartsAt: race.SprintQualifying
+        ? `${race.SprintQualifying.date}T${race.SprintQualifying.time}`
+        : null,
     }
   })
 }

@@ -60,12 +60,11 @@ export interface CalendarEntry {
 }
 
 export interface DriverEntry {
-  season:        number
-  code:          string
-  driverId:      string
-  firstName:     string
-  lastName:      string
-  number:        number
+  season:    number
+  code:      string
+  firstName: string
+  lastName:  string
+  number:    number
 }
 
 export interface ConstructorEntry {
@@ -73,6 +72,11 @@ export interface ConstructorEntry {
   code:          string
   constructorId: string
   name:          string
+}
+
+export interface DriverConstructorLink {
+  driverCode:      string
+  constructorCode: string
 }
 
 // ============================================================
@@ -185,7 +189,6 @@ export async function fetchDrivers(year: number): Promise<DriverEntry[]> {
   return data.MRData.DriverTable.Drivers.map((d) => ({
     season:    year,
     code:      d.code,
-    driverId:  d.driverId,
     firstName: d.givenName,
     lastName:  d.familyName,
     number:    parseInt(d.permanentNumber, 10),
@@ -202,4 +205,28 @@ export async function fetchConstructors(year: number): Promise<ConstructorEntry[
     constructorId: c.constructorId,
     name:          c.name,
   }))
+}
+
+// Standings fin de saison / en cours — seule source Jolpica qui lie pilote ↔ écurie
+export async function fetchDriverConstructorLinks(year: number): Promise<DriverConstructorLink[]> {
+  const data = await jolpikaGet<{
+    MRData: {
+      StandingsTable: {
+        StandingsLists: {
+          DriverStandings: {
+            Driver:       JolpikaDriver
+            Constructors: JolpikaConstructor[]
+          }[]
+        }[]
+      }
+    }
+  }>(`/${year}/driverStandings`)
+
+  const standings = data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? []
+  return standings
+    .filter((s) => s.Constructors.length > 0)
+    .map((s) => ({
+      driverCode:      s.Driver.code,
+      constructorCode: s.Constructors[0].constructorId.toUpperCase().replace(/-/g, '_'),
+    }))
 }

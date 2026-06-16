@@ -85,7 +85,7 @@ export async function markItemsResolved(items: PlayedItem[]): Promise<void> {
   const supabase = createServiceClient()
 
   await Promise.all(
-    items.map((item) => {
+    items.map(async (item) => {
       // Reconstructed DB payload (camelCase → snake_case) pour les Wild Cards
       // (points_stolen ajouté par resolveWildCards)
       const payload =
@@ -97,7 +97,7 @@ export async function markItemsResolved(items: PlayedItem[]): Promise<void> {
             }
           : undefined
 
-      return supabase
+      const { error } = await supabase
         .from('items_played')
         .update({
           was_shielded:   item.wasShielded,
@@ -106,6 +106,7 @@ export async function markItemsResolved(items: PlayedItem[]): Promise<void> {
           ...(payload ? { payload } : {}),
         })
         .eq('id', item.id)
+      if (error) throw error
     }),
   )
 }

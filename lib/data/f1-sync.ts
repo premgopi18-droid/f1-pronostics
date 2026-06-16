@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
 import type { SessionType } from '@/lib/scoring/types'
-import type { CalendarEntry, ConstructorEntry, DriverEntry } from '@/lib/f1/jolpica'
+import type { CalendarEntry, ConstructorEntry, DriverConstructorLink, DriverEntry } from '@/lib/f1/jolpica'
 
 // Appelé depuis /api/f1/sync — synchronise calendrier + pilotes + écuries depuis Jolpica
 
@@ -39,6 +39,39 @@ export async function upsertDrivers(entries: DriverEntry[]): Promise<void> {
       { onConflict: 'season,code' },
     )
   if (error) throw error
+}
+
+// Lie chaque pilote à son écurie pour la saison — appelé après upsertConstructors + upsertDrivers
+export async function upsertDriverConstructorLinks(
+  season: number,
+  links:  DriverConstructorLink[],
+): Promise<void> {
+  if (links.length === 0) return
+  const supabase = createServiceClient()
+
+  // Résolution code écurie → UUID pour cette saison
+  const constructorCodes = [...new Set(links.map((l) => l.constructorCode))]
+  const { data: constructors, error: constructorsError } = await supabase
+    .from('constructors')
+    .select('id, code')
+    .eq('season', season)
+    .in('code', constructorCodes)
+  if (constructorsError) throw constructorsError
+
+  const codeToId = new Map((constructors ?? []).map((c) => [c.code as string, c.id as string]))
+
+  await Promise.all(
+    links
+      .filter((l) => codeToId.has(l.constructorCode))
+      .map(async (l) => {
+        const { error } = await supabase
+          .from('drivers')
+          .update({ constructor_id: codeToId.get(l.constructorCode)! })
+          .eq('season', season)
+          .eq('code', l.driverCode)
+        if (error) throw error
+      }),
+  )
 }
 
 export async function upsertGrandsPrix(

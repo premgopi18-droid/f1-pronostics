@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { applyItemEffects, resolveWildCards } from './resolve-items'
-import type { BreakdownEntry, DriverResult, PlayedItem, ResolutionContext, ScoreKey, SessionScore } from './types'
+import type { BreakdownEntry, DriverResult, ItemPayload, PlayedItem, ResolutionContext, ScoreKey, SessionScore } from './types'
+
+type WildCardPayload = Extract<ItemPayload, { type: 'wild_card' }>
 
 // ============================================================
 // Helpers
@@ -58,7 +60,7 @@ describe('Monaco §6 — exemple intégration complet', () => {
     expect(scores.get('bob:race')!.finalScore).toBe(55)
 
     const wc = items.find(i => i.payload.type === 'wild_card')!
-    expect((wc.payload as any).pointsStolen).toBe(11)
+    expect((wc.payload as WildCardPayload).pointsStolen).toBe(11)
     expect(wc.effectApplied).toBe(true)
     expect(items.find(i => i.payload.type === 'double_points')!.effectApplied).toBe(true)
   })
@@ -243,7 +245,7 @@ describe('Wild Card', () => {
 
     expect(scores.get('alice:race')!.finalScore).toBe(0)
     expect(scores.get('bob:race')!.finalScore).toBe(30)
-    expect((items[0].payload as any).pointsStolen).toBe(0)
+    expect((items[0].payload as WildCardPayload).pointsStolen).toBe(0)
     expect(items[0].effectApplied).toBe(true)
   })
 

@@ -21,7 +21,15 @@ export async function createLeagueAction(
   if (name.length < 2 || name.length > 50) return { error: 'Nom invalide (2–50 caractères)' }
   if (isNaN(maxMembers) || maxMembers < 3 || maxMembers > 20) return { error: 'Taille invalide (3–20 joueurs)' }
 
-  const { leagueId } = await createLeague(user.id, name, maxMembers, getCurrentSeason())
+  let leagueId: string
+  try {
+    const result = await createLeague(user.id, name, maxMembers, getCurrentSeason())
+    leagueId = result.leagueId
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Erreur inattendue' }
+  }
+
+  // redirect() lance une exception NEXT_REDIRECT → doit rester hors du try/catch
   redirect(`/leagues/${leagueId}`)
 }
 

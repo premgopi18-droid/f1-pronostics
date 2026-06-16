@@ -60,28 +60,29 @@ export async function createLeague(
 ): Promise<{ leagueId: string; inviteCode: string }> {
   const supabase = createServiceClient()
 
-  // Code court lisible — retire les tirets du UUID et prend 8 chars
-  const inviteCode = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()
+  // Inventaire d'items du créateur — passé à la fonction transactionnelle pour
+  // garder ITEM_USES_PER_SEASON comme source unique (pas de duplication en SQL).
+  const items = Object.entries(ITEM_USES_PER_SEASON).map(([itemType, uses]) => ({
+    item_type:      itemType,
+    uses_remaining: uses,
+  }))
 
-  const { data: league, error: leagueError } = await supabase
-    .from('leagues')
-    .insert({ name, invite_code: inviteCode, invite_open: true, max_members: maxMembers })
-    .select('id')
+  // RPC transactionnelle (cf. supabase/migrations/..._create_league_function.sql) :
+  // ligue + admin + items dans une seule transaction, code d'invitation généré
+  // côté Postgres avec retry sur collision UNIQUE. Évite toute ligue orpheline.
+  const { data, error } = await supabase
+    .rpc('create_league', {
+      p_name:        name,
+      p_max_members: maxMembers,
+      p_user_id:     userId,
+      p_season:      season,
+      p_items:       items,
+    })
     .single()
 
-  if (leagueError) throw leagueError
-
-  const leagueId = league.id as string
-
-  const { error: memberError } = await supabase
-    .from('league_members')
-    .insert({ league_id: leagueId, user_id: userId, season, is_admin: true })
-
-  if (memberError) throw memberError
-
-  await initUserItems(userId, leagueId, season)
-
-  return { leagueId, inviteCode }
+  if (error) throw error
+  const row = data as { league_id: string; invite_code: string }
+  return { leagueId: row.league_id, inviteCode: row.invite_code }
 }
 
 export async function joinLeagueByCode(

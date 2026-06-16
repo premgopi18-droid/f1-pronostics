@@ -25,8 +25,10 @@ export default async function LeaguePage({
 
   if (!league) notFound()
 
-  // Deux requêtes séparées — pas de FK league_members → scores, join impossible via PostgREST
-  const [{ data: members }, { data: scoreRows }] = await Promise.all([
+  // Requêtes séparées — pas de FK league_members → scores/season_scores, join impossible
+  // via PostgREST. Formule de classement (data-model.md) : SUM(scores.final_score) +
+  // season_scores.total (bonus WDC/WCC de fin de saison, 1 ligne par user).
+  const [{ data: members }, { data: scoreRows }, { data: seasonRows }] = await Promise.all([
     supabase
       .from('league_members')
       .select('user_id, is_admin, profiles!user_id ( pseudo, avatar_key, is_deleted )')
@@ -37,15 +39,26 @@ export default async function LeaguePage({
       .select('user_id, final_score, exact_positions')
       .eq('league_id', id)
       .eq('season', season),
+    supabase
+      .from('season_scores')
+      .select('user_id, total')
+      .eq('league_id', id)
+      .eq('season', season),
   ])
 
-  // Agrégation côté TypeScript : somme des scores par user_id
+  // Agrégation côté TypeScript : somme des scores de session par user_id
   const totalByUser  = new Map<string, number>()
   const exactByUser  = new Map<string, number>()
   for (const row of scoreRows ?? []) {
     const uid = row.user_id as string
     totalByUser.set(uid, (totalByUser.get(uid) ?? 0) + (row.final_score as number ?? 0))
     exactByUser.set(uid, (exactByUser.get(uid) ?? 0) + (row.exact_positions as number ?? 0))
+  }
+
+  // Bonus saison (WDC/WCC) — 1 ligne par user, ajouté au total
+  for (const row of seasonRows ?? []) {
+    const uid = row.user_id as string
+    totalByUser.set(uid, (totalByUser.get(uid) ?? 0) + (row.total as number ?? 0))
   }
 
   type Member = {

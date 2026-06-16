@@ -11,9 +11,13 @@ export function InviteLink({ code }: { code: string }) {
   }, [code])
 
   const copy = async () => {
-    await navigator.clipboard.writeText(fullUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(fullUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard indisponible (permission refusée, contexte non sécurisé) — pas de feedback positif
+    }
   }
 
   const displayUrl = fullUrl || `/leagues/join?code=${code}`

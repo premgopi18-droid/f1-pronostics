@@ -26,15 +26,19 @@ export async function upsertDrivers(entries: DriverEntry[]): Promise<void> {
   // Note : entries n'ont pas de constructorCode — le mapping écurie→pilote est fait
   // séparément par upsertDriverConstructorLinks() avec les standings Jolpica. Les
   // drivers sont donc upsertés ici sans constructor_id.
+  // Jolpica renvoie parfois code=undefined pour les réservistes sans trigramme officiel
+  const valid = entries.filter((d) => d.code)
+  if (valid.length === 0) return
+
   const { error } = await supabase
     .from('drivers')
     .upsert(
-      entries.map((d) => ({
+      valid.map((d) => ({
         season:     d.season,
         code:       d.code,
         first_name: d.firstName,
         last_name:  d.lastName,
-        number:     d.number,
+        number:     Number.isNaN(d.number) ? null : d.number,
       })),
       { onConflict: 'season,code' },
     )

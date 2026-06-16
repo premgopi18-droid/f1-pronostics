@@ -406,3 +406,8 @@ Ces sujets ne bloquent pas le démarrage mais doivent être adressés avant le l
 À traiter quand le schéma de données est stabilisé (plus aucune migration en cours), avant les premiers vrais utilisateurs.
 
 - [ ] **Tests d'intégration — couche data (`lib/data/`)** : monter `supabase start` + fixtures de seed et couvrir les fonctions Supabase (`upsertSessions`, `getPendingSessionScores`, `upsertSessionResults`, etc.). Les mocks Supabase ne valent rien — seule une vraie DB valide les requêtes PostgREST (embeds, filtres, upsert conflicts). Bloquer tant que le schéma bouge encore.
+- [ ] **Durcissement sécurité DB (advisor Supabase)** — à traiter **avant ouverture publique**. Warnings remontés sur les fonctions des migrations fondation (PR #7 a déjà corrigé `create_league`) :
+  - `search_path` mutable sur `enforce_min_one_admin`, `enforce_max_members`, `handle_new_user` → ajouter `set search_path = ''` (ou schéma explicite).
+  - Fonctions `SECURITY DEFINER` exécutables par `anon`/`authenticated` via `/rest/v1/rpc/...` : `handle_new_user`, `is_member_of_league`, `shared_league` → `REVOKE EXECUTE` (ou passer en `SECURITY INVOKER` si pertinent) pour qu'elles ne soient pas appelables depuis l'API publique.
+  - **Leaked password protection** désactivée côté Supabase Auth → l'activer (vérification HaveIBeenPwned).
+  - Vérifier via `get_advisors(security)` que la liste est vide après coup.

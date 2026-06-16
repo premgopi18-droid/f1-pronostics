@@ -60,6 +60,15 @@ export async function upsertDriverConstructorLinks(
 
   const codeToId = new Map((constructors ?? []).map((c) => [c.code as string, c.id as string]))
 
+  // Signale les codes écurie introuvables dans `constructors` (sync incomplet ou
+  // décalage de code) — sinon le pilote garde constructor_id null sans trace.
+  const missingCodes = constructorCodes.filter((code) => !codeToId.has(code))
+  if (missingCodes.length > 0) {
+    console.warn(
+      `upsertDriverConstructorLinks : écuries introuvables pour la saison ${season} — ${missingCodes.join(', ')}`,
+    )
+  }
+
   await Promise.all(
     links
       .filter((l) => codeToId.has(l.constructorCode))

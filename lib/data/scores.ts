@@ -55,22 +55,33 @@ export async function getCurrentScoresForGP(
   return result
 }
 
-// Sessions dont les résultats sont confirmés mais pas encore scorées
-export async function getPendingSessionScores(): Promise<
-  { id: string; gpId: string; season: number; type: SessionType }[]
-> {
+// Sessions dont les résultats sont confirmés mais pas encore scorées pour cette ligue.
+// Filtrer par ligue permet : (1) de créer des ligues en cours de saison avec catch-up
+// automatique, (2) de rejouer indépendamment par ligue si le cron plante à mi-chemin.
+export async function getPendingSessionScores(
+  leagueId: string,
+): Promise<{ id: string; gpId: string; season: number; type: SessionType }[]> {
   const supabase = createServiceClient()
 
-  // LEFT JOIN implicite : PostgREST retourne scores:[] pour les sessions non encore scorées.
-  // Évite un full scan de toute la table scores.
-  const { data, error } = await supabase
-    .from('sessions')
-    .select('id, gp_id, season, type, scores(id)')
-    .not('results_confirmed_at', 'is', null)
+  const [{ data: sessions, error: sessionsError }, { data: scored, error: scoredError }] =
+    await Promise.all([
+      supabase
+        .from('sessions')
+        .select('id, gp_id, season, type')
+        .not('results_confirmed_at', 'is', null),
+      supabase
+        .from('scores')
+        .select('session_id')
+        .eq('league_id', leagueId),
+    ])
 
-  if (error) throw error
-  return (data ?? [])
-    .filter((row) => (row.scores as { id: string }[]).length === 0)
+  if (sessionsError) throw sessionsError
+  if (scoredError)   throw scoredError
+
+  const scoredIds = new Set((scored ?? []).map((r) => r.session_id as string))
+
+  return (sessions ?? [])
+    .filter((row) => !scoredIds.has(row.id as string))
     .map((row) => ({
       id:     row.id as string,
       gpId:   row.gp_id as string,

@@ -1,4 +1,4 @@
-import { SCORE_TABLES, FASTEST_LAP_BONUS } from './constants'
+import { SCORE_TABLES, POSITIONS_TO_SCORE, FASTEST_LAP_BONUS } from './constants'
 import type { SessionType, DriverResult, SessionScore, BreakdownEntry } from './types'
 
 export function computeBaseScore(
@@ -7,7 +7,7 @@ export function computeBaseScore(
   sessionType: SessionType,
 ): { score: number; exactPositions: number; breakdown: BreakdownEntry[] } {
   const table = SCORE_TABLES[sessionType] as Record<number, number>
-  const positionsToScore = sessionType === 'sprint_race' ? 8 : 10
+  const positionsToScore = POSITIONS_TO_SCORE[sessionType]
   let score = 0
   let exactPositions = 0
   const breakdown: BreakdownEntry[] = []

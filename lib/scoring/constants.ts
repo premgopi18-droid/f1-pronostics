@@ -5,9 +5,18 @@ export const SCORE_TABLES = {
   sprint_race:       { 0: 3, 1: 1 },
 } as const
 
+// Nombre de positions à pronostiquer/scorer par session.
+// La course se pronostique en entier (grille 2026 = 22 pilotes, 11 écuries).
+export const POSITIONS_TO_SCORE = {
+  qualifying:        10,
+  race:              22,
+  sprint_qualifying: 5,
+  sprint_race:       8,
+} as const
+
 export const SEASON_SCORE_TABLE = { 0: 8, 1: 3, 2: 1 } as const
 export const SEASON_PODIUM_BONUS = 15
-export const FASTEST_LAP_BONUS  = 1
+export const FASTEST_LAP_BONUS  = 7
 
 export const ITEM_BONUS_POINTS = {
   dnf_prediction: 8,

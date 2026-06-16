@@ -130,7 +130,7 @@ export const SCORE_TABLES = {
 
 export const SEASON_SCORE_TABLE = { 0: 8, 1: 3, 2: 1 } as const
 export const SEASON_PODIUM_BONUS = 15
-export const FASTEST_LAP_BONUS  = 1
+export const FASTEST_LAP_BONUS  = 7
 
 export const ITEM_BONUS_POINTS = {
   dnf_prediction:  8,

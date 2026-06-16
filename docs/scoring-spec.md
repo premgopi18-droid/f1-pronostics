@@ -38,9 +38,9 @@
 | `sprint_qualifying` | 3 | 1 | — | 0 |
 | `sprint_race` | 3 | 1 | — | 0 |
 
-Longueur à scorer : **10 positions** pour `qualifying`, `race`, `sprint_qualifying` — **8 positions** pour `sprint_race`.
+Longueur à scorer (`POSITIONS_TO_SCORE`) : **10** pour `qualifying`, **5** pour `sprint_qualifying`, **8** pour `sprint_race` ; pour `race` = **toute la grille engagée** (nombre de pilotes au départ — 22 en 2026). La valeur `22` dans `POSITIONS_TO_SCORE.race` est la grille pleine 2026 ; scorer une grille plus courte est sans effet (les positions absentes rapportent 0). La validation `is_valid`, elle, doit suivre le nombre réel de pilotes engagés.
 
-Bonus fastest lap (`race` uniquement) : **+1 pt** si le pilote prédit dans `fastest_lap_predictions` correspond au `fastest_lap = true` dans `session_results`.
+Bonus fastest lap (`race` uniquement) : **+7 pts** si le pilote prédit dans `fastest_lap_predictions` correspond au `fastest_lap = true` dans `session_results`.
 
 ### 2.2 Algorithme — score brut
 
@@ -55,13 +55,17 @@ const SCORE_TABLES = {
   sprint_race:       { 0: 3, 1: 1 },
 } as const
 
+const POSITIONS_TO_SCORE = {
+  qualifying: 10, race: 22, sprint_qualifying: 5, sprint_race: 8,
+} as const
+
 function computeBaseScore(
   entries: string[],
   results: Map<string, DriverResult>,  // session_results (position null = DNF/DNS)
   sessionType: SessionType,
 ): { score: number; exactPositions: number; breakdown: BreakdownEntry[] } {
   const table = SCORE_TABLES[sessionType]
-  const n = sessionType === 'sprint_race' ? 8 : 10
+  const n = POSITIONS_TO_SCORE[sessionType]
   let score = 0
   let exactPositions = 0
   const breakdown: BreakdownEntry[] = []
@@ -328,6 +332,8 @@ ORDER BY p.is_deleted ASC, total_season DESC, total_exact_positions DESC
 
 ### 6.2 Pronostics
 
+> **Exemple simplifié à 10 positions** pour la lisibilité. En conditions réelles, une prédiction course valide couvre **toute la grille engagée** (22 en 2026) ; ici les positions 11+ sont omises (elles rapporteraient 0 dans ce scénario, le calcul reste identique).
+
 **Alice** — entries : `["VER","PER","LEC","NOR","PIA","RUS","ALO","SAI","HAM","STR"]`, fastest lap : NOR
 **Bob** — entries : `["LEC","VER","NOR","PIA","RUS","ALO","SAI","HAM","STR","OCO"]`, fastest lap : VER
 
@@ -347,9 +353,9 @@ ORDER BY p.is_deleted ASC, total_season DESC, total_exact_positions DESC
 | 8 | SAI | 7 | 1 | 2 |
 | 9 | HAM | 8 | 1 | 2 |
 | 10 | STR | 9 | 1 | 2 |
-| FL | NOR | NOR ✓ | | **+1** |
+| FL | NOR | NOR ✓ | | **+7** |
 
-Alice : **base_score = 22 pts**, exact_positions = 1
+Alice : **base_score = 28 pts** (21 position + 7 FL), exact_positions = 1
 
 **Bob :**
 
@@ -385,13 +391,13 @@ Bob : **base_score = 44 pts**, exact_positions = 8
 **Étape 3 — Bloquer un pilote :** aucun
 
 **Étape 4 — Wild Card :**
-- Snapshot Alice race score = 22
-- Stolen = floor(22 / 2) = **11**
-- Alice : 22 − 11 = **11**
-- Bob : 44 + 11 = **55**
+- Snapshot Alice race score = 28
+- Stolen = floor(28 / 2) = **14**
+- Alice : 28 − 14 = **14**
+- Bob : 44 + 14 = **58**
 
 **Étape 5 — Dernier tour de magie (Alice, race) :**
-- Alice : 11 × 2 = **22**
+- Alice : 14 × 2 = **28**
 
 **Étape 6 — Bonus items :** aucun
 
@@ -399,10 +405,10 @@ Bob : **base_score = 44 pts**, exact_positions = 8
 
 | Joueur | base_score | Items | final_score | exact_positions |
 |---|---|---|---|---|
-| Alice | 22 | −11 (wild card) × 2 (double) | **22** | 1 |
-| Bob | 44 | +11 (wild card) | **55** | 8 |
+| Alice | 28 | −14 (wild card) × 2 (double) | **28** | 1 |
+| Bob | 44 | +14 (wild card) | **58** | 8 |
 
-> **Comportement intentionnel** : Bob vole 11 pts à Alice, mais Alice double ce qui lui reste — elle retrouve son score de départ. Bob conserve les 11 pts volés en plus de son propre score. Le ×2 joué par la victime atténue considérablement le Wild Card adverse.
+> **Comportement intentionnel** : Bob vole 14 pts à Alice, mais Alice double ce qui lui reste — elle retrouve son score de départ. Bob conserve les 14 pts volés en plus de son propre score. Le ×2 joué par la victime atténue considérablement le Wild Card adverse.
 
 ---
 
@@ -411,9 +417,9 @@ Bob : **base_score = 44 pts**, exact_positions = 8
 | Cas | Comportement |
 |---|---|
 | Prédiction non soumise ou invalide | `base_score = 0`, `final_score = 0`, `exact_positions = 0` pour la session |
-| Pilote DNF/DNS dans la prédiction (top 10) | Ce pilote rapporte 0 pt (position = null dans session_results) |
+| Pilote DNF/DNS dans la prédiction | Ce pilote rapporte 0 pt (position = null dans session_results) |
 | Block driver sur un pilote DNS/DNF | L'item est consommé sans effet (`effect_applied = false`) — notification envoyée |
-| Block driver sur le pilote prédit en fastest lap | Block ne zero que les points de position. Le +1 FL survit — c'est une prédiction séparée dans `fastest_lap_predictions` |
+| Block driver sur le pilote prédit en fastest lap | Block ne zero que les points de position. Le +7 FL survit — c'est une prédiction séparée dans `fastest_lap_predictions` |
 | Wild Card sur un joueur avec 0 pt | `floor(0/2) = 0` — item joué, aucun effet (`effect_applied = true`, `points_stolen = 0`) |
 | Wild Cards mutuels (A vole B et B vole A) | Snapshot pris avant résolution — chaque vol calculé sur le score original. Résolution parallèle, pas en cascade |
 | `dnf_prediction` sur un pilote DNS (n'a pas pris le départ) | Item wasted (`effect_applied = false`) — seul `dnf = true` dans session_results déclenche le bonus |

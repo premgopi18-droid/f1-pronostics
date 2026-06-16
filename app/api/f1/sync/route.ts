@@ -19,32 +19,29 @@ import {
 } from '@/lib/data/f1-sync'
 import { upsertSessionResults } from '@/lib/data/session-results'
 import { createServiceClient } from '@/lib/supabase'
+import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import type { DriverResult, SessionType } from '@/lib/scoring/types'
 
-const CURRENT_SEASON = 2025
-
-function isAuthorized(request: Request): boolean {
-  return request.headers.get('x-cron-secret') === process.env.CRON_SECRET
-}
-
 export async function POST(request: Request): Promise<Response> {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const season = getCurrentSeason()
 
   try {
     // ── Phase 1 : récupération des données F1 (tout en parallèle) ──────────
     const [calendar, drivers, constructors, links] = await Promise.all([
-      fetchCalendar(CURRENT_SEASON),
-      fetchDrivers(CURRENT_SEASON),
-      fetchConstructors(CURRENT_SEASON),
-      fetchDriverConstructorLinks(CURRENT_SEASON),
+      fetchCalendar(season),
+      fetchDrivers(season),
+      fetchConstructors(season),
+      fetchDriverConstructorLinks(season),
     ])
 
     // ── Phase 2 : sync base de données ─────────────────────────────────────
     await upsertConstructors(constructors)
     await upsertDrivers(drivers)
-    await upsertDriverConstructorLinks(CURRENT_SEASON, links)
+    await upsertDriverConstructorLinks(season, links)
 
     const gpRoundToId = await upsertGrandsPrix(calendar)
 
@@ -63,7 +60,7 @@ export async function POST(request: Request): Promise<Response> {
         if (entry.sprintQualStartsAt) sessions.push({ type: 'sprint_qualifying', startsAt: entry.sprintQualStartsAt })
         if (entry.sprintRaceStartsAt) sessions.push({ type: 'sprint_race',       startsAt: entry.sprintRaceStartsAt })
       }
-      await upsertSessions(gpId, CURRENT_SEASON, sessions)
+      await upsertSessions(gpId, season, sessions)
     }
 
     // ── Phase 3 : confirmation des sessions passées non encore confirmées ───
@@ -114,6 +111,6 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ gps: calendar.length, sessionsConfirmed })
   } catch (error) {
     console.error('[api/f1/sync]', error)
-    return Response.json({ error: String(error) }, { status: 500 })
+    return Response.json({ error: 'Internal error' }, { status: 500 })
   }
 }

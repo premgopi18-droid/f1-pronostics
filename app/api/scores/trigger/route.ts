@@ -11,34 +11,31 @@ import {
 import { getFastestLapForSession, getPredictionsForSession } from '@/lib/data/predictions'
 import { getConstructorDriversMap, getResultsForSession } from '@/lib/data/session-results'
 import { getItemsForGP, markItemsResolved } from '@/lib/data/items'
-import { getSessionId } from '@/lib/data/f1-sync'
+import { getSessionsForGP } from '@/lib/data/f1-sync'
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
 import { applyItemEffects } from '@/lib/scoring/resolve-items'
+import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import type { ResolutionContext } from '@/lib/scoring/types'
 
-const CURRENT_SEASON = 2025
-
-function isAuthorized(request: Request): boolean {
-  return request.headers.get('x-cron-secret') === process.env.CRON_SECRET
-}
-
 export async function POST(request: Request): Promise<Response> {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const season = getCurrentSeason()
 
   try {
     let sessionsScored = 0
     let gpsFinalized   = 0
 
-    const leagues = await getActiveLeagues(CURRENT_SEASON)
+    const leagues = await getActiveLeagues(season)
 
     // ── Phase 1 : scores de base par ligue par session en attente ──────────
     for (const leagueId of leagues) {
       const pendingSessions = await getPendingSessionScores(leagueId)
       if (pendingSessions.length === 0) continue
 
-      const members = await getLeagueMembers(leagueId, CURRENT_SEASON)
+      const members = await getLeagueMembers(leagueId, season)
       if (members.length === 0) continue
 
       for (const session of pendingSessions) {
@@ -70,10 +67,11 @@ export async function POST(request: Request): Promise<Response> {
     const pendingGPs = await getPendingItemResolutions()
 
     for (const gp of pendingGPs) {
-      const [raceSessionId, qualSessionId] = await Promise.all([
-        getSessionId(gp.id, 'race'),
-        getSessionId(gp.id, 'qualifying'),
-      ])
+      // 1 requête batch pour toutes les sessions du GP (vs N getSessionId)
+      const sessions       = await getSessionsForGP(gp.id)
+      const sessionIdByType = new Map(sessions.map((s) => [s.type, s.id]))
+      const raceSessionId  = sessionIdByType.get('race')
+      const qualSessionId  = sessionIdByType.get('qualifying')
 
       if (!raceSessionId || !qualSessionId) continue
 
@@ -114,6 +112,6 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ sessionsScored, gpsFinalized })
   } catch (error) {
     console.error('[api/scores/trigger]', error)
-    return Response.json({ error: String(error) }, { status: 500 })
+    return Response.json({ error: 'Internal error' }, { status: 500 })
   }
 }

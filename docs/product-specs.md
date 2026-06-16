@@ -400,3 +400,9 @@ Ces sujets ne bloquent pas le démarrage mais doivent être adressés avant le l
 - [ ] **Statut "forfait"** — libellé humoristique à définir pour les joueurs qui n'ont pas soumis de pronostic
 - [ ] **Légal** — CGU, politique de confidentialité, mention âge minimum (prévoir avant ouverture publique)
 - [ ] **Unicité et modération des pseudos** — règles de validation (longueur, caractères autorisés, mots interdits)
+
+## 9. Dette technique & sujets engineering différés
+
+À traiter quand le schéma de données est stabilisé (plus aucune migration en cours), avant les premiers vrais utilisateurs.
+
+- [ ] **Tests d'intégration — couche data (`lib/data/`)** : monter `supabase start` + fixtures de seed et couvrir les fonctions Supabase (`upsertSessions`, `getPendingSessionScores`, `upsertSessionResults`, etc.). Les mocks Supabase ne valent rien — seule une vraie DB valide les requêtes PostgREST (embeds, filtres, upsert conflicts). Bloquer tant que le schéma bouge encore.

@@ -38,7 +38,7 @@
 | `sprint_qualifying` | 3 | 1 | — | 0 |
 | `sprint_race` | 3 | 1 | — | 0 |
 
-Longueur à scorer (`POSITIONS_TO_SCORE`) : **10** pour `qualifying`, **22** pour `race` (ordre complet de la grille — 22 pilotes en 2026), **5** pour `sprint_qualifying`, **8** pour `sprint_race`.
+Longueur à scorer (`POSITIONS_TO_SCORE`) : **10** pour `qualifying`, **5** pour `sprint_qualifying`, **8** pour `sprint_race` ; pour `race` = **toute la grille engagée** (nombre de pilotes au départ — 22 en 2026). La valeur `22` dans `POSITIONS_TO_SCORE.race` est la grille pleine 2026 ; scorer une grille plus courte est sans effet (les positions absentes rapportent 0). La validation `is_valid`, elle, doit suivre le nombre réel de pilotes engagés.
 
 Bonus fastest lap (`race` uniquement) : **+7 pts** si le pilote prédit dans `fastest_lap_predictions` correspond au `fastest_lap = true` dans `session_results`.
 
@@ -331,6 +331,8 @@ ORDER BY p.is_deleted ASC, total_season DESC, total_exact_positions DESC
 | DNF | PER | |
 
 ### 6.2 Pronostics
+
+> **Exemple simplifié à 10 positions** pour la lisibilité. En conditions réelles, une prédiction course valide couvre **toute la grille engagée** (22 en 2026) ; ici les positions 11+ sont omises (elles rapporteraient 0 dans ce scénario, le calcul reste identique).
 
 **Alice** — entries : `["VER","PER","LEC","NOR","PIA","RUS","ALO","SAI","HAM","STR"]`, fastest lap : NOR
 **Bob** — entries : `["LEC","VER","NOR","PIA","RUS","ALO","SAI","HAM","STR","OCO"]`, fastest lap : VER

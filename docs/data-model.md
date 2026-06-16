@@ -216,7 +216,7 @@ Une ligne par user par session. L'ordre prédit est stocké en JSONB — pas de 
 | season | INTEGER | |
 | entries | JSONB | `["VER","NOR","LEC","HAM","RUS","ALO","SAI","PIA","STR","OCO"]` — ordre = classement prédit |
 | submitted_at | TIMESTAMPTZ | |
-| is_valid | BOOLEAN | false si prédiction incomplète ou non soumise. Longueur attendue : 10 pour `qualifying`, 22 pour `race` (ordre complet de la grille), 5 pour `sprint_qualifying`, 8 pour `sprint_race`. La validation est session-type-dépendante. |
+| is_valid | BOOLEAN | false si prédiction incomplète ou non soumise. Longueur attendue : 10 pour `qualifying`, 5 pour `sprint_qualifying`, 8 pour `sprint_race` ; pour `race` = **nombre de pilotes engagés** pour la session (toute la grille au départ — 22 en 2026, mais suit le line-up réel en cas de forfait). La validation est session-type-dépendante. |
 
 **Contrainte :** UNIQUE (user_id, session_id)
 

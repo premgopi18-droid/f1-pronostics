@@ -226,7 +226,13 @@ export async function fetchDriverConstructorLinks(year: number): Promise<DriverC
   return standings
     .filter((s) => s.Constructors.length > 0)
     .map((s) => ({
-      driverCode:      s.Driver.code,
-      constructorCode: s.Constructors[0].constructorId.toUpperCase().replace(/-/g, '_'),
+      driverCode: s.Driver.code,
+      // Jolpica liste les écuries par ordre chronologique — on prend la dernière
+      // (= écurie actuelle). Edge case connu : si un pilote change d'équipe en cours
+      // de saison, getConstructorDriversMap sera inexact pour les courses antérieures
+      // au transfert (impact limité à l'item no_points_team, cas rarissime en F1).
+      constructorCode: s.Constructors[s.Constructors.length - 1].constructorId
+        .toUpperCase()
+        .replace(/-/g, '_'),
     }))
 }

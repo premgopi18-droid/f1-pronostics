@@ -13,6 +13,43 @@ const SESSION_LABELS: Record<SessionType, string> = {
   sprint_race:       'Sprint Race',
 }
 
+// Ligne de classement partagée par « Total GP » et le détail par session.
+// `emphasis` : pseudo en gras (total) vs plus discret (session).
+function ScoreRow({
+  rank,
+  pseudo,
+  points,
+  exactPositions,
+  isMe,
+  isDeleted,
+  emphasis,
+}: {
+  rank:           number
+  pseudo:         string
+  points:         number
+  exactPositions: number
+  isMe:           boolean
+  isDeleted:      boolean
+  emphasis:       boolean
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
+        isMe ? 'bg-zinc-800' : 'bg-zinc-900'
+      } ${isDeleted ? 'opacity-50' : ''}`}
+    >
+      <span className="text-zinc-500 text-sm w-5 text-right">{rank}</span>
+      <span className={`flex-1 ${emphasis ? 'font-medium' : 'text-sm'} ${isDeleted ? 'text-zinc-500' : 'text-white'}`}>
+        {pseudo}
+      </span>
+      <span className="text-white font-semibold tabular-nums">{points} pts</span>
+      {exactPositions > 0 && (
+        <span className="text-zinc-500 text-xs tabular-nums ml-1">{exactPositions}✓</span>
+      )}
+    </div>
+  )
+}
+
 export default async function GPScoresPage({
   params,
 }: {
@@ -33,7 +70,7 @@ export default async function GPScoresPage({
   ] = await Promise.all([
     supabase
       .from('grands_prix')
-      .select('id, name, country, round, scoring_finalized_at')
+      .select('id, name, country, round, season, scoring_finalized_at')
       .eq('id', gpId)
       .single(),
     supabase
@@ -52,7 +89,7 @@ export default async function GPScoresPage({
       .single(),
   ])
 
-  if (!gp || !league) notFound()
+  if (!gp || !league || gp.season !== season) notFound()
 
   const sessionIds = (sessions ?? []).map((s) => s.id as string)
 
@@ -61,6 +98,7 @@ export default async function GPScoresPage({
         .from('scores')
         .select('user_id, session_id, final_score, exact_positions')
         .eq('league_id', leagueId)
+        .eq('season', season)
         .in('session_id', sessionIds)
     : { data: [] }
 
@@ -171,21 +209,16 @@ export default async function GPScoresPage({
             <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Total GP</h2>
             <div className="flex flex-col gap-1">
               {memberScores.map((m, i) => (
-                <div
+                <ScoreRow
                   key={m.userId}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
-                    m.isMe ? 'bg-zinc-800' : 'bg-zinc-900'
-                  } ${m.isDeleted ? 'opacity-50' : ''}`}
-                >
-                  <span className="text-zinc-500 text-sm w-5 text-right">{i + 1}</span>
-                  <span className={`flex-1 font-medium ${m.isDeleted ? 'text-zinc-500' : 'text-white'}`}>
-                    {m.pseudo}
-                  </span>
-                  <span className="text-white font-semibold tabular-nums">{m.total} pts</span>
-                  {m.exactTotal > 0 && (
-                    <span className="text-zinc-500 text-xs tabular-nums ml-1">{m.exactTotal}✓</span>
-                  )}
-                </div>
+                  rank={i + 1}
+                  pseudo={m.pseudo}
+                  points={m.total}
+                  exactPositions={m.exactTotal}
+                  isMe={m.isMe}
+                  isDeleted={m.isDeleted}
+                  emphasis
+                />
               ))}
             </div>
           </section>
@@ -196,6 +229,7 @@ export default async function GPScoresPage({
           const membersWithScore = memberScores
             .filter((m) => m.bySession[sessionType] != null)
             .sort((a, b) => {
+              if (a.isDeleted !== b.isDeleted) return a.isDeleted ? 1 : -1
               const sa = a.bySession[sessionType]!
               const sb = b.bySession[sessionType]!
               return sb.finalScore - sa.finalScore || sb.exactPositions - sa.exactPositions
@@ -212,21 +246,16 @@ export default async function GPScoresPage({
                 {membersWithScore.map((m, i) => {
                   const score = m.bySession[sessionType]!
                   return (
-                    <div
+                    <ScoreRow
                       key={m.userId}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
-                        m.isMe ? 'bg-zinc-800' : 'bg-zinc-900'
-                      } ${m.isDeleted ? 'opacity-50' : ''}`}
-                    >
-                      <span className="text-zinc-500 text-sm w-5 text-right">{i + 1}</span>
-                      <span className={`flex-1 text-sm ${m.isDeleted ? 'text-zinc-500' : 'text-white'}`}>
-                        {m.pseudo}
-                      </span>
-                      <span className="text-white font-semibold tabular-nums">{score.finalScore} pts</span>
-                      {score.exactPositions > 0 && (
-                        <span className="text-zinc-500 text-xs tabular-nums ml-1">{score.exactPositions}✓</span>
-                      )}
-                    </div>
+                      rank={i + 1}
+                      pseudo={m.pseudo}
+                      points={score.finalScore}
+                      exactPositions={score.exactPositions}
+                      isMe={m.isMe}
+                      isDeleted={m.isDeleted}
+                      emphasis={false}
+                    />
                   )
                 })}
               </div>

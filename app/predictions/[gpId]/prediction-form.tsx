@@ -15,11 +15,10 @@ interface Driver {
 interface Props {
   sessionId:          string
   sessionType:        SessionType
-  season:             number
   drivers:            Driver[]
   expectedCount:      number
   existingEntries:    string[]
-  existingFastestLap: string | null  // driver id, race only
+  existingFastestLap: string | null  // driver code, race only
   isLocked:           boolean
 }
 
@@ -31,7 +30,7 @@ const SESSION_LABELS: Record<SessionType, string> = {
 }
 
 export function PredictionForm({
-  sessionId, sessionType, season, drivers, expectedCount,
+  sessionId, sessionType, drivers, expectedCount,
   existingEntries, existingFastestLap, isLocked,
 }: Props) {
   const [selected, setSelected]     = useState<string[]>(existingEntries)
@@ -56,7 +55,7 @@ export function PredictionForm({
 
   const save = () => {
     startTransition(async () => {
-      const result = await submitPredictionAction(sessionId, sessionType, season, selected)
+      const result = await submitPredictionAction(sessionId, selected)
       if ('error' in result) {
         setMessage({ type: 'error', text: result.error })
         return
@@ -65,7 +64,7 @@ export function PredictionForm({
       if (sessionType === 'race' && fastestLap) {
         const flDriver = drivers.find((d) => d.code === fastestLap)
         if (flDriver) {
-          const flResult = await submitFastestLapAction(sessionId, season, flDriver.id)
+          const flResult = await submitFastestLapAction(sessionId, flDriver.id)
           if ('error' in flResult) {
             setMessage({ type: 'error', text: flResult.error })
             return

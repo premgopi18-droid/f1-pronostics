@@ -16,6 +16,7 @@ export default async function PredictionsPage({
   const season    = getCurrentSeason()
 
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) notFound()
 
   const [{ data: gp }, { data: sessions }, { data: drivers }] = await Promise.all([
     supabase
@@ -103,7 +104,6 @@ export default async function PredictionsPage({
             <PredictionForm
               sessionId={session.id as string}
               sessionType={session.type as SessionType}
-              season={season}
               drivers={mappedDrivers}
               expectedCount={POSITIONS_TO_SCORE[session.type as SessionType]}
               existingEntries={predictionsBySession.get(session.id as string) ?? []}

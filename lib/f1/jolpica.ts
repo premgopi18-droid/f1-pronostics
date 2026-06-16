@@ -116,6 +116,13 @@ function mapQualifyingResult(result: JolpikaQualifyingResult): [string, DriverRe
   }]
 }
 
+// Normalise un constructorId Jolpica ("red_bull") en code interne ("RED_BULL").
+// Source unique de la transformation — fetchConstructors et fetchDriverConstructorLinks
+// doivent produire des codes identiques, sinon getConstructorDriversMap ne matche plus.
+function toConstructorCode(constructorId: string): string {
+  return constructorId.toUpperCase().replace(/-/g, '_')
+}
+
 // ============================================================
 // Résultats de session → Map<driverCode, DriverResult>
 // ============================================================
@@ -201,7 +208,7 @@ export async function fetchConstructors(year: number): Promise<ConstructorEntry[
   }>(`/${year}/constructors`)
   return data.MRData.ConstructorTable.Constructors.map((c) => ({
     season:        year,
-    code:          c.constructorId.toUpperCase().replace(/-/g, '_'),   // "red_bull" → "RED_BULL"
+    code:          toConstructorCode(c.constructorId),   // "red_bull" → "RED_BULL"
     constructorId: c.constructorId,
     name:          c.name,
   }))
@@ -231,8 +238,6 @@ export async function fetchDriverConstructorLinks(year: number): Promise<DriverC
       // (= écurie actuelle). Edge case connu : si un pilote change d'équipe en cours
       // de saison, getConstructorDriversMap sera inexact pour les courses antérieures
       // au transfert (impact limité à l'item no_points_team, cas rarissime en F1).
-      constructorCode: s.Constructors[s.Constructors.length - 1].constructorId
-        .toUpperCase()
-        .replace(/-/g, '_'),
+      constructorCode: toConstructorCode(s.Constructors[s.Constructors.length - 1].constructorId),
     }))
 }

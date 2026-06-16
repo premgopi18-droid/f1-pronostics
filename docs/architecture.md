@@ -252,10 +252,17 @@ Déclencheur : course du dimanche confirmée ET Phase 1 complète pour toutes le
 // Un seul endpoint gère les deux phases : il détecte ce qui est en attente et agit
 
 export async function POST(req: Request) {
-  // Phase 1 : sessions confirmées sans base_score calculé
-  const pendingSessions = await data.getPendingSessionScores()
-  for (const session of pendingSessions) {
-    await computeAndStoreBaseScores(session.id)
+  // Phase 1 : base_scores manquants, par ligue. Le scoping par ligue permet le
+  // catch-up d'une ligue créée en cours de saison et la rejouabilité si le cron
+  // plante à mi-chemin (les base_scores sont stockés par (session, league)).
+  const leagues = await data.getActiveLeagues()
+  let sessionsScored = 0
+  for (const league of leagues) {
+    const pendingSessions = await data.getPendingSessionScores(league.id)
+    for (const session of pendingSessions) {
+      await computeAndStoreBaseScores(session.id, league.id)
+      sessionsScored++
+    }
   }
 
   // Phase 2 : GPs dont toutes les sessions sont scorées mais items non résolus
@@ -265,7 +272,7 @@ export async function POST(req: Request) {
     await data.markGPFinalized(gp.id)  // scoring_finalized_at = now()
   }
 
-  return Response.json({ sessions: pendingSessions.length, resolutions: pendingResolutions.length })
+  return Response.json({ sessions: sessionsScored, resolutions: pendingResolutions.length })
 }
 ```
 

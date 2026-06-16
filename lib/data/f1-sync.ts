@@ -152,3 +152,21 @@ export async function getSessionId(
   if (error) return null
   return data?.id ?? null
 }
+
+// Toutes les sessions d'un GP avec leur statut de confirmation — 1 requête vs N getSessionId
+export async function getSessionsForGP(
+  gpId: string,
+): Promise<{ id: string; type: SessionType; confirmedAt: string | null }[]> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('id, type, results_confirmed_at')
+    .eq('gp_id', gpId)
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id:          row.id as string,
+    type:        row.type as SessionType,
+    confirmedAt: row.results_confirmed_at as string | null,
+  }))
+}

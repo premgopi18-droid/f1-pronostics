@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { InviteLink } from './invite-link'
+import { LeaderboardRealtime, buildStandings } from './leaderboard-realtime'
+import type { MemberRow, ScoreRow, SeasonScoreRow, Standing } from './leaderboard-realtime'
 
 export default async function LeaguePage({
   params,
@@ -28,7 +30,7 @@ export default async function LeaguePage({
   // Requêtes séparées — pas de FK league_members → scores/season_scores, join impossible
   // via PostgREST. Formule de classement (data-model.md) : SUM(scores.final_score) +
   // season_scores.total (bonus WDC/WCC de fin de saison, 1 ligne par user).
-  const [{ data: members }, { data: scoreRows }, { data: seasonRows }, { data: grandsPrix }] = await Promise.all([
+  const [{ data: rawMembers }, { data: scoreRows }, { data: seasonRows }, { data: grandsPrix }] = await Promise.all([
     supabase
       .from('league_members')
       .select('user_id, is_admin, profiles!user_id ( pseudo, avatar_key, is_deleted )')
@@ -52,50 +54,32 @@ export default async function LeaguePage({
       .order('round', { ascending: false }),
   ])
 
-  // Agrégation côté TypeScript : somme des scores de session par user_id
-  const totalByUser  = new Map<string, number>()
-  const exactByUser  = new Map<string, number>()
-  for (const row of scoreRows ?? []) {
-    const uid = row.user_id as string
-    totalByUser.set(uid, (totalByUser.get(uid) ?? 0) + (row.final_score as number ?? 0))
-    exactByUser.set(uid, (exactByUser.get(uid) ?? 0) + (row.exact_positions as number ?? 0))
-  }
+  // Normalisation des membres pour le Client Component (types sérialisables)
+  const members: MemberRow[] = (rawMembers ?? []).map((m) => {
+    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; is_deleted: boolean } | null
+    return {
+      user_id:  m.user_id as string,
+      is_admin: m.is_admin as boolean,
+      profile: {
+        pseudo:    profile?.is_deleted ? 'Compte supprimé' : (profile?.pseudo ?? '?'),
+        avatarKey: profile?.avatar_key ?? null,
+        isDeleted: profile?.is_deleted ?? false,
+      },
+    }
+  })
 
-  // Bonus saison (WDC/WCC) — 1 ligne par user, ajouté au total
-  for (const row of seasonRows ?? []) {
-    const uid = row.user_id as string
-    totalByUser.set(uid, (totalByUser.get(uid) ?? 0) + (row.total as number ?? 0))
-  }
+  const normalizedSeasonScores: SeasonScoreRow[] = (seasonRows ?? []).map((r) => ({
+    user_id: r.user_id as string,
+    total:   r.total as number,
+  }))
 
-  type Member = {
-    user_id:  string
-    is_admin: boolean
-    profile:  { pseudo: string; avatarKey: string | null; isDeleted: boolean }
-    total:    number
-    exact:    number
-  }
-
-  const standings: Member[] = (members ?? [])
-    .map((m) => {
-      const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; is_deleted: boolean } | null
-      const uid = m.user_id as string
-      return {
-        user_id:  uid,
-        is_admin: m.is_admin as boolean,
-        profile:  {
-          pseudo:    profile?.is_deleted ? 'Compte supprimé' : (profile?.pseudo ?? '?'),
-          avatarKey: profile?.avatar_key ?? null,
-          isDeleted: profile?.is_deleted ?? false,
-        },
-        total: totalByUser.get(uid) ?? 0,
-        exact: exactByUser.get(uid) ?? 0,
-      }
-    })
-    .sort((a, b) => {
-      if (a.profile.isDeleted !== b.profile.isDeleted) return a.profile.isDeleted ? 1 : -1
-      if (b.total !== a.total) return b.total - a.total
-      return b.exact - a.exact
-    })
+  // Calcul initial côté serveur (SSR) — même agrégation/tri que le flux Realtime.
+  // Le Client Component le reçoit en initialStandings, puis recalcule via buildStandings.
+  const initialStandings: Standing[] = buildStandings(
+    members,
+    (scoreRows ?? []) as ScoreRow[],
+    normalizedSeasonScores,
+  )
 
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-8">
@@ -112,27 +96,15 @@ export default async function LeaguePage({
         {/* Lien d'invitation */}
         <InviteLink code={league.invite_code as string} />
 
-        {/* Classement */}
-        <div className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Classement</h2>
-          <div className="flex flex-col gap-1">
-            {standings.map((member, index) => (
-              <div
-                key={member.user_id}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
-                  member.user_id === user.id ? 'bg-zinc-800' : 'bg-zinc-900'
-                } ${member.profile.isDeleted ? 'opacity-50' : ''}`}
-              >
-                <span className="text-zinc-500 text-sm w-5 text-right">{index + 1}</span>
-                <span className={`flex-1 font-medium ${member.profile.isDeleted ? 'text-zinc-500' : 'text-white'}`}>
-                  {member.profile.pseudo}
-                  {member.is_admin && <span className="ml-2 text-xs text-zinc-500">admin</span>}
-                </span>
-                <span className="text-white font-semibold tabular-nums">{member.total} pts</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Classement — temps réel via Supabase Realtime */}
+        <LeaderboardRealtime
+          initialStandings={initialStandings}
+          members={members}
+          seasonScores={normalizedSeasonScores}
+          leagueId={id}
+          season={season}
+          currentUserId={user.id}
+        />
 
         {/* Week-ends */}
         {(grandsPrix ?? []).length > 0 && (

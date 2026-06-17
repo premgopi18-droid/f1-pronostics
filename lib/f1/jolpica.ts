@@ -105,12 +105,9 @@ async function jolpikaGet<T>(path: string): Promise<T> {
 // ============================================================
 
 function mapRaceResult(result: JolpikaRaceResult): [string, DriverResult] {
-  const code     = result.Driver.code
-  const position = /^\d+$/.test(result.positionText)
-    ? parseInt(result.positionText, 10)
-    : null
+  const code = result.Driver.code
   return [code, {
-    position,
+    position:  parseInt(result.position, 10),
     fastestLap: result.FastestLap?.rank === '1',
     dnf:        result.positionText === 'R',
   }]

@@ -30,7 +30,10 @@ async function handler(request: Request): Promise<Response> {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const season = getCurrentSeason()
+  const seasonParam = new URL(request.url).searchParams.get('season')
+  const season = seasonParam && /^\d{4}$/.test(seasonParam)
+    ? Number(seasonParam)
+    : getCurrentSeason()
 
   try {
     // ── Phase 1 : récupération des données F1 (tout en parallèle) ──────────

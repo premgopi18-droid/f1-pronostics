@@ -22,7 +22,8 @@ import { createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import type { DriverResult, SessionType } from '@/lib/scoring/types'
 
-export async function POST(request: Request): Promise<Response> {
+// Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
+async function handler(request: Request): Promise<Response> {
   if (!isCronAuthorized(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -114,3 +115,6 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'Internal error' }, { status: 500 })
   }
 }
+
+export const GET = handler
+export const POST = handler

@@ -21,16 +21,15 @@ export function isCronAuthorized(request: Request): boolean {
   if (!secret) return false
 
   const secretBuf = Buffer.from(secret)
+  const matches = (value: string): boolean => {
+    const buf = Buffer.from(value)
+    return buf.length === secretBuf.length && timingSafeEqual(buf, secretBuf)
+  }
 
-  const xCronSecret = request.headers.get('x-cron-secret') ?? ''
-  const xBuf = Buffer.from(xCronSecret)
-  if (xBuf.length === secretBuf.length && timingSafeEqual(xBuf, secretBuf)) return true
+  if (matches(request.headers.get('x-cron-secret') ?? '')) return true
 
   const authHeader = request.headers.get('authorization') ?? ''
-  if (authHeader.startsWith('Bearer ')) {
-    const bearerBuf = Buffer.from(authHeader.slice(7))
-    if (bearerBuf.length === secretBuf.length && timingSafeEqual(bearerBuf, secretBuf)) return true
-  }
+  if (authHeader.startsWith('Bearer ') && matches(authHeader.slice(7))) return true
 
   return false
 }

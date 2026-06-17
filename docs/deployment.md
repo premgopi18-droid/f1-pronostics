@@ -58,9 +58,11 @@ Les deux s'enchaînent : sync d'abord, trigger ensuite. Si Jolpica n'a pas encor
 
 ### Authentification Vercel → route
 
-Vercel injecte automatiquement `Authorization: Bearer <CRON_SECRET>` dans chaque requête cron, à condition que `CRON_SECRET` soit défini comme variable d'environnement dans le projet. Notre `isCronAuthorized()` accepte ce format.
+Vercel déclenche ses cron jobs avec une requête **GET** et injecte automatiquement `Authorization: Bearer <CRON_SECRET>`, à condition que `CRON_SECRET` soit défini comme variable d'environnement dans le projet. Les deux routes exportent un handler `GET` **et** `POST` (cron-job.org et les exemples curl ci-dessous utilisent POST) ; `isCronAuthorized()` accepte aussi bien le header Bearer que `x-cron-secret`.
 
 > Sans `CRON_SECRET` défini sur Vercel, toutes les requêtes cron retournent 401 et sont ignorées silencieusement par Vercel (pas d'alerte). **Vérifier que la variable est bien configurée.**
+
+> Le `maxDuration` des deux routes est porté à 60 s dans `vercel.json` (la valeur par défaut Hobby ~10 s est trop courte pour `/api/f1/sync`, qui enchaîne plusieurs appels Jolpica/OpenF1 sur tout le calendrier).
 
 ---
 

@@ -1,4 +1,12 @@
 {
+  "functions": {
+    "app/api/f1/sync/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/scores/trigger/route.ts": {
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/f1/sync",

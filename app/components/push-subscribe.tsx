@@ -53,14 +53,17 @@ export function PushSubscribe() {
 
   const unsubscribe = async () => {
     setPending(true)
-    const reg = await navigator.serviceWorker.ready
-    const sub = await reg.pushManager.getSubscription()
-    if (sub) {
-      await sub.unsubscribe()
-      await unsubscribeAction(sub.endpoint)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        await sub.unsubscribe()
+        await unsubscribeAction(sub.endpoint)
+      }
+      setStatus('idle')
+    } finally {
+      setPending(false)
     }
-    setStatus('idle')
-    setPending(false)
   }
 
   if (status === 'loading' || status === 'unsupported' || status === 'denied') return null

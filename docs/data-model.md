@@ -269,11 +269,13 @@ WDC et WCC stockés en JSONB. Une ligne par user par type par saison.
 
 ---
 
-## 5. Items (par ligue par saison)
+## 5. Items
+
+> **Portée** : les **items GP** sont par ligue par saison (`user_items`) ; les **items saison** (`wdc_move`, `wcc_move`) sont globaux (`user_season_items`) — 1 par user par saison, toutes ligues confondues, car la prédiction saison est globale. Cf. `product-specs.md`.
 
 ### `user_items`
 
-Stock d'items de chaque joueur par ligue. Initialisé en début de saison.
+Stock d'items GP de chaque joueur par ligue. Initialisé en début de saison.
 
 | Colonne | Type | Notes |
 |---|---|---|
@@ -284,11 +286,32 @@ Stock d'items de chaque joueur par ligue. Initialisé en début de saison.
 | item_type | TEXT | voir liste ci-dessous |
 | uses_remaining | INTEGER | décrémenté à chaque utilisation |
 
-**Types d'items :** `shield`, `block_driver`, `wild_card`, `double_points`, `dnf_prediction`, `underdog_top5`, `no_points_team`, `fia_penalty`, `wdc_move`, `wcc_move`
+**Types d'items :** `shield`, `block_driver`, `wild_card`, `double_points`, `dnf_prediction`, `underdog_top5`, `no_points_team`, `fia_penalty`
 
 **Contrainte :** UNIQUE (user_id, league_id, season, item_type)
 
 **RLS :** accessible uniquement par le propriétaire
+
+---
+
+### `user_season_items`
+
+Stock d'items saison (`wdc_move`, `wcc_move`), **global** — 1 par user par saison, indépendant des ligues. Si aucune ligne n'existe encore, l'item est considéré disponible (1 usage par défaut) ; la RPC `apply_season_item` crée la ligne à la première utilisation.
+
+| Colonne | Type | Notes |
+|---|---|---|
+| id | UUID PK | |
+| user_id | UUID FK → auth.users (ON DELETE CASCADE) | |
+| season | INTEGER | |
+| item_type | TEXT | `wdc_move` \| `wcc_move` (CHECK) |
+| uses_remaining | INTEGER | default 1, CHECK ≥ 0 |
+| created_at | TIMESTAMPTZ | default now() |
+
+**Contrainte :** UNIQUE (user_id, season, item_type)
+
+**RLS :** lecture par le propriétaire uniquement ; les écritures passent par la RPC `apply_season_item` (service role).
+
+Migration : `20260617140000_season_items_and_apply_rpc.sql`.
 
 ---
 
@@ -300,7 +323,7 @@ Historique de chaque item joué. Le champ `payload` stocke les données spécifi
 |---|---|---|
 | id | UUID PK | |
 | user_id | UUID FK → profiles | |
-| league_id | UUID FK → leagues | |
+| league_id | UUID FK → leagues | **nullable** — null pour items saison globaux (wdc_move, wcc_move) |
 | season | INTEGER | |
 | item_type | TEXT | |
 | gp_id | UUID FK → grands_prix | null pour items saison (wdc_move, wcc_move) |
@@ -447,6 +470,7 @@ ORDER BY p.is_deleted ASC, total_season DESC, total_exact_positions DESC
 | `league_members` | `(league_id, season)`, `(user_id, season)` |
 | `items_played` | `(league_id, gp_id, season)`, UNIQUE `(user_id, league_id, gp_id) WHERE gp_id IS NOT NULL` |
 | `user_items` | `(user_id, league_id, season)` |
+| `user_season_items` | UNIQUE `(user_id, season, item_type)` |
 
 ---
 
@@ -492,9 +516,19 @@ Joue un item GP en une seule transaction :
 
 Garantit l'atomicité (jamais d'item joué sans décrément) et l'absence de sur-dépense en cas de concurrence. Appelée par `insertPlayedItem` (`lib/data/items.ts`). Migration : `20260617120000_create_play_item_function.sql`.
 
+### `apply_season_item(p_user_id, p_season, p_item_type, p_from, p_to)`
+
+Applique un item saison (`wdc_move` / `wcc_move`) en une seule transaction :
+
+1. **Décrément gardé** de `user_season_items.uses_remaining` (crée la ligne avec `uses_remaining = 1` si absente, via `on conflict do nothing`, puis décrémente uniquement si `> 0`) ; si rien n'est touché → `item_exhausted` (`P0001`).
+2. **Pull-and-shift** de `season_predictions.entries` (retire l'entrée en `p_from`, la réinsère en `p_to`, 1-based). Prédiction absente → `no_prediction` (`P0002`) ; positions hors plage ou égales → `position_out_of_range` (`P0003`).
+3. **Insert** du log auditable dans `items_played` (`league_id` NULL, `gp_id` NULL, payload `{ code, from_position, to_position }`).
+
+Remplace l'enchaînement upsert → insert → upsert côté serveur, qui pouvait laisser la prédiction mutée sans décrément (échec partiel) ou sur-dépenser en concurrence. Appelée par `applySeasonItemAction` (`app/actions/season-predictions.ts`). Migration : `20260617140000_season_items_and_apply_rpc.sql`.
+
 ---
 
-## Récapitulatif des 16 tables
+## Récapitulatif des 17 tables
 
 | # | Table | Domaine |
 |---|---|---|
@@ -511,6 +545,7 @@ Garantit l'atomicité (jamais d'item joué sans décrément) et l'absence de sur
 | 11 | `fastest_lap_predictions` | Prédictions |
 | 12 | `season_predictions` | Prédictions |
 | 13 | `user_items` | Items |
-| 14 | `items_played` | Items |
-| 15 | `scores` | Scores |
-| 16 | `season_scores` | Scores |
+| 14 | `user_season_items` | Items |
+| 15 | `items_played` | Items |
+| 16 | `scores` | Scores |
+| 17 | `season_scores` | Scores |

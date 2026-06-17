@@ -5,7 +5,6 @@ import { getCurrentSeason } from '@/lib/api/cron'
 import {
   getSeasonDeadlines,
   upsertSeasonPrediction,
-  getSeasonPrediction,
   type SeasonPredictionType,
 } from '@/lib/data/season-predictions'
 
@@ -102,52 +101,25 @@ export async function applySeasonItemAction(
     return { error: 'Deadline passée — items saison verrouillés' }
   }
 
+  // Décrément gardé + pull-and-shift de `entries` + log items_played en une seule
+  // transaction (RPC apply_season_item). Évite l'échec partiel (prédiction mutée
+  // sans décrément) et la sur-dépense concurrente. Le `code` déplacé est résolu
+  // côté SQL et écrit dans le payload du log.
   const db = createServiceClient()
+  const { error } = await db.rpc('apply_season_item', {
+    p_user_id:   user.id,
+    p_season:    season,
+    p_item_type: itemType,
+    p_from:      fromPosition,
+    p_to:        toPosition,
+  })
 
-  // uses_remaining > 0 (si aucune ligne : valeur par défaut = 1, item disponible)
-  const { data: itemRow } = await db
-    .from('user_season_items')
-    .select('uses_remaining')
-    .eq('user_id', user.id)
-    .eq('season', season)
-    .eq('item_type', itemType)
-    .maybeSingle()
-
-  const usesRemaining = itemRow ? (itemRow.uses_remaining as number) : 1
-  if (usesRemaining <= 0) return { error: 'Item épuisé pour cette saison' }
-
-  // Prédiction existante requise
-  const entries = await getSeasonPrediction(user.id, season, type)
-  if (!entries) return { error: 'Soumets d\'abord ton pronostic saison avant d\'utiliser cet item' }
-
-  // Pull-and-shift
-  const newEntries = [...entries]
-  const [extracted] = newEntries.splice(fromPosition - 1, 1)
-  newEntries.splice(toPosition - 1, 0, extracted)
-
-  try {
-    await upsertSeasonPrediction(user.id, season, type, newEntries)
-
-    // Log dans items_played (league_id = null = item global saison)
-    await db.from('items_played').insert({
-      user_id:   user.id,
-      league_id: null,
-      gp_id:     null,
-      season,
-      item_type: itemType,
-      payload:   { from_position: fromPosition, to_position: toPosition },
-    })
-
-    // Upsert uses_remaining = 0 dans user_season_items
-    await db
-      .from('user_season_items')
-      .upsert(
-        { user_id: user.id, season, item_type: itemType, uses_remaining: usesRemaining - 1 },
-        { onConflict: 'user_id,season,item_type' },
-      )
-
-    return { ok: true }
-  } catch {
+  if (error) {
+    const code = (error as { code?: string }).code
+    if (code === 'P0001') return { error: 'Item épuisé pour cette saison' }
+    if (code === 'P0002') return { error: 'Soumets d\'abord ton pronostic saison avant d\'utiliser cet item' }
+    if (code === 'P0003') return { error: 'Positions invalides' }
     return { error: 'Erreur inattendue' }
   }
+  return { ok: true }
 }

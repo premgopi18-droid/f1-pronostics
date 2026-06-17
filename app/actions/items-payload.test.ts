@@ -38,6 +38,15 @@ describe('validatePayload', () => {
         payload: { targetUserId: 'u2', sessionType: 'practice', driverCode: 'VER' },
       })).toBe('Session invalide')
     })
+
+    it('accepte les sessions sprint (specs §220 : les 4 sessions)', () => {
+      for (const sessionType of ['sprint_qualifying', 'sprint_race']) {
+        expect(validatePayload({
+          itemType: 'block_driver',
+          payload: { targetUserId: 'u2', sessionType, driverCode: 'VER' },
+        })).toBeNull()
+      }
+    })
   })
 
   describe('wild_card', () => {
@@ -61,21 +70,34 @@ describe('validatePayload', () => {
         payload: { targetUserId: 'u2', sessionType: 'fp1' },
       })).toBe('Session invalide')
     })
+
+    it('refuse les sessions sprint (specs §239 : course ou qualifs uniquement)', () => {
+      for (const sessionType of ['sprint_qualifying', 'sprint_race']) {
+        expect(validatePayload({
+          itemType: 'wild_card',
+          payload: { targetUserId: 'u2', sessionType },
+        })).toBe('Session invalide')
+      }
+    })
   })
 
   describe('double_points', () => {
-    it('accepte une session valide', () => {
-      expect(validatePayload({
-        itemType: 'double_points',
-        payload: { sessionType: 'sprint_race' },
-      })).toBeNull()
+    it('accepte course et qualifications', () => {
+      expect(validatePayload({ itemType: 'double_points', payload: { sessionType: 'race' } })).toBeNull()
+      expect(validatePayload({ itemType: 'double_points', payload: { sessionType: 'qualifying' } })).toBeNull()
     })
 
-    it('refuse une session invalide', () => {
+    it('refuse une session vide', () => {
       expect(validatePayload({
         itemType: 'double_points',
         payload: { sessionType: '' },
       })).toBe('Session invalide')
+    })
+
+    it('refuse les sessions sprint (specs §238 : course ou qualifs uniquement)', () => {
+      for (const sessionType of ['sprint_qualifying', 'sprint_race']) {
+        expect(validatePayload({ itemType: 'double_points', payload: { sessionType } })).toBe('Session invalide')
+      }
     })
   })
 
@@ -101,11 +123,6 @@ describe('validatePayload', () => {
     })
   })
 
-  it('accepte les 4 types de session', () => {
-    for (const sessionType of ['qualifying', 'race', 'sprint_qualifying', 'sprint_race']) {
-      expect(validatePayload({ itemType: 'double_points', payload: { sessionType } })).toBeNull()
-    }
-  })
 })
 
 // ============================================================

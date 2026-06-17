@@ -22,6 +22,15 @@ export type PlayItemInput =
 export const OFFENSIVE_ITEMS = new Set(['block_driver', 'wild_card'])
 export const SESSION_TYPES   = new Set(['qualifying', 'race', 'sprint_qualifying', 'sprint_race'])
 
+// Sessions ciblables PAR item (cf. product-specs §220/238/239) :
+// - block_driver : les 4 sessions (sprint inclus) — « Sprint Qualifying, Sprint Race, Qualifications ou Course »
+// - wild_card / double_points : course ou qualifications uniquement
+export const ALLOWED_SESSIONS: Record<string, Set<string>> = {
+  block_driver:  SESSION_TYPES,
+  wild_card:     new Set(['qualifying', 'race']),
+  double_points: new Set(['qualifying', 'race']),
+}
+
 export function validatePayload(input: PlayItemInput): string | null {
   switch (input.itemType) {
     case 'shield':
@@ -29,22 +38,22 @@ export function validatePayload(input: PlayItemInput): string | null {
 
     case 'block_driver': {
       const p = input.payload
-      if (!p.targetUserId)                    return 'Cible requise'
-      if (!p.driverCode)                      return 'Pilote requis'
-      if (!SESSION_TYPES.has(p.sessionType))  return 'Session invalide'
+      if (!p.targetUserId)                                  return 'Cible requise'
+      if (!p.driverCode)                                    return 'Pilote requis'
+      if (!ALLOWED_SESSIONS.block_driver.has(p.sessionType)) return 'Session invalide'
       return null
     }
 
     case 'wild_card': {
       const p = input.payload
-      if (!p.targetUserId)                    return 'Cible requise'
-      if (!SESSION_TYPES.has(p.sessionType))  return 'Session invalide'
+      if (!p.targetUserId)                                return 'Cible requise'
+      if (!ALLOWED_SESSIONS.wild_card.has(p.sessionType)) return 'Session invalide'
       return null
     }
 
     case 'double_points': {
       const { sessionType } = input.payload
-      if (!SESSION_TYPES.has(sessionType))    return 'Session invalide'
+      if (!ALLOWED_SESSIONS.double_points.has(sessionType)) return 'Session invalide'
       return null
     }
 

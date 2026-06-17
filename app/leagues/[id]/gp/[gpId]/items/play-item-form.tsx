@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { playItemAction, type PlayItemInput } from '@/app/actions/items'
+import { ALLOWED_SESSIONS, SESSION_TYPES } from '@/app/actions/items-payload'
 import type { SessionType } from '@/lib/scoring/types'
 
 interface Driver {
@@ -72,6 +74,7 @@ export function PlayItemForm({
   gpId, leagueId, userItems, members, drivers, constructors,
   sessionTypes, itemLabels,
 }: Props) {
+  const router = useRouter()
   const [step, setStep]               = useState<Step>('choose')
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [draft, setDraft]             = useState<Draft>({})
@@ -107,6 +110,8 @@ export function PlayItemForm({
         return
       }
       setMessage({ type: 'ok', text: 'Item joué ! Il sera résolu après la course.' })
+      // Re-render du RSC parent : bascule sur l'état « item joué » (formulaire masqué)
+      router.refresh()
     })
   }
 
@@ -117,7 +122,7 @@ export function PlayItemForm({
       <div className="bg-zinc-900 rounded-xl px-4 py-6 text-center flex flex-col gap-2">
         <span className="text-3xl">{itemLabels[selectedItem!]?.emoji}</span>
         <p className="text-emerald-400 font-medium">{message.text}</p>
-        <p className="text-zinc-500 text-sm">Recharge la page pour voir ton item joué.</p>
+        <p className="text-zinc-500 text-sm">Mise à jour de la page…</p>
       </div>
     )
   }
@@ -251,9 +256,9 @@ function ConfigureStep({
   constructors: Constructor[]
   sessionTypes: SessionType[]
 }) {
-  const targetableSessions = sessionTypes.filter(
-    (s) => s === 'qualifying' || s === 'race' || s === 'sprint_race'
-  )
+  // Sessions ciblables = sessions du GP ∩ sessions autorisées pour CET item (cf. specs §220/238/239)
+  const allowed = ALLOWED_SESSIONS[itemType] ?? SESSION_TYPES
+  const targetableSessions = sessionTypes.filter((s) => allowed.has(s))
 
   switch (itemType) {
     case 'block_driver':

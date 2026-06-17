@@ -233,6 +233,36 @@ export async function fetchConstructors(year: number): Promise<ConstructorEntry[
   }))
 }
 
+// Classements finaux (ou en cours) WDC — code pilote → position
+export async function fetchDriverStandings(year: number): Promise<Map<string, number>> {
+  const data = await jolpikaGet<{
+    MRData: {
+      StandingsTable: {
+        StandingsLists: {
+          DriverStandings: { position: string; Driver: JolpikaDriver }[]
+        }[]
+      }
+    }
+  }>(`/${year}/driverStandings`)
+  const standings = data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? []
+  return new Map(standings.map((s) => [s.Driver.code, parseInt(s.position, 10)]))
+}
+
+// Classements finaux (ou en cours) WCC — code écurie → position
+export async function fetchConstructorStandings(year: number): Promise<Map<string, number>> {
+  const data = await jolpikaGet<{
+    MRData: {
+      StandingsTable: {
+        StandingsLists: {
+          ConstructorStandings: { position: string; Constructor: JolpikaConstructor }[]
+        }[]
+      }
+    }
+  }>(`/${year}/constructorStandings`)
+  const standings = data.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings ?? []
+  return new Map(standings.map((s) => [toConstructorCode(s.Constructor.constructorId), parseInt(s.position, 10)]))
+}
+
 // Standings fin de saison / en cours — seule source Jolpica qui lie pilote ↔ écurie
 export async function fetchDriverConstructorLinks(year: number): Promise<DriverConstructorLink[]> {
   const data = await jolpikaGet<{

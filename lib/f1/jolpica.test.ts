@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fetchCalendar } from './jolpica'
+import { fetchCalendar, fetchDriverStandings, fetchConstructorStandings } from './jolpica'
 
 // Fixture minimale Jolpica /2025/races — un GP classique + un GP sprint weekend
 const JOLPIKA_RACES_RESPONSE = {
@@ -159,5 +159,67 @@ describe('fetchCalendar', () => {
       const [entry] = await fetchCalendar(2025)
       expect(entry.raceStartsAt).toBe('2025-12-01T00:00:00Z')
     })
+  })
+})
+
+describe('fetchDriverStandings', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
+  afterEach(() => vi.unstubAllGlobals())
+
+  function mockFetch(body: unknown) {
+    vi.mocked(fetch).mockResolvedValue({
+      ok:   true,
+      json: () => Promise.resolve(body),
+    } as Response)
+  }
+
+  it('mappe code pilote → position', async () => {
+    mockFetch({
+      MRData: { StandingsTable: { StandingsLists: [{ DriverStandings: [
+        { position: '1', Driver: { code: 'VER' } },
+        { position: '2', Driver: { code: 'NOR' } },
+      ] }] } },
+    })
+    const standings = await fetchDriverStandings(2025)
+    expect(standings.get('VER')).toBe(1)
+    expect(standings.get('NOR')).toBe(2)
+    expect(standings.size).toBe(2)
+  })
+
+  it('StandingsLists vide → Map vide (pas de throw)', async () => {
+    mockFetch({ MRData: { StandingsTable: { StandingsLists: [] } } })
+    const standings = await fetchDriverStandings(2025)
+    expect(standings.size).toBe(0)
+  })
+})
+
+describe('fetchConstructorStandings', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
+  afterEach(() => vi.unstubAllGlobals())
+
+  function mockFetch(body: unknown) {
+    vi.mocked(fetch).mockResolvedValue({
+      ok:   true,
+      json: () => Promise.resolve(body),
+    } as Response)
+  }
+
+  it('mappe constructorId normalisé (toConstructorCode) → position', async () => {
+    mockFetch({
+      MRData: { StandingsTable: { StandingsLists: [{ ConstructorStandings: [
+        { position: '1', Constructor: { constructorId: 'red_bull' } },
+        { position: '2', Constructor: { constructorId: 'mclaren' } },
+      ] }] } },
+    })
+    const standings = await fetchConstructorStandings(2025)
+    expect(standings.get('RED_BULL')).toBe(1)
+    expect(standings.get('MCLAREN')).toBe(2)
+    expect(standings.size).toBe(2)
+  })
+
+  it('StandingsLists vide → Map vide (pas de throw)', async () => {
+    mockFetch({ MRData: { StandingsTable: { StandingsLists: [] } } })
+    const standings = await fetchConstructorStandings(2025)
+    expect(standings.size).toBe(0)
   })
 })

@@ -86,6 +86,21 @@ export async function getSeasonDeadlines(season: number): Promise<{
   }
 }
 
+// Toutes les prédictions saison d'un type pour une saison — utilisé par le moteur de scoring.
+export async function getAllSeasonPredictions(
+  season: number,
+  type:   SeasonPredictionType,
+): Promise<Map<string, string[]>> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('season_predictions')
+    .select('user_id, entries')
+    .eq('season', season)
+    .eq('type', type)
+  if (error) throw error
+  return new Map((data ?? []).map((row) => [row.user_id as string, row.entries as string[]]))
+}
+
 // Stock d'items saison globaux (wdc_move / wcc_move) — 1 par user par saison, toutes ligues confondues.
 // Si aucune ligne n'existe encore, l'item est disponible (valeur par défaut : 1).
 export async function getSeasonItems(

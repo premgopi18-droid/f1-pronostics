@@ -406,7 +406,10 @@ Ces sujets ne bloquent pas le démarrage mais doivent être adressés avant le l
 
 À traiter quand le schéma de données est stabilisé (plus aucune migration en cours), avant les premiers vrais utilisateurs.
 
-- [ ] **Tests d'intégration — couche data (`lib/data/`)** : monter `supabase start` + fixtures de seed et couvrir les fonctions Supabase (`upsertSessions`, `getPendingSessionScores`, `upsertSessionResults`, etc.). Les mocks Supabase ne valent rien — seule une vraie DB valide les requêtes PostgREST (embeds, filtres, upsert conflicts). Bloquer tant que le schéma bouge encore.
+- [ ] **Tests d'intégration — étape dédiée, une fois le code stable et le produit plus avancé.** Regrouper l'ensemble des tests d'intégration en un seul lot plutôt que de les ajouter au fil de l'eau (décidé en review PR #14). Périmètre :
+  - **Couche data (`lib/data/`)** : monter `supabase start` + fixtures de seed et couvrir les fonctions Supabase (`upsertSessions`, `getPendingSessionScores`, `upsertSessionResults`, etc.). Les mocks Supabase ne valent rien — seule une vraie DB valide les requêtes PostgREST (embeds, filtres, upsert conflicts).
+  - **Route handlers (`app/api/**`)** : tester les routes cron de bout en bout (auth `isCronAuthorized`, garde-fous comme le `503` de `/api/scores/season` sur classements vides, idempotence des UPSERT) en mockant la couche data ou contre la DB locale. En attendant, on couvre le **contrat de parsing/scoring** par des tests unitaires (mappers Jolpica mockés, `computeSeasonScore`).
+  - Bloquer tant que le schéma bouge encore.
 - [ ] **Durcissement sécurité DB (advisor Supabase)** — à traiter **avant ouverture publique**. Warnings remontés sur les fonctions des migrations fondation (PR #7 a déjà corrigé `create_league`) :
   - `search_path` mutable sur `enforce_min_one_admin`, `enforce_max_members`, `handle_new_user` → ajouter `set search_path = ''` (ou schéma explicite).
   - Fonctions `SECURITY DEFINER` exécutables par `anon`/`authenticated` via `/rest/v1/rpc/...` : `handle_new_user`, `is_member_of_league`, `shared_league` → `REVOKE EXECUTE` (ou passer en `SECURITY INVOKER` si pertinent) pour qu'elles ne soient pas appelables depuis l'API publique.

@@ -136,7 +136,7 @@ Ces jobs peuvent être activés/désactivés manuellement sur cron-job.org selon
 
 ---
 
-## Ce que font les deux routes
+## Ce que font les trois routes
 
 ### `POST /api/f1/sync`
 
@@ -154,6 +154,23 @@ Ces jobs peuvent être activés/désactivés manuellement sur cron-job.org selon
 
 **Idempotent** : les UPSERT et les checks `IS NULL` sur `results_confirmed_at` / `scoring_finalized_at` rendent chaque appel safe.
 
+### `POST /api/scores/season`
+
+Calcule les scores WDC/WCC de fin de saison pour tous les membres de toutes les ligues actives.
+
+1. Récupère les classements officiels WDC et WCC depuis Jolpica (`/driverStandings`, `/constructorStandings`).
+2. Récupère toutes les prédictions saison des utilisateurs (`season_predictions`).
+3. Pour chaque ligue et chaque membre : applique `computeSeasonScore` (barème Δ=0→8, Δ=1→3, Δ=2→1, bonus podium +15).
+4. Upsert dans `season_scores` — le total s'ajoute automatiquement au classement de la ligue.
+
+**À déclencher manuellement une seule fois**, après publication des résultats officiels WDC/WCC en fin de saison (généralement le lendemain du dernier GP).
+
+**Idempotent** : peut être rappelé sans effet de bord (UPSERT sur `user_id, league_id, season`).
+
+Retourne : `{ "leaguesScored": 3, "totalWdcPredictions": 18, "totalWccPredictions": 15 }` (compteurs de prédictions globaux, toutes ligues confondues).
+
+Renvoie `503` si les classements officiels sont indisponibles (mauvaise année, saison non terminée, incident Jolpica) — évite d'écraser `season_scores` avec des zéros.
+
 ---
 
 ## Test manuel
@@ -165,8 +182,12 @@ Pour déclencher les routes sans attendre le cron :
 curl -X POST https://votre-domaine.vercel.app/api/f1/sync \
   -H "x-cron-secret: <CRON_SECRET>"
 
-# Trigger scoring
+# Trigger scoring GP
 curl -X POST https://votre-domaine.vercel.app/api/scores/trigger \
+  -H "x-cron-secret: <CRON_SECRET>"
+
+# Scoring saison WDC/WCC (une seule fois en fin de saison)
+curl -X POST https://votre-domaine.vercel.app/api/scores/season \
   -H "x-cron-secret: <CRON_SECRET>"
 ```
 
@@ -178,9 +199,10 @@ curl -X POST http://localhost:3000/api/f1/sync \
   -H "x-cron-secret: <valeur depuis .env.local>"
 ```
 
-Les deux routes retournent un JSON avec le nombre d'opérations effectuées :
+Les routes retournent un JSON avec le nombre d'opérations effectuées :
 - Sync : `{ "gps": 24, "sessionsConfirmed": 2 }`
 - Trigger : `{ "sessionsScored": 1, "gpsFinalized": 0 }`
+- Season : `{ "leaguesScored": 3, "totalWdcPredictions": 18, "totalWccPredictions": 15 }`
 
 ---
 

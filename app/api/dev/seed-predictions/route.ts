@@ -1,14 +1,20 @@
 import 'server-only'
 import { createServiceClient } from '@/lib/supabase'
+import { isCronAuthorized } from '@/lib/api/cron'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import type { SessionType } from '@/lib/scoring/types'
 
 // Insère des prédictions de test pour un GP passé (résultats déjà confirmés).
 // Prédit les vrais résultats avec quelques swaps aléatoires → mix ✓/±N/✗ réaliste.
-// Non disponible en production.
+// Double garde : jamais en production (NODE_ENV) + secret cron exigé même en local.
+// Appel local : `curl -H "x-cron-secret: $CRON_SECRET" ".../api/dev/seed-predictions?season=&round=&userId="`.
 export async function GET(request: Request): Promise<Response> {
   if (process.env.NODE_ENV === 'production') {
     return Response.json({ error: 'Not available in production' }, { status: 403 })
+  }
+
+  if (!isCronAuthorized(request)) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const url    = new URL(request.url)
@@ -104,8 +110,9 @@ export async function GET(request: Request): Promise<Response> {
     if (predError) throw predError
     seeded.push(sessionType)
 
-    // Fastest lap pour race et sprint_race : 50 % correct, 50 % le P3
-    if (sessionType === 'race' || sessionType === 'sprint_race') {
+    // Fastest lap — uniquement pour la course (fastest_lap_predictions ⊂ race,
+    // et le scoring ne crédite le tour rapide que pour `race`) : 50 % correct, 50 % le P3
+    if (sessionType === 'race') {
       const flRow    = rows.find((r) => r.fastest_lap) ?? rows[2]
       const wrongRow = rows[2] ?? rows[0]
       const chosen   = Math.random() > 0.5 ? flRow : wrongRow

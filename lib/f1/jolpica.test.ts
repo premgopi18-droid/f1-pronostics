@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fetchCalendar, fetchDriverStandings, fetchConstructorStandings } from './jolpica'
+import {
+  fetchCalendar,
+  fetchDriverStandings,
+  fetchConstructorStandings,
+  mapRaceResult,
+  type JolpikaRaceResult,
+} from './jolpica'
 
 // Fixture minimale Jolpica /2025/races — un GP classique + un GP sprint weekend
 const JOLPIKA_RACES_RESPONSE = {
@@ -221,5 +227,53 @@ describe('fetchConstructorStandings', () => {
     mockFetch({ MRData: { StandingsTable: { StandingsLists: [] } } })
     const standings = await fetchConstructorStandings(2025)
     expect(standings.size).toBe(0)
+  })
+})
+
+describe('mapRaceResult', () => {
+  // Construit un résultat Jolpica minimal-mais-complet pour le mapper.
+  // `position` est le classement officiel (toujours numérique chez Ergast/Jolpica,
+  // abandons inclus) ; `positionText` porte le statut ("R" = abandon).
+  function makeResult(
+    code: string,
+    position: string,
+    positionText: string,
+    fastestLapRank?: string,
+  ): JolpikaRaceResult {
+    return {
+      position,
+      positionText,
+      Driver: {
+        code,
+        driverId:        code.toLowerCase(),
+        givenName:       'Test',
+        familyName:      'Driver',
+        permanentNumber: '99',
+      },
+      ...(fastestLapRank ? { FastestLap: { rank: fastestLapRank } } : {}),
+    }
+  }
+
+  it('utilise `position` (numérique) et non `positionText` pour un pilote classé', () => {
+    const [code, result] = mapRaceResult(makeResult('VER', '1', '1'))
+    expect(code).toBe('VER')
+    expect(result.position).toBe(1)
+    expect(result.dnf).toBe(false)
+  })
+
+  // Régression : un DNF a `positionText: "R"` mais garde un `position` numérique
+  // (son rang de classement). L'ancien code lisait positionText → position null,
+  // et les abandons disparaissaient du scoring.
+  it('mappe un DNF sur sa position classée + dnf=true', () => {
+    const [, result] = mapRaceResult(makeResult('OCO', '18', 'R'))
+    expect(result.position).toBe(18)
+    expect(result.dnf).toBe(true)
+  })
+
+  it('détecte le tour le plus rapide (FastestLap.rank === "1")', () => {
+    const [, withFl]    = mapRaceResult(makeResult('NOR', '3', '3', '1'))
+    const [, withoutFl] = mapRaceResult(makeResult('LEC', '2', '2', '5'))
+    expect(withFl.fastestLap).toBe(true)
+    expect(withoutFl.fastestLap).toBe(false)
   })
 })

@@ -2,20 +2,28 @@ import 'server-only'
 import webpush from 'web-push'
 import { createServiceClient } from '@/lib/supabase'
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
-
 interface PushPayload {
   title: string
   body:  string
   url:   string
 }
 
+// Init paresseuse des clés VAPID : `setVapidDetails` lève si une clé manque, donc
+// on ne l'appelle jamais à l'import (sinon les route handlers qui importent ce
+// module crashent quand VAPID n'est pas configuré). Renvoie false si non configuré.
+let vapidConfigured = false
+
+function configureVapid(): boolean {
+  if (vapidConfigured) return true
+  const { VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env
+  if (!VAPID_SUBJECT || !NEXT_PUBLIC_VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false
+  webpush.setVapidDetails(VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+  vapidConfigured = true
+  return true
+}
+
 export async function sendPushToAll(payload: PushPayload): Promise<void> {
-  if (!process.env.VAPID_PRIVATE_KEY || !process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return
+  if (!configureVapid()) return
 
   const supabase = createServiceClient()
   const { data: subs } = await supabase

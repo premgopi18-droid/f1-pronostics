@@ -185,6 +185,9 @@ function RankingPanel({
   const [showItem, setShowItem]     = useState(false)
   // Suit si une prédiction a été soumise au moins une fois dans cette session
   const [savedOnce, setSavedOnce]   = useState(hasSaved)
+  // Stock d'item suivi côté client pour refléter immédiatement une utilisation
+  // (le prop initial vient du serveur ; on décrémente après un usage réussi).
+  const [usesLeft, setUsesLeft]     = useState(itemUsesRemaining)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -236,6 +239,7 @@ function RankingPanel({
         })())
         setMessage({ type: 'ok', text: `${itemName} utilisé !` })
         setShowItem(false)
+        setUsesLeft((u) => u - 1)
       }
     })
   }
@@ -281,14 +285,14 @@ function RankingPanel({
       )}
 
       {/* Section item saison — disponible uniquement une fois les pronostics verrouillés */}
-      {isItemsOpen && !isSubmissionOpen && itemUsesRemaining > 0 && savedOnce && (
+      {isItemsOpen && !isSubmissionOpen && usesLeft > 0 && savedOnce && (
         <div className="border border-zinc-800 rounded-xl px-4 py-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white">{itemEmoji} {itemName}</p>
               <p className="text-xs text-zinc-500 mt-0.5">Déplace une entrée dans ton classement</p>
             </div>
-            <span className="text-xs text-zinc-500">×{itemUsesRemaining}</span>
+            <span className="text-xs text-zinc-500">×{usesLeft}</span>
           </div>
 
           {!showItem ? (

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient, createServiceClient } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { FASTEST_LAP_BONUS, POSITIONS_TO_SCORE, SCORE_TABLES } from '@/lib/scoring/constants'
 import type { SessionType } from '@/lib/scoring/types'
@@ -166,26 +166,26 @@ export default async function GPScoresPage({
     .filter((s) => s.results_confirmed_at != null)
     .map((s) => s.id as string)
 
-  const userPredictionsBySession = new Map<string, string[]>()
-  const userFLBySession          = new Map<string, string>()
-  const actualResultsBySession   = new Map<string, Map<string, number>>()
-  const actualFLBySession        = new Map<string, string>()
+  const userPredictionsBySession  = new Map<string, string[]>()
+  const invalidPredictionSessions = new Set<string>()
+  const userFLBySession           = new Map<string, string>()
+  const actualResultsBySession    = new Map<string, Map<string, number>>()
+  const actualFLBySession         = new Map<string, string>()
 
   if (confirmedSessionIds.length > 0) {
-    const service = createServiceClient()
+    // Lectures RLS : prono/FL propres (« lecture propre : toujours »), résultats publics.
     const [predRows, flRows, resultRows] = await Promise.all([
-      service
+      supabase
         .from('predictions')
-        .select('session_id, entries')
+        .select('session_id, entries, is_valid')
         .eq('user_id', user.id)
-        .eq('is_valid', true)
         .in('session_id', confirmedSessionIds),
-      service
+      supabase
         .from('fastest_lap_predictions')
         .select('session_id, drivers!driver_id(code)')
         .eq('user_id', user.id)
         .in('session_id', confirmedSessionIds),
-      service
+      supabase
         .from('session_results')
         .select('session_id, position, fastest_lap, drivers!driver_id(code)')
         .in('session_id', confirmedSessionIds)
@@ -193,7 +193,9 @@ export default async function GPScoresPage({
     ])
 
     for (const row of predRows.data ?? []) {
-      userPredictionsBySession.set(row.session_id as string, row.entries as string[])
+      const sid = row.session_id as string
+      if (row.is_valid) userPredictionsBySession.set(sid, row.entries as string[])
+      else invalidPredictionSessions.add(sid)
     }
 
     for (const row of flRows.data ?? []) {
@@ -351,12 +353,15 @@ export default async function GPScoresPage({
                 for (const [code, pos] of actualResults) positionToDriver.set(pos, code)
 
                 if (!predictedEntries) {
+                  const wasInvalid = invalidPredictionSessions.has(sid)
                   return (
                     <div key={sessionType} className="flex flex-col gap-2">
                       <h3 className="text-xs font-medium text-zinc-500">
                         {SESSION_LABELS[sessionType]}
                       </h3>
-                      <p className="text-zinc-600 text-xs px-1">Aucun pronostic soumis</p>
+                      <p className="text-zinc-600 text-xs px-1">
+                        {wasInvalid ? 'Pronostic invalide' : 'Aucun pronostic soumis'}
+                      </p>
                     </div>
                   )
                 }

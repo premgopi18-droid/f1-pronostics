@@ -257,7 +257,7 @@ function RankingPanel({
                 onMoveUp={index > 0 ? () => move(index, -1) : undefined}
                 onMoveDown={index < entries.length - 1 ? () => move(index, 1) : undefined}
                 predictionCount={predictionCount}
-                isLastInPrediction={index === predictionCount - 1}
+                isLastInPrediction={index === predictionCount - 1 && predictionCount < entries.length}
               />
             ))}
           </div>
@@ -305,7 +305,13 @@ function RankingPanel({
                   <label className="text-xs text-zinc-400">Depuis la position</label>
                   <select
                     value={itemFrom}
-                    onChange={(e) => setItemFrom(Number(e.target.value))}
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
+                      setItemFrom(next)
+                      // Garde `itemTo` valide : il ne doit jamais égaler `itemFrom`
+                      // (sinon valeur orpheline, le select « Vers » filtre `itemFrom`).
+                      if (itemTo === next) setItemTo(next === 1 ? 2 : 1)
+                    }}
                     className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-zinc-500"
                   >
                     {entries.slice(0, predictionCount).map((code, i) => (

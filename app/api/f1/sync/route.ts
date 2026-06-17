@@ -20,6 +20,8 @@ import {
 import { upsertSessionResults } from '@/lib/data/session-results'
 import { createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
+import { getGPsNeedingOpenNotification, markGPNotifiedOpen } from '@/lib/data/f1-sync'
+import { sendPushToAll } from '@/lib/push/send'
 import type { DriverResult, SessionType } from '@/lib/scoring/types'
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
@@ -109,7 +111,18 @@ async function handler(request: Request): Promise<Response> {
       sessionsConfirmed++
     }
 
-    return Response.json({ gps: calendar.length, sessionsConfirmed })
+    // ── Notifications "pronostics ouverts" (48 h avant le week-end) ──────────
+    const gpsToNotify = await getGPsNeedingOpenNotification(season)
+    for (const gp of gpsToNotify) {
+      await sendPushToAll({
+        title: `🏎 ${gp.name}`,
+        body:  'Le week-end commence bientôt — soumets tes pronostics !',
+        url:   '/',
+      })
+      await markGPNotifiedOpen(gp.id)
+    }
+
+    return Response.json({ gps: calendar.length, sessionsConfirmed, notified: gpsToNotify.length })
   } catch (error) {
     console.error('[api/f1/sync]', error)
     return Response.json({ error: 'Internal error' }, { status: 500 })

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { signOut } from '@/app/actions/auth'
+import { PushSubscribe } from '@/app/components/push-subscribe'
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -104,6 +105,9 @@ export default async function HomePage() {
             <p className="text-zinc-500 text-sm">Crée ou rejoins une ligue pour commencer</p>
           </div>
         )}
+
+        {/* Notifications */}
+        <PushSubscribe />
 
         {/* Actions */}
         <div className="flex flex-col gap-2">

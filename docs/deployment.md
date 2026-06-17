@@ -16,6 +16,9 @@ Guide opérationnel pour déployer l'application et configurer les tâches plani
 | `SUPABASE_SECRET_KEY` | `sb_secret_…` | Supabase Dashboard → Project Settings → API → service_role |
 | `CRON_SECRET` | chaîne aléatoire forte | Générer avec `openssl rand -base64 32` |
 | `F1_SEASON` | `2025` (ou année en cours) | Manuel — à mettre à jour chaque saison |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | clé publique VAPID | `npx web-push generate-vapid-keys` |
+| `VAPID_PRIVATE_KEY` | clé privée VAPID | idem (ne jamais exposer côté client) |
+| `VAPID_SUBJECT` | `mailto:admin@boxbox.app` | Identifiant du serveur push (email ou URL) |
 
 > **`SUPABASE_SECRET_KEY` bypasse le RLS.** Ne jamais la préfixer `NEXT_PUBLIC_` ni l'exposer côté client.
 
@@ -27,7 +30,8 @@ Guide opérationnel pour déployer l'application et configurer les tâches plani
 2. Importer le projet sur [vercel.com](https://vercel.com) → New Project → sélectionner le repo.
 3. Renseigner toutes les variables ci-dessus dans l'écran de configuration avant de cliquer Deploy.
 4. Vérifier que la migration Supabase est bien appliquée (toutes les tables existent).
-5. Tester les routes cron manuellement (voir section **Test manuel** ci-dessous).
+5. Générer les clés VAPID si pas encore fait : `npx web-push generate-vapid-keys` — copier les deux valeurs dans Vercel + `.env.local`.
+6. Tester les routes cron manuellement (voir section **Test manuel** ci-dessous).
 
 ---
 

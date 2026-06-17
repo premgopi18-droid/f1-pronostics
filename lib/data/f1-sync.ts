@@ -157,6 +157,61 @@ export async function getSessionId(
   return data?.id ?? null
 }
 
+// GPs dont le week-end commence dans les prochaines 48 h et pas encore notifiés
+export async function getGPsNeedingOpenNotification(
+  season: number,
+): Promise<{ id: string; name: string }[]> {
+  const supabase = createServiceClient()
+  const now   = new Date()
+  const limit = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+
+  const { data, error } = await supabase
+    .from('grands_prix')
+    .select('id, name')
+    .eq('season', season)
+    .eq('is_cancelled', false)
+    .is('notified_open_at', null)
+    .gte('weekend_starts_at', now.toISOString())
+    .lte('weekend_starts_at', limit.toISOString())
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({ id: row.id as string, name: row.name as string }))
+}
+
+export async function markGPNotifiedOpen(gpId: string): Promise<void> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('grands_prix')
+    .update({ notified_open_at: new Date().toISOString() })
+    .eq('id', gpId)
+  if (error) throw error
+}
+
+// GPs dont le scoring est finalisé et la notification résultats pas encore envoyée
+export async function getGPsNeedingScoreNotification(
+  season: number,
+): Promise<{ id: string; name: string }[]> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('grands_prix')
+    .select('id, name')
+    .eq('season', season)
+    .not('scoring_finalized_at', 'is', null)
+    .is('notified_scores_at', null)
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({ id: row.id as string, name: row.name as string }))
+}
+
+export async function markGPNotifiedScores(gpId: string): Promise<void> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('grands_prix')
+    .update({ notified_scores_at: new Date().toISOString() })
+    .eq('id', gpId)
+  if (error) throw error
+}
+
 // Toutes les sessions d'un GP avec leur statut de confirmation — 1 requête vs N getSessionId
 export async function getSessionsForGP(
   gpId: string,

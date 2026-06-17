@@ -15,6 +15,8 @@ import { getSessionsForGP } from '@/lib/data/f1-sync'
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
 import { applyItemEffects } from '@/lib/scoring/resolve-items'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
+import { getGPsNeedingScoreNotification, markGPNotifiedScores } from '@/lib/data/f1-sync'
+import { sendPushToAll } from '@/lib/push/send'
 import type { ResolutionContext } from '@/lib/scoring/types'
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
@@ -110,7 +112,18 @@ async function handler(request: Request): Promise<Response> {
       gpsFinalized++
     }
 
-    return Response.json({ sessionsScored, gpsFinalized })
+    // ── Notifications "résultats disponibles" (après scoring_finalized_at) ──
+    const gpsScoreNotify = await getGPsNeedingScoreNotification(season)
+    for (const gp of gpsScoreNotify) {
+      await sendPushToAll({
+        title: `🏆 ${gp.name}`,
+        body:  'Les résultats définitifs sont disponibles — vois ton score !',
+        url:   '/',
+      })
+      await markGPNotifiedScores(gp.id)
+    }
+
+    return Response.json({ sessionsScored, gpsFinalized, notified: gpsScoreNotify.length })
   } catch (error) {
     console.error('[api/scores/trigger]', error)
     return Response.json({ error: 'Internal error' }, { status: 500 })

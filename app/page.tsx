@@ -72,6 +72,15 @@ export default async function HomePage() {
           </Link>
         ) : null}
 
+        {/* Pronostics saison */}
+        <Link
+          href="/season"
+          className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
+        >
+          <span className="text-white text-sm font-medium">🏆 Pronostics saison WDC / WCC</span>
+          <span className="text-zinc-500 text-xs">→</span>
+        </Link>
+
         {/* Ligues */}
         {leagues.length > 0 ? (
           <div className="flex flex-col gap-3">

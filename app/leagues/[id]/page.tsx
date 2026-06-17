@@ -112,15 +112,6 @@ export default async function LeaguePage({
         {/* Lien d'invitation */}
         <InviteLink code={league.invite_code as string} />
 
-        {/* Pronostics saison */}
-        <Link
-          href={`/leagues/${id}/season`}
-          className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
-        >
-          <span className="text-white text-sm font-medium">🏆 Pronostics saison WDC / WCC</span>
-          <span className="text-zinc-600 text-xs">→</span>
-        </Link>
-
         {/* Classement */}
         <div className="flex flex-col gap-3">
           <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Classement</h2>

@@ -11,14 +11,26 @@ export function getCurrentSeason(): number {
   return Number.isInteger(fromEnv) ? fromEnv : new Date().getUTCFullYear()
 }
 
-// Autorise une requête cron via le header `x-cron-secret`. Comparaison constant-time
-// pour ne pas fuiter le secret par timing ; fail-closed si `CRON_SECRET` n'est pas défini.
+// Autorise une requête cron. Comparaison constant-time pour ne pas fuiter le secret par
+// timing ; fail-closed si `CRON_SECRET` n'est pas défini.
+// Deux sources acceptées :
+//   • cron-job.org  → header `x-cron-secret: <CRON_SECRET>`
+//   • Vercel crons  → header `Authorization: Bearer <CRON_SECRET>` (injecté automatiquement)
 export function isCronAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return false
 
-  const provided = request.headers.get('x-cron-secret') ?? ''
-  const a = Buffer.from(provided)
-  const b = Buffer.from(secret)
-  return a.length === b.length && timingSafeEqual(a, b)
+  const secretBuf = Buffer.from(secret)
+
+  const xCronSecret = request.headers.get('x-cron-secret') ?? ''
+  const xBuf = Buffer.from(xCronSecret)
+  if (xBuf.length === secretBuf.length && timingSafeEqual(xBuf, secretBuf)) return true
+
+  const authHeader = request.headers.get('authorization') ?? ''
+  if (authHeader.startsWith('Bearer ')) {
+    const bearerBuf = Buffer.from(authHeader.slice(7))
+    if (bearerBuf.length === secretBuf.length && timingSafeEqual(bearerBuf, secretBuf)) return true
+  }
+
+  return false
 }

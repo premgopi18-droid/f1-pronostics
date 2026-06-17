@@ -44,7 +44,7 @@ export default async function SeasonPage({
     getSeasonPrediction(user.id, season, 'wdc'),
     getSeasonPrediction(user.id, season, 'wcc'),
     getSeasonDeadlines(season),
-    getSeasonItems(user.id, leagueId, season),
+    getSeasonItems(user.id, season),
   ])
 
   const now = new Date()
@@ -85,7 +85,6 @@ export default async function SeasonPage({
         </div>
 
         <SeasonFormLoader
-          leagueId={leagueId}
           drivers={driverList}
           constructors={constructorList}
           initialWdc={wdcEntries}

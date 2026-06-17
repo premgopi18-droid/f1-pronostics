@@ -42,7 +42,6 @@ interface SeasonItems {
 }
 
 interface Props {
-  leagueId:         string
   drivers:          Driver[]
   constructors:     Constructor[]
   initialWdc:       string[] | null
@@ -66,7 +65,6 @@ function buildFullEntries(saved: string[] | null, allCodes: string[]): string[] 
 // ── Composant principal ────────────────────────────────────────────────────
 
 export function SeasonForm({
-  leagueId,
   drivers,
   constructors,
   initialWdc,
@@ -112,7 +110,6 @@ export function SeasonForm({
       {tab === 'wdc' && (
         <RankingPanel
           type="wdc"
-          leagueId={leagueId}
           label="Top 10 pilotes en fin de saison — glisse les 10 premiers"
           predictionCount={10}
           entries={wdcEntries}
@@ -131,7 +128,6 @@ export function SeasonForm({
       {tab === 'wcc' && (
         <RankingPanel
           type="wcc"
-          leagueId={leagueId}
           label="Classement complet des 11 écuries"
           predictionCount={11}
           entries={wccEntries}
@@ -155,7 +151,6 @@ export function SeasonForm({
 
 function RankingPanel({
   type,
-  leagueId,
   label,
   predictionCount,
   entries,
@@ -170,7 +165,6 @@ function RankingPanel({
   hasSaved,
 }: {
   type:               'wdc' | 'wcc'
-  leagueId:           string
   label:              string
   predictionCount:    number
   entries:            string[]
@@ -230,7 +224,7 @@ function RankingPanel({
   const applyItem = () => {
     setMessage(null)
     startTransition(async () => {
-      const result = await applySeasonItemAction(leagueId, itemType, itemFrom, itemTo)
+      const result = await applySeasonItemAction(itemType, itemFrom, itemTo)
       if ('error' in result) {
         setMessage({ type: 'error', text: result.error })
       } else {

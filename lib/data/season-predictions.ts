@@ -86,25 +86,23 @@ export async function getSeasonDeadlines(season: number): Promise<{
   }
 }
 
-// Stock d'items saison (wdc_move / wcc_move) dans une ligue
+// Stock d'items saison globaux (wdc_move / wcc_move) — 1 par user par saison, toutes ligues confondues.
+// Si aucune ligne n'existe encore, l'item est disponible (valeur par défaut : 1).
 export async function getSeasonItems(
-  userId:   string,
-  leagueId: string,
-  season:   number,
+  userId: string,
+  season: number,
 ): Promise<{ wdcMove: number; wccMove: number }> {
   const supabase = createServiceClient()
   const { data, error } = await supabase
-    .from('user_items')
+    .from('user_season_items')
     .select('item_type, uses_remaining')
     .eq('user_id', userId)
-    .eq('league_id', leagueId)
     .eq('season', season)
-    .in('item_type', ['wdc_move', 'wcc_move'])
 
   if (error) throw error
 
-  let wdcMove = 0
-  let wccMove = 0
+  let wdcMove = 1
+  let wccMove = 1
   for (const row of data ?? []) {
     if (row.item_type === 'wdc_move') wdcMove = row.uses_remaining as number
     if (row.item_type === 'wcc_move') wccMove = row.uses_remaining as number

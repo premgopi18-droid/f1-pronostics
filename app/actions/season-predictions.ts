@@ -70,9 +70,9 @@ export async function submitSeasonPredictionAction(
   }
 }
 
-// Apply wdc_move / wcc_move : pull-and-shift d'une position à une autre
+// Apply wdc_move / wcc_move : pull-and-shift d'une position à une autre.
+// Ces items sont globaux (1 par user par saison, indépendant des ligues).
 export async function applySeasonItemAction(
-  leagueId:     string,
   itemType:     'wdc_move' | 'wcc_move',
   fromPosition: number,
   toPosition:   number,
@@ -102,30 +102,19 @@ export async function applySeasonItemAction(
     return { error: 'Deadline passée — items saison verrouillés' }
   }
 
-  // Membership
-  const { data: membership } = await supabase
-    .from('league_members')
-    .select('user_id')
-    .eq('league_id', leagueId)
-    .eq('user_id', user.id)
-    .eq('season', season)
-    .maybeSingle()
-  if (!membership) return { error: 'Tu n\'es pas membre de cette ligue' }
-
-  // uses_remaining > 0
   const db = createServiceClient()
+
+  // uses_remaining > 0 (si aucune ligne : valeur par défaut = 1, item disponible)
   const { data: itemRow } = await db
-    .from('user_items')
+    .from('user_season_items')
     .select('uses_remaining')
     .eq('user_id', user.id)
-    .eq('league_id', leagueId)
     .eq('season', season)
     .eq('item_type', itemType)
     .maybeSingle()
 
-  if (!itemRow || (itemRow.uses_remaining as number) <= 0) {
-    return { error: 'Item épuisé pour cette saison' }
-  }
+  const usesRemaining = itemRow ? (itemRow.uses_remaining as number) : 1
+  if (usesRemaining <= 0) return { error: 'Item épuisé pour cette saison' }
 
   // Prédiction existante requise
   const entries = await getSeasonPrediction(user.id, season, type)
@@ -139,24 +128,23 @@ export async function applySeasonItemAction(
   try {
     await upsertSeasonPrediction(user.id, season, type, newEntries)
 
-    // Log dans items_played (gp_id = null = item saison)
+    // Log dans items_played (league_id = null = item global saison)
     await db.from('items_played').insert({
       user_id:   user.id,
-      league_id: leagueId,
+      league_id: null,
       gp_id:     null,
       season,
       item_type: itemType,
       payload:   { from_position: fromPosition, to_position: toPosition },
     })
 
-    // Décrément uses_remaining
+    // Upsert uses_remaining = 0 dans user_season_items
     await db
-      .from('user_items')
-      .update({ uses_remaining: (itemRow.uses_remaining as number) - 1 })
-      .eq('user_id', user.id)
-      .eq('league_id', leagueId)
-      .eq('season', season)
-      .eq('item_type', itemType)
+      .from('user_season_items')
+      .upsert(
+        { user_id: user.id, season, item_type: itemType, uses_remaining: usesRemaining - 1 },
+        { onConflict: 'user_id,season,item_type' },
+      )
 
     return { ok: true }
   } catch {

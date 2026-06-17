@@ -475,6 +475,25 @@ Puis utiliser `shared_league(predictions.user_id)` dans les policies. À implém
 
 ---
 
+## Fonctions transactionnelles (RPC)
+
+Les écritures multi-tables sont encapsulées dans des fonctions Postgres appelées **uniquement côté serveur** via le client service-role. L'exécution directe par les clients (`anon` / `authenticated`) est révoquée pour ne pas contourner la validation des Server Actions (`revoke all … ; grant execute … to service_role`).
+
+### `create_league(p_name, p_max_members, p_user_id, p_season, p_items)`
+
+Crée une ligue, sa ligne admin (`league_members`) et l'inventaire d'items du créateur (`user_items`) en une seule transaction — évite la ligue orpheline sans admin qu'un enchaînement de 3 inserts côté client pouvait laisser. Génère le code d'invitation avec retry sur collision `UNIQUE`. Retourne `(league_id, invite_code)`. Migration : `20260616120000_create_league_function.sql`.
+
+### `play_item(p_user_id, p_league_id, p_gp_id, p_season, p_item_type, p_payload)`
+
+Joue un item GP en une seule transaction :
+
+1. **Décrément gardé** de `user_items.uses_remaining` (mis à jour uniquement si `> 0`) ; si aucune ligne n'est touchée → `raise exception 'item_exhausted'`.
+2. **Insert** dans `items_played`. La contrainte `UNIQUE (user_id, league_id, gp_id) WHERE gp_id IS NOT NULL` fait échouer l'insert si un item GP a déjà été joué ce week-end → toute la transaction (décrément compris) est annulée.
+
+Garantit l'atomicité (jamais d'item joué sans décrément) et l'absence de sur-dépense en cas de concurrence. Appelée par `insertPlayedItem` (`lib/data/items.ts`). Migration : `20260617120000_create_play_item_function.sql`.
+
+---
+
 ## Récapitulatif des 16 tables
 
 | # | Table | Domaine |

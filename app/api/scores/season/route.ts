@@ -25,9 +25,19 @@ async function handler(request: Request): Promise<Response> {
         getActiveLeagues(season),
       ])
 
+    // Garde-fou : classements officiels indisponibles (mauvaise année via F1_SEASON,
+    // saison non terminée, incident Jolpica). Sans ça, computeSeasonScore ne trouverait
+    // aucune position → scores à 0 écrasant season_scores, masqués derrière un 200.
+    if (driverStandings.size === 0 && constructorStandings.size === 0) {
+      return Response.json({ error: 'Classements officiels indisponibles' }, { status: 503 })
+    }
+
     let leaguesScored = 0
 
     for (const leagueId of leagues) {
+      // N+1 assumé : 1 requête membres par ligue. Volume faible (membres × ligues
+      // actives), exécuté hors ligne sur une route déclenchée une fois par saison —
+      // même pattern que /api/scores/trigger. Pas d'optimisation prématurée ici.
       const members = await getLeagueMembers(leagueId, season)
       if (members.length === 0) continue
 
@@ -55,10 +65,12 @@ async function handler(request: Request): Promise<Response> {
       leaguesScored++
     }
 
+    // Compteurs globaux (toutes ligues confondues), pas par ligue scorée — métriques
+    // de contrôle pour vérifier que les prédictions ont bien été chargées.
     return Response.json({
       leaguesScored,
-      usersWithWdc: wdcPredictions.size,
-      usersWithWcc: wccPredictions.size,
+      totalWdcPredictions: wdcPredictions.size,
+      totalWccPredictions: wccPredictions.size,
     })
   } catch (error) {
     console.error('[api/scores/season]', error)

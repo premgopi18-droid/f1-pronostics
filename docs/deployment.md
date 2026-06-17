@@ -167,7 +167,9 @@ Calcule les scores WDC/WCC de fin de saison pour tous les membres de toutes les 
 
 **Idempotent** : peut être rappelé sans effet de bord (UPSERT sur `user_id, league_id, season`).
 
-Retourne : `{ "leaguesScored": 3, "usersWithWdc": 18, "usersWithWcc": 15 }`
+Retourne : `{ "leaguesScored": 3, "totalWdcPredictions": 18, "totalWccPredictions": 15 }` (compteurs de prédictions globaux, toutes ligues confondues).
+
+Renvoie `503` si les classements officiels sont indisponibles (mauvaise année, saison non terminée, incident Jolpica) — évite d'écraser `season_scores` avec des zéros.
 
 ---
 
@@ -200,7 +202,7 @@ curl -X POST http://localhost:3000/api/f1/sync \
 Les routes retournent un JSON avec le nombre d'opérations effectuées :
 - Sync : `{ "gps": 24, "sessionsConfirmed": 2 }`
 - Trigger : `{ "sessionsScored": 1, "gpsFinalized": 0 }`
-- Season : `{ "leaguesScored": 3, "usersWithWdc": 18, "usersWithWcc": 15 }`
+- Season : `{ "leaguesScored": 3, "totalWdcPredictions": 18, "totalWccPredictions": 15 }`
 
 ---
 

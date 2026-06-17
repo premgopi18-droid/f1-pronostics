@@ -60,7 +60,7 @@ S'assurer que ces colonnes existent sur `grands_prix` :
 
 Et que `push_subscriptions` a une contrainte `UNIQUE (endpoint)`.
 
-Ces migrations ont été appliquées dans la PR #15. Vérifier via Supabase Dashboard → Table Editor.
+Ces changements sont définis dans la migration `supabase/migrations/20260617160000_push_notifications.sql` (PR #15) — idempotente. L'appliquer (`supabase db push`) puis vérifier via Supabase Dashboard → Table Editor.
 
 #### Étape 4 — Déployer sur Vercel (HTTPS obligatoire)
 

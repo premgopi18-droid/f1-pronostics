@@ -64,6 +64,8 @@
 | is_cancelled | BOOLEAN | défaut false |
 | weekend_starts_at | TIMESTAMPTZ | UTC — heure de début du weekend (FP1). Fourni par Jolpica. Sert au calcul de la notification "J-2 avant le GP". |
 | scoring_finalized_at | TIMESTAMPTZ | null jusqu'à la résolution des items après la course du dimanche. L'UI utilise ce champ pour distinguer scores provisoires (null) et définitifs (non null). |
+| notified_open_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif push "pronostics ouverts" (J-2). Garantit une seule notif par GP. |
+| notified_scores_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif push "résultats disponibles". Garantit une seule notif par GP. |
 | created_at | TIMESTAMPTZ | |
 
 **RLS :** lecture publique
@@ -139,7 +141,7 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 |---|---|---|
 | id | UUID PK | |
 | user_id | UUID FK → profiles | |
-| endpoint | TEXT | URL unique par appareil |
+| endpoint | TEXT | URL unique par appareil — contrainte `UNIQUE (endpoint)` (requise par l'upsert ON CONFLICT) |
 | p256dh | TEXT | clé publique Web Push |
 | auth_key | TEXT | clé d'authentification Web Push |
 | created_at | TIMESTAMPTZ | |

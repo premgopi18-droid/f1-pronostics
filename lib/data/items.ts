@@ -77,7 +77,85 @@ export async function getItemsForGP(
   }))
 }
 
-// ── Écriture ──────────────────────────────────────────────────────────────
+// ── Lecture UI ────────────────────────────────────────────────────────────
+
+export type UserItemRow = {
+  itemType:      string
+  usesRemaining: number
+}
+
+export async function getUserGPItems(
+  userId:   string,
+  leagueId: string,
+  season:   number,
+): Promise<UserItemRow[]> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('user_items')
+    .select('item_type, uses_remaining')
+    .eq('user_id', userId)
+    .eq('league_id', leagueId)
+    .eq('season', season)
+    // Items saison (wdc_move, wcc_move) traités dans un slice séparé
+    .not('item_type', 'in', '(wdc_move,wcc_move)')
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    itemType:      row.item_type as string,
+    usesRemaining: row.uses_remaining as number,
+  }))
+}
+
+// Item joué par cet utilisateur sur ce GP dans cette ligue (1 max par règle)
+export async function getPlayedGPItemForUser(
+  userId:   string,
+  gpId:     string,
+  leagueId: string,
+): Promise<{ itemType: string; payload: Record<string, unknown> } | null> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('items_played')
+    .select('item_type, payload')
+    .eq('user_id', userId)
+    .eq('gp_id', gpId)
+    .eq('league_id', leagueId)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+  return {
+    itemType: data.item_type as string,
+    payload:  data.payload as Record<string, unknown>,
+  }
+}
+
+// ── Écriture UI ───────────────────────────────────────────────────────────
+
+export async function insertPlayedItem(
+  userId:    string,
+  leagueId:  string,
+  gpId:      string,
+  season:    number,
+  itemType:  string,
+  dbPayload: Record<string, unknown>,
+): Promise<void> {
+  const supabase = createServiceClient()
+
+  // Transactionnel : décrément gardé (uses_remaining > 0) + insert items_played en
+  // une seule transaction côté Postgres (cf. migration play_item). Évite l'échec
+  // partiel (item joué mais usage non décrémenté) et la sur-dépense concurrente.
+  const { error } = await supabase.rpc('play_item', {
+    p_user_id:   userId,
+    p_league_id: leagueId,
+    p_gp_id:     gpId,
+    p_season:    season,
+    p_item_type: itemType,
+    p_payload:   dbPayload,
+  })
+  if (error) throw error
+}
+
+// ── Écriture (cron) ───────────────────────────────────────────────────────
 
 // Appelé après applyItemEffects — persiste was_shielded, effect_applied,
 // resolved_at, et points_stolen pour les Wild Cards.

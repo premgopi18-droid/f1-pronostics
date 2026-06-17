@@ -53,7 +53,8 @@ Application web (PWA) de pronostics Formula 1 entre amis. Les utilisateurs rejoi
 | Élément | Portée | Raison |
 |---|---|---|
 | **Prédictions** | Globale — une prédiction par session, scorée dans toutes les ligues | On prénostique la course une fois, pas une fois par ligue |
-| **Items** | Par ligue par saison — 1 exemplaire de chaque item par ligue | Les items ciblent des membres d'une ligue spécifique |
+| **Items GP** (shield, block_driver, wild_card, double_points…) | Par ligue par saison — 1 exemplaire de chaque item par ligue | Les items ciblent des membres d'une ligue spécifique |
+| **Items saison** (wdc_move, wcc_move) | Globaux — 1 par user par saison, toutes ligues confondues | La prédiction saison est globale ; avoir plusieurs ligues ne doit pas donner plus d'utilisations |
 | **Scores** | Par ligue — chaque ligue a son propre classement | Chaque ligue est une compétition indépendante |
 - Classement général de la ligue sur la saison (cumulatif)
 - Score du week-end : affichage des points marqués par chaque membre sur le GP (informatif, pas un classement formel)

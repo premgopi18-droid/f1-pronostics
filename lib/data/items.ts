@@ -141,37 +141,18 @@ export async function insertPlayedItem(
 ): Promise<void> {
   const supabase = createServiceClient()
 
-  const { error: insertError } = await supabase
-    .from('items_played')
-    .insert({
-      user_id:   userId,
-      league_id: leagueId,
-      gp_id:     gpId,
-      season,
-      item_type: itemType,
-      payload:   dbPayload,
-    })
-  if (insertError) throw insertError
-
-  // Lecture puis décrément — non-atomique, acceptable pour la volumétrie de l'app
-  const { data: itemRow, error: readError } = await supabase
-    .from('user_items')
-    .select('uses_remaining')
-    .eq('user_id', userId)
-    .eq('league_id', leagueId)
-    .eq('season', season)
-    .eq('item_type', itemType)
-    .single()
-  if (readError) throw readError
-
-  const { error: decrementError } = await supabase
-    .from('user_items')
-    .update({ uses_remaining: (itemRow.uses_remaining as number) - 1 })
-    .eq('user_id', userId)
-    .eq('league_id', leagueId)
-    .eq('season', season)
-    .eq('item_type', itemType)
-  if (decrementError) throw decrementError
+  // Transactionnel : décrément gardé (uses_remaining > 0) + insert items_played en
+  // une seule transaction côté Postgres (cf. migration play_item). Évite l'échec
+  // partiel (item joué mais usage non décrémenté) et la sur-dépense concurrente.
+  const { error } = await supabase.rpc('play_item', {
+    p_user_id:   userId,
+    p_league_id: leagueId,
+    p_gp_id:     gpId,
+    p_season:    season,
+    p_item_type: itemType,
+    p_payload:   dbPayload,
+  })
+  if (error) throw error
 }
 
 // ── Écriture (cron) ───────────────────────────────────────────────────────

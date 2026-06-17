@@ -196,6 +196,7 @@ export async function getGPsNeedingScoreNotification(
     .from('grands_prix')
     .select('id, name')
     .eq('season', season)
+    .eq('is_cancelled', false)
     .not('scoring_finalized_at', 'is', null)
     .is('notified_scores_at', null)
 

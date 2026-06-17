@@ -25,6 +25,17 @@ export async function playItemAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
+  // Frontière de confiance : `input` vient du client, le typage TS ne garantit rien
+  // au runtime. On valide la forme avant que validatePayload/toDBPayload ne déréférencent
+  // `input.payload` (sinon un appel forgé — payload null/mal typé — lèverait un TypeError).
+  if (
+    typeof input !== 'object' || input === null ||
+    typeof input.itemType !== 'string' ||
+    typeof input.payload !== 'object' || input.payload === null
+  ) {
+    return { error: 'Requête invalide' }
+  }
+
   const season = getCurrentSeason()
 
   // GP valide et appartient à la saison courante
@@ -38,7 +49,10 @@ export async function playItemAction(
   if (gp.season !== season)      return { error: 'GP hors saison courante' }
   if (gp.is_cancelled)           return { error: 'GP annulé' }
 
-  // Deadline : avant la première session de ce GP
+  // Deadline : avant la première session de ce GP. La table `sessions` ne contient que
+  // les 4 sessions scorées (cf. `SessionType` / `upsertSessions`) — jamais d'essais (FP1-3) —
+  // donc « première session par starts_at » = qualifs (ou Sprint Qualifying en week-end sprint),
+  // conforme à la deadline items de product-specs §211.
   const { data: sessions } = await supabase
     .from('sessions')
     .select('starts_at')

@@ -4,6 +4,95 @@ Guide opérationnel pour déployer l'application et configurer les tâches plani
 
 ---
 
+## Mise en place des notifications Web Push
+
+### Qu'est-ce que VAPID ?
+
+VAPID (Voluntary Application Server Identification) est un standard W3C — une paire de clés cryptographiques générée une fois qui prouve au navigateur que les notifications viennent bien de ton serveur. Aucun service tiers, aucun coût, les données passent directement de ton serveur Vercel au navigateur de l'utilisateur.
+
+Comparaison des alternatives :
+
+| Option | Coût | Tiers | Adapté PWA | Migration future |
+|---|---|---|---|---|
+| **Web Push + VAPID** (notre choix) | Gratuit | Aucun | ✅ | Ajouter FCM/APNs en parallèle si app native |
+| Firebase Cloud Messaging | Gratuit | Google | ✅ | Dépendance Google |
+| OneSignal / Pusher Beams | Freemium | Leurs serveurs | ✅ | Données chez eux |
+
+Si on ajoute une app native Expo plus tard, on ajoute FCM/APNs *en complément* — le code Web Push actuel reste intact.
+
+### Étapes pour activer les notifications (à faire une seule fois)
+
+#### Étape 1 — Générer les clés VAPID
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Sortie :
+```
+Public Key:  Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Private Key: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+> Ces clés ne changent jamais (ou alors tous les abonnés doivent se réabonner). Les noter dans un endroit sûr.
+
+#### Étape 2 — Configurer les variables d'environnement
+
+Dans `.env.local` (dev local) :
+
+```env
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+VAPID_PRIVATE_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+VAPID_SUBJECT=mailto:ton-email@example.com
+```
+
+Sur Vercel (prod) : Settings → Environment Variables → ajouter les 3 variables ci-dessus.
+
+> `VAPID_SUBJECT` : un email ou une URL qui identifie le serveur push. En cas de problème, les services push peuvent contacter à cette adresse. N'a pas besoin d'être fonctionnel.
+
+> `NEXT_PUBLIC_VAPID_PUBLIC_KEY` est envoyée au navigateur (normale). `VAPID_PRIVATE_KEY` ne doit **jamais** être exposée côté client.
+
+#### Étape 3 — Vérifier la migration Supabase
+
+S'assurer que ces colonnes existent sur `grands_prix` :
+- `notified_open_at TIMESTAMPTZ` — pose NULL, mis à jour lors de l'envoi
+- `notified_scores_at TIMESTAMPTZ` — idem
+
+Et que `push_subscriptions` a une contrainte `UNIQUE (endpoint)`.
+
+Ces changements sont définis dans la migration `supabase/migrations/20260617160000_push_notifications.sql` (PR #15) — idempotente. L'appliquer (`supabase db push`) puis vérifier via Supabase Dashboard → Table Editor.
+
+#### Étape 4 — Déployer sur Vercel (HTTPS obligatoire)
+
+Le navigateur refuse d'activer le Push API sur HTTP. En local, les notifications ne fonctionneront pas sauf via ngrok ou similaire. Tester directement sur une Vercel preview URL.
+
+#### Étape 5 — Tester l'abonnement
+
+1. Ouvrir l'app sur la preview URL Vercel.
+2. Cliquer "Activer les notifications" sur la home.
+3. Autoriser dans la popup navigateur.
+4. Vérifier dans Supabase Dashboard → Table `push_subscriptions` qu'une ligne apparaît.
+
+#### Étape 6 — Tester un envoi manuel
+
+```bash
+# Déclenche la notif "résultats disponibles" si un GP est finalisé sans notif
+curl -X POST https://votre-domaine.vercel.app/api/scores/trigger \
+  -H "x-cron-secret: <CRON_SECRET>"
+
+# Déclenche la notif "pronostics ouverts" si un GP démarre dans < 48h
+curl -X POST https://votre-domaine.vercel.app/api/f1/sync \
+  -H "x-cron-secret: <CRON_SECRET>"
+```
+
+Vérifier les colonnes `notified_open_at` / `notified_scores_at` dans Supabase pour confirmer l'envoi.
+
+### Comportement si les clés VAPID ne sont pas configurées
+
+`sendPushToAll()` détecte l'absence de clés et **skip silencieusement** sans crasher. Les crons continuent de fonctionner normalement — les notifications sont juste désactivées. Pas de 500, pas d'alerte.
+
+---
+
 ## Variables d'environnement
 
 À configurer dans Vercel → Project Settings → Environment Variables.
@@ -16,6 +105,9 @@ Guide opérationnel pour déployer l'application et configurer les tâches plani
 | `SUPABASE_SECRET_KEY` | `sb_secret_…` | Supabase Dashboard → Project Settings → API → service_role |
 | `CRON_SECRET` | chaîne aléatoire forte | Générer avec `openssl rand -base64 32` |
 | `F1_SEASON` | `2025` (ou année en cours) | Manuel — à mettre à jour chaque saison |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | clé publique VAPID | `npx web-push generate-vapid-keys` |
+| `VAPID_PRIVATE_KEY` | clé privée VAPID | idem (ne jamais exposer côté client) |
+| `VAPID_SUBJECT` | `mailto:admin@boxbox.app` | Identifiant du serveur push (email ou URL) |
 
 > **`SUPABASE_SECRET_KEY` bypasse le RLS.** Ne jamais la préfixer `NEXT_PUBLIC_` ni l'exposer côté client.
 
@@ -27,7 +119,8 @@ Guide opérationnel pour déployer l'application et configurer les tâches plani
 2. Importer le projet sur [vercel.com](https://vercel.com) → New Project → sélectionner le repo.
 3. Renseigner toutes les variables ci-dessus dans l'écran de configuration avant de cliquer Deploy.
 4. Vérifier que la migration Supabase est bien appliquée (toutes les tables existent).
-5. Tester les routes cron manuellement (voir section **Test manuel** ci-dessous).
+5. Générer les clés VAPID si pas encore fait : `npx web-push generate-vapid-keys` — copier les deux valeurs dans Vercel + `.env.local`.
+6. Tester les routes cron manuellement (voir section **Test manuel** ci-dessous).
 
 ---
 

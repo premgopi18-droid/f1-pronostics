@@ -392,24 +392,18 @@ Historique de chaque item joué. Le champ `payload` stocke les données spécifi
 
 **Index :** `(league_id, season)`, `(user_id, league_id, season)`
 
-**Exemple de breakdown :**
+**Forme du breakdown :** tableau JSON de `BreakdownEntry` (cf. `lib/scoring/types.ts`), une entrée par position scorée, écrit tel quel par `upsertBaseScores`. Il ne contient **que** les points de position — ni le bonus fastest lap, ni l'effet des items (ceux-ci vivent dans `final_score` ; le FL est une prédiction séparée dans `fastest_lap_predictions`).
+
 ```json
-{
-  "entries": [
-    { "predicted": "VER", "actual_position": 1, "predicted_position": 1, "points": 5 },
-    { "predicted": "NOR", "actual_position": 3, "predicted_position": 2, "points": 2 },
-    { "predicted": "LEC", "actual_position": 5, "predicted_position": 3, "points": 1 }
-  ],
-  "fastest_lap": { "predicted": "VER", "actual": "VER", "points": 7 },
-  "items": {
-    "block_applied": { "driver": "HAM", "points_zeroed": 5 },
-    "wild_card_received": { "from_user": "bob", "points_stolen": 6 },
-    "double_applied": true
-  },
-  "base_score": 18,
-  "final_score": 24
-}
+[
+  { "code": "VER", "predictedPos": 1, "actualPos": 1, "pts": 5 },
+  { "code": "NOR", "predictedPos": 2, "actualPos": 3, "pts": 2 },
+  { "code": "LEC", "predictedPos": 3, "actualPos": 5, "pts": 1 },
+  { "code": "PER", "predictedPos": 4, "actualPos": null, "pts": 0 }
+]
 ```
+
+> `actualPos: null` = pilote sans position en `session_results` (DNF/DNS) → `pts: 0`.
 
 ---
 

@@ -130,6 +130,11 @@ export async function playItemAction(
     await insertPlayedItem(user.id, leagueId, gpId, season, input.itemType, dbPayload)
     return { ok: true }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Erreur inattendue' }
+    // Backstop des races rares (les pré-checks couvrent les cas courants) : la RPC rejette
+    // un PostgrestError — exhaustion (P0001) ou double-play concurrent (unique_violation 23505).
+    const code = (error as { code?: string }).code
+    if (code === 'P0001') return { error: 'Item épuisé pour cette saison' }
+    if (code === '23505') return { error: 'Tu as déjà joué un item ce week-end dans cette ligue' }
+    return { error: 'Erreur inattendue' }
   }
 }

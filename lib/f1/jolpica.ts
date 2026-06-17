@@ -19,7 +19,7 @@ interface JolpikaConstructor {
   name:          string
 }
 
-interface JolpikaRaceResult {
+export interface JolpikaRaceResult {
   position:     string
   positionText: string   // "1".."20", "R"=Retired, "D"=DSQ, "N"=non-classé
   Driver:       JolpikaDriver
@@ -104,13 +104,10 @@ async function jolpikaGet<T>(path: string): Promise<T> {
 // Mappers
 // ============================================================
 
-function mapRaceResult(result: JolpikaRaceResult): [string, DriverResult] {
-  const code     = result.Driver.code
-  const position = /^\d+$/.test(result.positionText)
-    ? parseInt(result.positionText, 10)
-    : null
+export function mapRaceResult(result: JolpikaRaceResult): [string, DriverResult] {
+  const code = result.Driver.code
   return [code, {
-    position,
+    position:  parseInt(result.position, 10),
     fastestLap: result.FastestLap?.rank === '1',
     dnf:        result.positionText === 'R',
   }]

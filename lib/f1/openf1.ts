@@ -29,10 +29,11 @@ interface OpenF1Position {
 // Helper HTTP
 // ============================================================
 
-async function openf1Get<T>(path: string): Promise<T> {
+async function openf1Get<T>(path: string): Promise<T | null> {
   const response = await fetch(`${BASE_URL}${path}`, {
     next: { revalidate: 30 },
   })
+  if (response.status === 404) return null
   if (!response.ok) {
     throw new Error(`OpenF1 ${path} → HTTP ${response.status}`)
   }
@@ -52,8 +53,8 @@ export async function fetchSprintQualifyingResults(
   const sessions = await openf1Get<OpenF1Session[]>(
     `/sessions?year=${year}&session_name=Sprint+Qualifying&circuit_short_name=${encodeURIComponent(circuitShortName)}`,
   )
+  if (!sessions?.length) return new Map()
   const session = sessions[0]
-  if (!session) return new Map()
 
   // 2. Pilotes de la session → code acronyme
   const [drivers, positions] = await Promise.all([
@@ -61,11 +62,11 @@ export async function fetchSprintQualifyingResults(
     openf1Get<OpenF1Position[]>(`/position?session_key=${session.session_key}`),
   ])
 
-  const numberToCode = new Map(drivers.map((d) => [d.driver_number, d.name_acronym]))
+  const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
 
   // 3. Garder la dernière position connue par pilote (= classement final)
   const finalPositions = new Map<number, number>()
-  for (const entry of positions) {
+  for (const entry of positions ?? []) {
     finalPositions.set(entry.driver_number, entry.position)
   }
 

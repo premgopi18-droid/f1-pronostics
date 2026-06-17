@@ -28,7 +28,9 @@ async function handler(request: Request): Promise<Response> {
     // Garde-fou : classements officiels indisponibles (mauvaise année via F1_SEASON,
     // saison non terminée, incident Jolpica). Sans ça, computeSeasonScore ne trouverait
     // aucune position → scores à 0 écrasant season_scores, masqués derrière un 200.
-    if (driverStandings.size === 0 && constructorStandings.size === 0) {
+    // WDC et WCC coexistent toujours en fin de saison : si l'un OU l'autre est vide,
+    // c'est une anomalie — on refuse d'écrire des zéros sur ce championnat.
+    if (driverStandings.size === 0 || constructorStandings.size === 0) {
       return Response.json({ error: 'Classements officiels indisponibles' }, { status: 503 })
     }
 

@@ -77,7 +77,104 @@ export async function getItemsForGP(
   }))
 }
 
-// ── Écriture ──────────────────────────────────────────────────────────────
+// ── Lecture UI ────────────────────────────────────────────────────────────
+
+export type UserItemRow = {
+  itemType:      string
+  usesRemaining: number
+}
+
+export async function getUserGPItems(
+  userId:   string,
+  leagueId: string,
+  season:   number,
+): Promise<UserItemRow[]> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('user_items')
+    .select('item_type, uses_remaining')
+    .eq('user_id', userId)
+    .eq('league_id', leagueId)
+    .eq('season', season)
+    // Items saison (wdc_move, wcc_move) traités dans un slice séparé
+    .not('item_type', 'in', '(wdc_move,wcc_move)')
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    itemType:      row.item_type as string,
+    usesRemaining: row.uses_remaining as number,
+  }))
+}
+
+// Item joué par cet utilisateur sur ce GP dans cette ligue (1 max par règle)
+export async function getPlayedGPItemForUser(
+  userId:   string,
+  gpId:     string,
+  leagueId: string,
+): Promise<{ itemType: string; payload: Record<string, unknown> } | null> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('items_played')
+    .select('item_type, payload')
+    .eq('user_id', userId)
+    .eq('gp_id', gpId)
+    .eq('league_id', leagueId)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+  return {
+    itemType: data.item_type as string,
+    payload:  data.payload as Record<string, unknown>,
+  }
+}
+
+// ── Écriture UI ───────────────────────────────────────────────────────────
+
+export async function insertPlayedItem(
+  userId:    string,
+  leagueId:  string,
+  gpId:      string,
+  season:    number,
+  itemType:  string,
+  dbPayload: Record<string, unknown>,
+): Promise<void> {
+  const supabase = createServiceClient()
+
+  const { error: insertError } = await supabase
+    .from('items_played')
+    .insert({
+      user_id:   userId,
+      league_id: leagueId,
+      gp_id:     gpId,
+      season,
+      item_type: itemType,
+      payload:   dbPayload,
+    })
+  if (insertError) throw insertError
+
+  // Lecture puis décrément — non-atomique, acceptable pour la volumétrie de l'app
+  const { data: itemRow, error: readError } = await supabase
+    .from('user_items')
+    .select('uses_remaining')
+    .eq('user_id', userId)
+    .eq('league_id', leagueId)
+    .eq('season', season)
+    .eq('item_type', itemType)
+    .single()
+  if (readError) throw readError
+
+  const { error: decrementError } = await supabase
+    .from('user_items')
+    .update({ uses_remaining: (itemRow.uses_remaining as number) - 1 })
+    .eq('user_id', userId)
+    .eq('league_id', leagueId)
+    .eq('season', season)
+    .eq('item_type', itemType)
+  if (decrementError) throw decrementError
+}
+
+// ── Écriture (cron) ───────────────────────────────────────────────────────
 
 // Appelé après applyItemEffects — persiste was_shielded, effect_applied,
 // resolved_at, et points_stolen pour les Wild Cards.

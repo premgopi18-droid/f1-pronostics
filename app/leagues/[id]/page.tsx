@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { InviteLink } from './invite-link'
-import { LeaderboardRealtime } from './leaderboard-realtime'
-import type { MemberRow, Standing } from './leaderboard-realtime'
+import { LeaderboardRealtime, buildStandings } from './leaderboard-realtime'
+import type { MemberRow, ScoreRow, SeasonScoreRow, Standing } from './leaderboard-realtime'
 
 export default async function LeaguePage({
   params,
@@ -68,36 +68,18 @@ export default async function LeaguePage({
     }
   })
 
-  const normalizedSeasonScores = (seasonRows ?? []).map((r) => ({
+  const normalizedSeasonScores: SeasonScoreRow[] = (seasonRows ?? []).map((r) => ({
     user_id: r.user_id as string,
     total:   r.total as number,
   }))
 
-  // Calcul initial côté serveur (SSR) — le Client Component le reçoit en initialStandings
-  const totalByUser = new Map<string, number>()
-  const exactByUser = new Map<string, number>()
-  for (const row of scoreRows ?? []) {
-    const uid = row.user_id as string
-    totalByUser.set(uid, (totalByUser.get(uid) ?? 0) + (row.final_score as number ?? 0))
-    exactByUser.set(uid, (exactByUser.get(uid) ?? 0) + (row.exact_positions as number ?? 0))
-  }
-  for (const row of normalizedSeasonScores) {
-    totalByUser.set(row.user_id, (totalByUser.get(row.user_id) ?? 0) + row.total)
-  }
-
-  const initialStandings: Standing[] = members
-    .map((m) => ({
-      user_id:  m.user_id,
-      is_admin: m.is_admin,
-      profile:  m.profile,
-      total:    totalByUser.get(m.user_id) ?? 0,
-      exact:    exactByUser.get(m.user_id) ?? 0,
-    }))
-    .sort((a, b) => {
-      if (a.profile.isDeleted !== b.profile.isDeleted) return a.profile.isDeleted ? 1 : -1
-      if (b.total !== a.total) return b.total - a.total
-      return b.exact - a.exact
-    })
+  // Calcul initial côté serveur (SSR) — même agrégation/tri que le flux Realtime.
+  // Le Client Component le reçoit en initialStandings, puis recalcule via buildStandings.
+  const initialStandings: Standing[] = buildStandings(
+    members,
+    (scoreRows ?? []) as ScoreRow[],
+    normalizedSeasonScores,
+  )
 
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-8">

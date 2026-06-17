@@ -17,18 +17,20 @@ export type MemberRow = {
   profile:  { pseudo: string; avatarKey: string | null; isDeleted: boolean }
 }
 
-type ScoreRow = {
+export type ScoreRow = {
   user_id:         string
   final_score:     number
   exact_positions: number
 }
 
-type SeasonScoreRow = {
+export type SeasonScoreRow = {
   user_id: string
   total:   number
 }
 
-function buildStandings(
+// Agrège les scores de session + bonus saison par user et trie le classement.
+// Source unique : appelé côté serveur (SSR) dans page.tsx et côté client à chaque event Realtime.
+export function buildStandings(
   members:      MemberRow[],
   scoreRows:    ScoreRow[],
   seasonRows:   SeasonScoreRow[],
@@ -79,6 +81,19 @@ export function LeaderboardRealtime({
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient()
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined
+
+    const refresh = async () => {
+      const { data } = await supabase
+        .from('scores')
+        .select('user_id, final_score, exact_positions')
+        .eq('league_id', leagueId)
+        .eq('season', season)
+
+      if (data) {
+        setStandings(buildStandings(members, data as ScoreRow[], seasonScores))
+      }
+    }
 
     const channel = supabase
       .channel(`league-scores-${leagueId}`)
@@ -90,16 +105,11 @@ export function LeaderboardRealtime({
           table:  'scores',
           filter: `league_id=eq.${leagueId}`,
         },
-        async () => {
-          const { data } = await supabase
-            .from('scores')
-            .select('user_id, final_score, exact_positions')
-            .eq('league_id', leagueId)
-            .eq('season', season)
-
-          if (data) {
-            setStandings(buildStandings(members, data as ScoreRow[], seasonScores))
-          }
+        () => {
+          // Le scoring upsert 1 ligne `scores` par membre → 1 event par membre. On debounce
+          // pour coalescer cette rafale en un seul re-fetch + ré-agrégation.
+          if (debounceTimer) clearTimeout(debounceTimer)
+          debounceTimer = setTimeout(refresh, 300)
         },
       )
       .subscribe((status) => {
@@ -107,6 +117,7 @@ export function LeaderboardRealtime({
       })
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
       supabase.removeChannel(channel)
     }
   }, [leagueId, season, members, seasonScores])

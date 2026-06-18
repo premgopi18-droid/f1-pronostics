@@ -133,6 +133,8 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 - Les membres d'une même ligue voient le pseudo et l'avatar
 - `is_deleted = true` → pseudo remplacé par "Compte supprimé" côté UI
 
+> **Suppression de compte (RGPD)** : la ligne `profiles` et les `scores` sont conservés (intégrité du classement), mais anonymisés — `pseudo` écrasé par une valeur neutre (libère la contrainte `UNIQUE`), `avatar_key` mis à null, `is_deleted = true`. L'email est anonymisé dans `auth.users` via le client service-role (pas de hard-delete : la cascade `profiles → auth.users` serait bloquée par les FK `NO ACTION` de `scores`/`league_members`). L'email d'origine est ainsi libéré pour une éventuelle ré-inscription.
+
 ---
 
 ### `push_subscriptions`
@@ -164,10 +166,10 @@ Une ligue est une entité **persistante** — pas de colonne `season`. La même 
 | name | TEXT | |
 | invite_code | TEXT UNIQUE | token aléatoire régénérable |
 | invite_open | BOOLEAN | défaut true |
-| max_members | INTEGER | CHECK (max_members BETWEEN 3 AND 20) |
+| max_members | INTEGER | CHECK (max_members BETWEEN 2 AND 20) |
 | created_at | TIMESTAMPTZ | |
 
-**Contrainte :** `CHECK (max_members BETWEEN 3 AND 20)`
+**Contrainte :** `CHECK (max_members BETWEEN 2 AND 20)`
 
 **RLS :**
 - Lecture : membres de la ligue uniquement (via league_members)

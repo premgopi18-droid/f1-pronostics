@@ -133,7 +133,7 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 - Les membres d'une même ligue voient le pseudo et l'avatar
 - `is_deleted = true` → pseudo remplacé par "Compte supprimé" côté UI
 
-> **Suppression de compte (RGPD)** : la ligne `profiles` et les `scores` sont conservés (intégrité du classement), mais anonymisés — `pseudo` écrasé par une valeur neutre (libère la contrainte `UNIQUE`), `avatar_key` mis à null, `is_deleted = true`. L'email est anonymisé dans `auth.users` via le client service-role (pas de hard-delete : la cascade `profiles → auth.users` serait bloquée par les FK `NO ACTION` de `scores`/`league_members`). L'email d'origine est ainsi libéré pour une éventuelle ré-inscription.
+> **Suppression de compte (RGPD)** : tout passe par le RPC `delete_own_account` (cf. §RPC). La ligne `profiles` et les `scores` sont conservés (intégrité du classement) mais anonymisés — `pseudo` écrasé par une valeur neutre (libère la contrainte `UNIQUE`), `avatar_key` à null, `is_deleted = true`. Côté auth : `auth.users.email` + `raw_user_meta_data` neutralisés et les lignes `auth.identities` supprimées. Pas de hard-delete de `auth.users` (la cascade `profiles → auth.users` serait bloquée par les FK `NO ACTION` de `scores`/`league_members`), mais sans identité la ligne devient non-connectable et l'email d'origine est libéré → une reconnexion Google recrée un compte neuf.
 
 ---
 
@@ -523,6 +523,16 @@ Applique un item saison (`wdc_move` / `wcc_move`) en une seule transaction :
 3. **Insert** du log auditable dans `items_played` (`league_id` NULL, `gp_id` NULL, payload `{ code, from_position, to_position }`).
 
 Remplace l'enchaînement upsert → insert → upsert côté serveur, qui pouvait laisser la prédiction mutée sans décrément (échec partiel) ou sur-dépenser en concurrence. Appelée par `applySeasonItemAction` (`app/actions/season-predictions.ts`). Migration : `20260617140000_season_items_and_apply_rpc.sql`.
+
+### `delete_own_account(p_season)`
+
+Supprime le compte de l'appelant en une seule transaction, **scopée sur `auth.uid()`** (aucun id n'est passé par le client → pas d'IDOR) :
+
+1. **Transfert d'admin** : pour chaque ligue de la saison où l'utilisateur est admin, nomme le plus ancien membre encore actif (`joined_at`, `is_deleted = false`) puis se retire — dans cet ordre, pour respecter le trigger « ≥1 admin ».
+2. **Anonymisation du profil** : `pseudo` neutre, `avatar_key` null, `is_deleted = true`, `deleted_at`.
+3. **Effacement des données d'auth** : neutralise `auth.users.email` + `raw_user_meta_data` et supprime les `auth.identities`.
+
+`SECURITY DEFINER` (owner `postgres`, qui a les droits d'écriture sur le schéma `auth`) avec `search_path = ''` et objets pleinement qualifiés. `execute` accordé à `authenticated` uniquement. Appelée par `deleteAccount` (`app/actions/profile.ts`). Migration : `20260619110000_delete_own_account_rpc.sql`.
 
 ---
 

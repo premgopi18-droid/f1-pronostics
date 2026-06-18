@@ -19,7 +19,7 @@ export async function createLeagueAction(
   const maxMembers = parseInt(formData.get('maxMembers') as string, 10)
 
   if (name.length < 2 || name.length > 50) return { error: 'Nom invalide (2–50 caractères)' }
-  if (isNaN(maxMembers) || maxMembers < 3 || maxMembers > 20) return { error: 'Taille invalide (3–20 joueurs)' }
+  if (isNaN(maxMembers) || maxMembers < 2 || maxMembers > 20) return { error: 'Taille invalide (2–20 joueurs)' }
 
   let leagueId: string
   try {

@@ -1,18 +1,18 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { ProfileForm } from './profile-form'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const userId   = (await headers()).get('x-user-id')!
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('pseudo, avatar_key')
-    .eq('id', user.id)
-    .single()
+  // getSession() lit depuis le cookie (0 appel réseau) — suffit pour l'email affiché
+  const [{ data: profile }, { data: { session } }] = await Promise.all([
+    supabase.from('profiles').select('pseudo, avatar_key').eq('id', userId).single(),
+    supabase.auth.getSession(),
+  ])
 
   if (!profile) notFound()
 
@@ -30,7 +30,7 @@ export default async function ProfilePage() {
         <ProfileForm
           pseudo={profile.pseudo as string}
           avatarKey={profile.avatar_key as string | null}
-          email={user.email ?? ''}
+          email={session?.user?.email ?? ''}
         />
 
       </div>

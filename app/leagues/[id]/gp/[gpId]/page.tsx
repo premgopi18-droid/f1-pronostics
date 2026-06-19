@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { FASTEST_LAP_BONUS, POSITIONS_TO_SCORE, SCORE_TABLES } from '@/lib/scoring/constants'
@@ -58,10 +59,9 @@ export default async function GPScoresPage({
   const { id: leagueId, gpId } = await params
   const supabase = await createClient()
   const season   = getCurrentSeason()
+  const userId   = (await headers()).get('x-user-id')!
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) notFound()
-
+  // Stage 1 — données de base du GP
   const [
     { data: gp },
     { data: sessions },
@@ -92,15 +92,47 @@ export default async function GPScoresPage({
   if (!gp || !league || gp.season !== season) notFound()
 
   const sessionIds = (sessions ?? []).map((s) => s.id as string)
+  const confirmedSessionIds = (sessions ?? [])
+    .filter((s) => s.results_confirmed_at != null)
+    .map((s) => s.id as string)
 
-  const { data: scoreRows } = sessionIds.length > 0
-    ? await supabase
-        .from('scores')
-        .select('user_id, session_id, final_score, exact_positions')
-        .eq('league_id', leagueId)
-        .eq('season', season)
-        .in('session_id', sessionIds)
-    : { data: [] }
+  // Stage 2 — scores + pronostics + résultats en parallèle (était 2 étapes séquentielles)
+  const [
+    { data: scoreRows },
+    { data: predRowsData },
+    { data: flRowsData },
+    { data: resultRowsData },
+  ] = await Promise.all([
+    sessionIds.length > 0
+      ? supabase
+          .from('scores')
+          .select('user_id, session_id, final_score, exact_positions')
+          .eq('league_id', leagueId)
+          .eq('season', season)
+          .in('session_id', sessionIds)
+      : { data: [] },
+    confirmedSessionIds.length > 0
+      ? supabase
+          .from('predictions')
+          .select('session_id, entries, is_valid')
+          .eq('user_id', userId)
+          .in('session_id', confirmedSessionIds)
+      : { data: [] },
+    confirmedSessionIds.length > 0
+      ? supabase
+          .from('fastest_lap_predictions')
+          .select('session_id, drivers!driver_id(code)')
+          .eq('user_id', userId)
+          .in('session_id', confirmedSessionIds)
+      : { data: [] },
+    confirmedSessionIds.length > 0
+      ? supabase
+          .from('session_results')
+          .select('session_id, position, fastest_lap, drivers!driver_id(code)')
+          .in('session_id', confirmedSessionIds)
+          .not('position', 'is', null)
+      : { data: [] },
+  ])
 
   const typeById = new Map((sessions ?? []).map((s) => [s.id as string, s.type as SessionType]))
 
@@ -131,13 +163,13 @@ export default async function GPScoresPage({
   const memberScores: MemberScore[] = (members ?? [])
     .map((m) => {
       const profile = (m.profiles as unknown) as { pseudo: string; is_deleted: boolean } | null
-      const userId  = m.user_id as string
+      const memberId = m.user_id as string
       const bySession: Partial<Record<SessionType, { finalScore: number; exactPositions: number }>> = {}
       let total      = 0
       let exactTotal = 0
 
       for (const sType of orderedSessionTypes) {
-        const score = scoreMap.get(`${userId}:${sType}`)
+        const score = scoreMap.get(`${memberId}:${sType}`)
         if (score) {
           bySession[sType] = score
           total      += score.finalScore
@@ -146,10 +178,10 @@ export default async function GPScoresPage({
       }
 
       return {
-        userId,
+        userId:    memberId,
         pseudo:    profile?.is_deleted ? 'Compte supprimé' : (profile?.pseudo ?? '?'),
         isDeleted: profile?.is_deleted ?? false,
-        isMe:      userId === user.id,
+        isMe:      memberId === userId,
         total,
         exactTotal,
         bySession,
@@ -160,11 +192,7 @@ export default async function GPScoresPage({
       return b.total - a.total || b.exactTotal - a.exactTotal
     })
 
-  // ── Pronostics vs résultats réels (sessions confirmées uniquement) ────────
-
-  const confirmedSessionIds = (sessions ?? [])
-    .filter((s) => s.results_confirmed_at != null)
-    .map((s) => s.id as string)
+  // ── Pronostics vs résultats réels ────────────────────────────────────────
 
   const userPredictionsBySession  = new Map<string, string[]>()
   const invalidPredictionSessions = new Set<string>()
@@ -172,46 +200,25 @@ export default async function GPScoresPage({
   const actualResultsBySession    = new Map<string, Map<string, number>>()
   const actualFLBySession         = new Map<string, string>()
 
-  if (confirmedSessionIds.length > 0) {
-    // Lectures RLS : prono/FL propres (« lecture propre : toujours »), résultats publics.
-    const [predRows, flRows, resultRows] = await Promise.all([
-      supabase
-        .from('predictions')
-        .select('session_id, entries, is_valid')
-        .eq('user_id', user.id)
-        .in('session_id', confirmedSessionIds),
-      supabase
-        .from('fastest_lap_predictions')
-        .select('session_id, drivers!driver_id(code)')
-        .eq('user_id', user.id)
-        .in('session_id', confirmedSessionIds),
-      supabase
-        .from('session_results')
-        .select('session_id, position, fastest_lap, drivers!driver_id(code)')
-        .in('session_id', confirmedSessionIds)
-        .not('position', 'is', null),
-    ])
+  for (const row of predRowsData ?? []) {
+    const sid = row.session_id as string
+    if (row.is_valid) userPredictionsBySession.set(sid, row.entries as string[])
+    else invalidPredictionSessions.add(sid)
+  }
 
-    for (const row of predRows.data ?? []) {
-      const sid = row.session_id as string
-      if (row.is_valid) userPredictionsBySession.set(sid, row.entries as string[])
-      else invalidPredictionSessions.add(sid)
-    }
+  for (const row of flRowsData ?? []) {
+    const driver = (row.drivers as unknown) as { code: string } | null
+    if (driver) userFLBySession.set(row.session_id as string, driver.code)
+  }
 
-    for (const row of flRows.data ?? []) {
-      const driver = (row.drivers as unknown) as { code: string } | null
-      if (driver) userFLBySession.set(row.session_id as string, driver.code)
-    }
-
-    for (const row of resultRows.data ?? []) {
-      const driver = (row.drivers as unknown) as { code: string } | null
-      if (!driver) continue
-      const sid      = row.session_id as string
-      const position = row.position as number
-      if (!actualResultsBySession.has(sid)) actualResultsBySession.set(sid, new Map())
-      actualResultsBySession.get(sid)!.set(driver.code, position)
-      if (row.fastest_lap) actualFLBySession.set(sid, driver.code)
-    }
+  for (const row of resultRowsData ?? []) {
+    const driver = (row.drivers as unknown) as { code: string } | null
+    if (!driver) continue
+    const sid      = row.session_id as string
+    const position = row.position as number
+    if (!actualResultsBySession.has(sid)) actualResultsBySession.set(sid, new Map())
+    actualResultsBySession.get(sid)!.set(driver.code, position)
+    if (row.fastest_lap) actualFLBySession.set(sid, driver.code)
   }
 
   const hasScores   = (scoreRows ?? []).length > 0

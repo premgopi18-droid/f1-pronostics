@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { InviteLink } from './invite-link'
@@ -16,23 +17,24 @@ export default async function LeaguePage({
   const { id } = await params
   const season  = getCurrentSeason()
   const supabase = await createClient()
+  const userId   = (await headers()).get('x-user-id')!
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) notFound()
-
-  // Ligue (RLS : visible uniquement par les membres)
-  const { data: league } = await supabase
-    .from('leagues')
-    .select('id, name, invite_code, invite_open')
-    .eq('id', id)
-    .single()
-
-  if (!league) notFound()
-
-  // Requêtes séparées — pas de FK league_members → scores/season_scores, join impossible
-  // via PostgREST. Formule de classement (data-model.md) : SUM(scores.final_score) +
-  // season_scores.total (bonus WDC/WCC de fin de saison, 1 ligne par user).
-  const [{ data: rawMembers }, { data: scoreRows }, { data: seasonRows }, { data: grandsPrix }] = await Promise.all([
+  // Toutes les requêtes en parallèle — league + members + scores + saison + GPs
+  const [
+    { data: league },
+    { data: rawMembers },
+    { data: scoreRows },
+    { data: seasonRows },
+    { data: grandsPrix },
+  ] = await Promise.all([
+    supabase
+      .from('leagues')
+      .select('id, name, invite_code, invite_open')
+      .eq('id', id)
+      .single(),
+    // Requêtes séparées — pas de FK league_members → scores/season_scores, join impossible
+    // via PostgREST. Formule de classement (data-model.md) : SUM(scores.final_score) +
+    // season_scores.total (bonus WDC/WCC de fin de saison, 1 ligne par user).
     supabase
       .from('league_members')
       .select('user_id, is_admin, profiles!user_id ( pseudo, avatar_key, is_deleted )')
@@ -56,6 +58,8 @@ export default async function LeaguePage({
       .order('round', { ascending: false }),
   ])
 
+  if (!league) notFound()
+
   // Normalisation des membres pour le Client Component (types sérialisables)
   const members: MemberRow[] = (rawMembers ?? []).map((m) => {
     const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; is_deleted: boolean } | null
@@ -76,7 +80,7 @@ export default async function LeaguePage({
   }))
 
   const isAdmin = (rawMembers ?? []).some(
-    (m) => m.user_id === user.id && m.is_admin,
+    (m) => m.user_id === userId && m.is_admin,
   )
 
   // Calcul initial côté serveur (SSR) — même agrégation/tri que le flux Realtime.
@@ -112,7 +116,7 @@ export default async function LeaguePage({
           seasonScores={normalizedSeasonScores}
           leagueId={id}
           season={season}
-          currentUserId={user.id}
+          currentUserId={userId}
         />
 
         {/* Panel admin */}

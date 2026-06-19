@@ -1,4 +1,5 @@
 import 'server-only'
+import { revalidateTag } from 'next/cache'
 import {
   fetchCalendar,
   fetchConstructors,
@@ -124,6 +125,10 @@ async function handler(request: Request): Promise<Response> {
       })
       await markGPNotifiedOpen(gp.id)
     }
+
+    revalidateTag('grands_prix')
+    revalidateTag('drivers')
+    revalidateTag('constructors')
 
     return Response.json({ gps: calendar.length, sessionsConfirmed, notified: gpsToNotify.length })
   } catch (error) {

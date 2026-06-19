@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
+import { getCachedDrivers } from '@/lib/f1/cached'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import { PredictionForm } from './prediction-form'
 import type { SessionType } from '@/lib/scoring/types'
@@ -14,11 +16,9 @@ export default async function PredictionsPage({
   const { gpId } = await params
   const supabase  = await createClient()
   const season    = getCurrentSeason()
+  const userId    = (await headers()).get('x-user-id')!
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) notFound()
-
-  const [{ data: gp }, { data: sessions }, { data: drivers }] = await Promise.all([
+  const [{ data: gp }, { data: sessions }, driversRaw] = await Promise.all([
     supabase
       .from('grands_prix')
       .select('id, name, country, round')
@@ -30,11 +30,7 @@ export default async function PredictionsPage({
       .eq('gp_id', gpId)
       .eq('season', season)
       .order('starts_at'),
-    supabase
-      .from('drivers')
-      .select('id, code, first_name, last_name, number')
-      .eq('season', season)
-      .order('code'),
+    getCachedDrivers(season),
   ])
 
   if (!gp) notFound()
@@ -49,12 +45,12 @@ export default async function PredictionsPage({
       supabase
         .from('predictions')
         .select('session_id, entries')
-        .eq('user_id', user!.id)
+        .eq('user_id', userId)
         .in('session_id', sessionIds),
       supabase
         .from('fastest_lap_predictions')
         .select('session_id, drivers!driver_id(code)')
-        .eq('user_id', user!.id)
+        .eq('user_id', userId)
         .in('session_id', sessionIds),
     ])
 
@@ -71,7 +67,7 @@ export default async function PredictionsPage({
 
   const now = new Date()
 
-  const mappedDrivers = (drivers ?? []).map((d) => ({
+  const mappedDrivers = driversRaw.map((d) => ({
     id:        d.id as string,
     code:      d.code as string,
     firstName: d.first_name as string,

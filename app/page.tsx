@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { signOut } from '@/app/actions/auth'
@@ -7,20 +8,18 @@ import { PushSubscribe } from '@/app/components/push-subscribe'
 export default async function HomePage() {
   const supabase = await createClient()
   const season   = getCurrentSeason()
+  const userId   = (await headers()).get('x-user-id')!
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('pseudo')
-    .eq('id', user!.id)
-    .single()
-
-  const [{ data: memberships }, { data: nextGP }] = await Promise.all([
+  const [{ data: profile }, { data: memberships }, { data: nextGP }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('pseudo')
+      .eq('id', userId)
+      .single(),
     supabase
       .from('league_members')
       .select('league_id, leagues!league_id ( name )')
-      .eq('user_id', user!.id)
+      .eq('user_id', userId)
       .eq('season', season),
     supabase
       .from('grands_prix')

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { InviteLink } from './invite-link'
+import { AdminPanel } from './admin-panel'
 import { LeaderboardRealtime } from './leaderboard-realtime'
 import { buildStandings } from '@/lib/leagues/standings'
 import type { MemberRow, ScoreRow, SeasonScoreRow, Standing } from '@/lib/leagues/standings'
@@ -22,7 +23,7 @@ export default async function LeaguePage({
   // Ligue (RLS : visible uniquement par les membres)
   const { data: league } = await supabase
     .from('leagues')
-    .select('id, name, invite_code')
+    .select('id, name, invite_code, invite_open')
     .eq('id', id)
     .single()
 
@@ -74,6 +75,10 @@ export default async function LeaguePage({
     total:   r.total as number,
   }))
 
+  const isAdmin = (rawMembers ?? []).some(
+    (m) => m.user_id === user.id && m.is_admin,
+  )
+
   // Calcul initial côté serveur (SSR) — même agrégation/tri que le flux Realtime.
   // Le Client Component le reçoit en initialStandings, puis recalcule via buildStandings.
   const initialStandings: Standing[] = buildStandings(
@@ -95,7 +100,10 @@ export default async function LeaguePage({
         </div>
 
         {/* Lien d'invitation */}
-        <InviteLink code={league.invite_code as string} />
+        <InviteLink
+          code={league.invite_code as string}
+          inviteOpen={league.invite_open as boolean}
+        />
 
         {/* Classement — temps réel via Supabase Realtime */}
         <LeaderboardRealtime
@@ -106,6 +114,14 @@ export default async function LeaguePage({
           season={season}
           currentUserId={user.id}
         />
+
+        {/* Panel admin */}
+        {isAdmin && (
+          <AdminPanel
+            leagueId={id}
+            inviteOpen={league.invite_open as boolean}
+          />
+        )}
 
         {/* Week-ends */}
         {(grandsPrix ?? []).length > 0 && (

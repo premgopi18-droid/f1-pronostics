@@ -39,7 +39,7 @@ export function CreateLeagueForm() {
           defaultValue="10"
           className="bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-zinc-500 transition-colors"
         >
-          {Array.from({ length: 18 }, (_, i) => i + 3).map((n) => (
+          {Array.from({ length: 19 }, (_, i) => i + 2).map((n) => (
             <option key={n} value={n}>{n} joueurs</option>
           ))}
         </select>

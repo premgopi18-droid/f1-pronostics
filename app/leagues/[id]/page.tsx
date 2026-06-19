@@ -3,8 +3,9 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { InviteLink } from './invite-link'
-import { LeaderboardRealtime, buildStandings } from './leaderboard-realtime'
-import type { MemberRow, ScoreRow, SeasonScoreRow, Standing } from './leaderboard-realtime'
+import { LeaderboardRealtime } from './leaderboard-realtime'
+import { buildStandings } from '@/lib/leagues/standings'
+import type { MemberRow, ScoreRow, SeasonScoreRow, Standing } from '@/lib/leagues/standings'
 
 export default async function LeaguePage({
   params,

@@ -53,7 +53,7 @@ export default async function HomePage() {
         </div>
 
         <p className="text-zinc-400 text-sm">
-          Bonjour, <span className="text-white font-medium">{profile?.pseudo}</span>
+          Bonjour, <Link href="/profile" className="text-white font-medium hover:text-zinc-300 transition-colors">{profile?.pseudo}</Link>
         </p>
 
         {/* Prochain GP */}

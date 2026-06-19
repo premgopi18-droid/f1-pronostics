@@ -24,7 +24,7 @@ Application web (PWA) de pronostics Formula 1 entre amis. Les utilisateurs rejoi
 ## 2. Utilisateurs cibles
 
 - Fans de Formule 1 souhaitant animer leur groupe d'amis autour des courses
-- Groupes de 3 à 20 personnes
+- Groupes de 2 à 20 personnes
 - Usage principalement mobile, autour des week-ends de Grand Prix
 
 ---
@@ -40,7 +40,7 @@ Application web (PWA) de pronostics Formula 1 entre amis. Les utilisateurs rejoi
 - **Pseudo** : modifiable (sous réserve de disponibilité)
 - **Email** : non modifiable après inscription
 - **Avatar** : choix parmi une sélection d'avatars prédéfinis (v1) — upload d'image personnalisée en v2
-- **Suppression de compte** : possible à tout moment (conformité RGPD). Si une ligue est en cours : le joueur apparaît anonymisé avec un état visuel "compte supprimé" (pseudo grisé ou marqueur distinct), trié en dernier dans le classement. Ses scores passés sont conservés anonymisés pour l'intégrité du classement.
+- **Suppression de compte** : possible à tout moment (conformité RGPD). Si une ligue est en cours : le joueur apparaît anonymisé avec un état visuel "compte supprimé" (pseudo grisé ou marqueur distinct), trié en dernier dans le classement. Ses scores passés sont conservés anonymisés pour l'intégrité du classement. **Anonymisation** : le pseudo est écrasé par une valeur neutre (et l'avatar retiré), et toutes les données d'authentification (email, identité Google) sont effacées — il n'y a pas de hard-delete du compte car les scores conservés y référencent encore. Le compte devient non-connectable et l'email d'origine est libéré : l'utilisateur peut se ré-inscrire ultérieurement (nouveau compte, repartant de zéro). Si le joueur supprimé était admin, le rôle est automatiquement transféré au membre le plus ancien (par date d'entrée dans la ligue) dont le compte est encore actif ; si aucun membre actif n'existe, la ligue reste sans admin actif jusqu'à la fin de saison.
 
 ### 3.2 Ligues
 
@@ -64,7 +64,7 @@ Application web (PWA) de pronostics Formula 1 entre amis. Les utilisateurs rejoi
 - Le créateur de la ligue est automatiquement **admin**
 - L'admin peut **régénérer le lien d'invitation** ou **fermer les inscriptions** (toggle ouvert/fermé) pour empêcher de nouveaux membres de rejoindre
 - L'admin ne peut pas exclure un membre — si besoin, l'alternative est de créer une nouvelle ligue
-- L'admin définit le **nombre maximum de membres** à la création (entre 3 et 20)
+- L'admin définit le **nombre maximum de membres** à la création (entre 2 et 20)
 - **Hard cap absolu : 20 joueurs** — cohérent avec le groupe d'amis visé et le nombre de pilotes sur la grille
 - L'admin peut **nommer un autre membre admin** à tout moment (transfert de rôle)
 

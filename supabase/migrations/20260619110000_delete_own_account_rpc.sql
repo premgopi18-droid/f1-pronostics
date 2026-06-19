@@ -68,10 +68,18 @@ begin
   where id = v_user;
 
   delete from auth.identities where user_id = v_user;
+
+  -- 4. Effacer les souscriptions push : leur FK est ON DELETE CASCADE vers
+  --    profiles, mais comme on garde la ligne profiles (anonymisée) elles ne
+  --    partiraient pas d'elles-mêmes. Sans ça, `sendPushToAll` (qui ne filtre
+  --    pas is_deleted) continuerait de notifier l'appareil d'un compte supprimé.
+  delete from public.push_subscriptions where user_id = v_user;
 end;
 $$;
 
--- Exécutable uniquement par un utilisateur authentifié (et jamais en direct par
--- anon). Le corps tourne en DEFINER, donc avec les droits d'écriture sur auth.
+-- Contrairement aux autres RPC (create_league, play_item…) réservées à
+-- service_role, celle-ci est accordée à `authenticated` : elle s'auto-autorise
+-- via `auth.uid()` (un user ne peut supprimer que SON propre compte, pas d'IDOR),
+-- donc pas besoin de passer par le client service-role. anon reste exclu.
 revoke all on function public.delete_own_account(integer) from public, anon, authenticated;
 grant execute on function public.delete_own_account(integer) to authenticated;

@@ -133,7 +133,7 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 - Les membres d'une même ligue voient le pseudo et l'avatar
 - `is_deleted = true` → pseudo remplacé par "Compte supprimé" côté UI
 
-> **Suppression de compte (RGPD)** : tout passe par le RPC `delete_own_account` (cf. §RPC). La ligne `profiles` et les `scores` sont conservés (intégrité du classement) mais anonymisés — `pseudo` écrasé par une valeur neutre (libère la contrainte `UNIQUE`), `avatar_key` à null, `is_deleted = true`. Côté auth : `auth.users.email` + `raw_user_meta_data` neutralisés et les lignes `auth.identities` supprimées. Pas de hard-delete de `auth.users` (la cascade `profiles → auth.users` serait bloquée par les FK `NO ACTION` de `scores`/`league_members`), mais sans identité la ligne devient non-connectable et l'email d'origine est libéré → une reconnexion Google recrée un compte neuf.
+> **Suppression de compte (RGPD)** : tout passe par le RPC `delete_own_account` (cf. §RPC). La ligne `profiles` et les `scores` sont conservés (intégrité du classement) mais anonymisés — `pseudo` écrasé par une valeur neutre (libère la contrainte `UNIQUE`), `avatar_key` à null, `is_deleted = true`. Côté auth : `auth.users.email` + `raw_user_meta_data` neutralisés, les lignes `auth.identities` et `push_subscriptions` supprimées. Pas de hard-delete de `auth.users` (la cascade `profiles → auth.users` serait bloquée par les FK `NO ACTION` de `scores`/`league_members`), mais sans identité la ligne devient non-connectable et l'email d'origine est libéré → une reconnexion Google recrée un compte neuf.
 
 ---
 
@@ -531,6 +531,7 @@ Supprime le compte de l'appelant en une seule transaction, **scopée sur `auth.u
 1. **Transfert d'admin** : pour chaque ligue de la saison où l'utilisateur est admin, nomme le plus ancien membre encore actif (`joined_at`, `is_deleted = false`) puis se retire — dans cet ordre, pour respecter le trigger « ≥1 admin ».
 2. **Anonymisation du profil** : `pseudo` neutre, `avatar_key` null, `is_deleted = true`, `deleted_at`.
 3. **Effacement des données d'auth** : neutralise `auth.users.email` + `raw_user_meta_data` et supprime les `auth.identities`.
+4. **Effacement des `push_subscriptions`** : sinon `sendPushToAll` (qui ne filtre pas `is_deleted`) continuerait de notifier l'appareil d'un compte supprimé.
 
 `SECURITY DEFINER` (owner `postgres`, qui a les droits d'écriture sur le schéma `auth`) avec `search_path = ''` et objets pleinement qualifiés. `execute` accordé à `authenticated` uniquement. Appelée par `deleteAccount` (`app/actions/profile.ts`). Migration : `20260619110000_delete_own_account_rpc.sql`.
 

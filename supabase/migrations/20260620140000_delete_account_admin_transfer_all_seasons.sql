@@ -14,7 +14,7 @@
 
 drop function if exists public.delete_own_account(integer);
 
-create function public.delete_own_account()
+create or replace function public.delete_own_account()
 returns void
 language plpgsql
 security definer

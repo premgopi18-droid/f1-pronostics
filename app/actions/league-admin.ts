@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 
-type AdminResult = { error?: string; success?: boolean }
+type AdminResult = { error?: string; success?: boolean; inviteOpen?: boolean }
 
 // Garde-fou applicatif : un Server Action est un endpoint POST public, le gate UI
 // (`isAdmin` dans page.tsx) ne protège pas l'appel direct. On vérifie l'admin-ship
@@ -31,23 +31,16 @@ export async function toggleInvites(leagueId: string): Promise<AdminResult> {
   const auth = await assertAdmin(leagueId)
   if ('error' in auth) return auth
 
-  const { data: league } = await auth.supabase
-    .from('leagues')
-    .select('invite_open')
-    .eq('id', leagueId)
-    .single()
+  // Toggle atomique en base (un seul UPDATE) qui renvoie le nouvel état : le client
+  // n'a rien à inférer, donc plus de divergence UI sur un onglet périmé (cf. #23),
+  // et deux admins concurrents ne peuvent plus se neutraliser.
+  const { data: inviteOpen, error } = await auth.supabase
+    .rpc('toggle_invites', { p_league_id: leagueId })
 
-  if (!league) return { error: 'Ligue introuvable' }
-
-  const { error } = await auth.supabase
-    .from('leagues')
-    .update({ invite_open: !league.invite_open })
-    .eq('id', leagueId)
-
-  if (error) return { error: 'Erreur lors de la mise à jour' }
+  if (error || typeof inviteOpen !== 'boolean') return { error: 'Erreur lors de la mise à jour' }
 
   revalidatePath(`/leagues/${leagueId}`)
-  return { success: true }
+  return { success: true, inviteOpen }
 }
 
 export async function regenerateInviteCode(leagueId: string): Promise<AdminResult> {

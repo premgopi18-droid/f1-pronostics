@@ -126,9 +126,9 @@ async function handler(request: Request): Promise<Response> {
       await markGPNotifiedOpen(gp.id)
     }
 
-    revalidateTag('grands_prix')
-    revalidateTag('drivers')
-    revalidateTag('constructors')
+    // Next 16 : revalidateTag exige un profil de cache (stale-while-revalidate).
+    revalidateTag('drivers', 'max')
+    revalidateTag('constructors', 'max')
 
     return Response.json({ gps: calendar.length, sessionsConfirmed, notified: gpsToNotify.length })
   } catch (error) {

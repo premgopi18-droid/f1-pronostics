@@ -2,8 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
+  // Ne jamais faire confiance à un x-user-id entrant : c'est un header d'auth
+  // interne, (ré)injecté plus bas uniquement après getUser(). On le supprime des
+  // headers transmis sur TOUS les chemins de retour, y compris non authentifiés.
+  const baseHeaders = new Headers(request.headers)
+  baseHeaders.delete('x-user-id')
+
   // Interim response utilisé par Supabase pour propager les refreshes de token
-  let supabaseResponse = NextResponse.next({ request })
+  let supabaseResponse = NextResponse.next({ request: { headers: baseHeaders } })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,7 +22,7 @@ export async function proxy(request: NextRequest) {
         setAll(cookiesToSet) {
           // Garder request.cookies à jour (pour forwardHeaders ci-dessous)
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
+          supabaseResponse = NextResponse.next({ request: { headers: baseHeaders } })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options),
           )
@@ -49,14 +55,13 @@ export async function proxy(request: NextRequest) {
   if (!user) return supabaseResponse
 
   // Injecter x-user-id dans les headers de la requête transmise aux Server Components.
+  // baseHeaders est déjà débarrassé de tout x-user-id client (cf. en-tête de fonction).
   // Reconstruire le Cookie header depuis request.cookies (inclut les tokens refreshés).
-  // Supprimer x-user-id côté client pour empêcher l'injection de header.
-  const forwardHeaders = new Headers(request.headers)
+  const forwardHeaders = new Headers(baseHeaders)
   forwardHeaders.set(
     'cookie',
     request.cookies.getAll().map(({ name, value }) => `${name}=${value}`).join('; '),
   )
-  forwardHeaders.delete('x-user-id')
   forwardHeaders.set('x-user-id', user.id)
 
   const response = NextResponse.next({ request: { headers: forwardHeaders } })

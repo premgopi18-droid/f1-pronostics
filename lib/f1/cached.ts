@@ -1,19 +1,9 @@
 import { unstable_cache } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase'
 
-export const getCachedGrandsPrix = unstable_cache(
-  async (season: number) => {
-    const db = createServiceClient()
-    const { data } = await db
-      .from('grands_prix')
-      .select('id, name, country, round, scoring_finalized_at, weekend_starts_at, is_cancelled, is_sprint_weekend')
-      .eq('season', season)
-      .order('round', { ascending: true })
-    return data ?? []
-  },
-  ['grands_prix'],
-  { tags: ['grands_prix'], revalidate: 3600 },
-)
+// NB : pas de cache pour grands_prix — scoring_finalized_at mute hors du chemin
+// de sync (pas de revalidateTag à la finalisation du scoring), donc le cacher
+// périmerait les badges Définitif/Provisoire. Les pages le requêtent en direct.
 
 export const getCachedDrivers = unstable_cache(
   async (season: number) => {

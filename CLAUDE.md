@@ -16,7 +16,7 @@ Built by two people (names TBD). UI language: French. Code language: English.
 
 ## Status
 
-> **Foundation done — Next.js 16 + Supabase wired up, 16 tables migrées avec RLS. Prochaine étape : moteur de scoring (`lib/scoring/`) + route handlers.**
+> **Backend complet — moteur de scoring + pipeline items validés E2E (juin 2026). Toutes les pages UI câblées sur Supabase. Prochaine étape : design + UI/UX.**
 
 ## Documentation (read these for details)
 

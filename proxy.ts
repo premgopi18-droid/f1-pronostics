@@ -42,7 +42,8 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/login') ||
     path.startsWith('/api/auth') ||
     path.startsWith('/api/f1') ||
-    path.startsWith('/api/scores')
+    path.startsWith('/api/scores') ||
+    path.startsWith('/api/dev')
 
   if (!user && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))

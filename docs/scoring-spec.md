@@ -294,7 +294,6 @@ function computeSeasonScore(
 SELECT
   p.pseudo,
   p.avatar_key,
-  p.is_deleted,
   COALESCE(SUM(s.final_score), 0) + COALESCE(ss.total, 0)  AS total_season,
   COALESCE(SUM(s.exact_positions), 0)                       AS total_exact_positions
 FROM league_members lm
@@ -304,8 +303,8 @@ LEFT JOIN scores s
 LEFT JOIN season_scores ss
   ON ss.user_id = lm.user_id AND ss.league_id = lm.league_id AND ss.season = lm.season
 WHERE lm.league_id = $1 AND lm.season = $2
-GROUP BY p.id, p.pseudo, p.avatar_key, p.is_deleted, ss.total
-ORDER BY p.is_deleted ASC, total_season DESC, total_exact_positions DESC
+GROUP BY p.id, p.pseudo, p.avatar_key, ss.total
+ORDER BY total_season DESC, total_exact_positions DESC
 ```
 
 `exact_positions` est lu depuis la colonne précomputée sur `scores`, pas recalculé depuis le JSONB.

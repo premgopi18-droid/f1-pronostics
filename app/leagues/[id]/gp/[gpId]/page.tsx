@@ -22,7 +22,6 @@ function ScoreRow({
   points,
   exactPositions,
   isMe,
-  isDeleted,
   emphasis,
 }: {
   rank:           number
@@ -30,17 +29,16 @@ function ScoreRow({
   points:         number
   exactPositions: number
   isMe:           boolean
-  isDeleted:      boolean
   emphasis:       boolean
 }) {
   return (
     <div
       className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
         isMe ? 'bg-zinc-800' : 'bg-zinc-900'
-      } ${isDeleted ? 'opacity-50' : ''}`}
+      }`}
     >
       <span className="text-zinc-500 text-sm w-5 text-right">{rank}</span>
-      <span className={`flex-1 ${emphasis ? 'font-medium' : 'text-sm'} ${isDeleted ? 'text-zinc-500' : 'text-white'}`}>
+      <span className={`flex-1 ${emphasis ? 'font-medium' : 'text-sm'} text-white`}>
         {pseudo}
       </span>
       <span className="text-white font-semibold tabular-nums">{points} pts</span>
@@ -79,7 +77,7 @@ export default async function GPScoresPage({
       .eq('gp_id', gpId),
     supabase
       .from('league_members')
-      .select('user_id, profiles!user_id(pseudo, is_deleted)')
+      .select('user_id, profiles!user_id(pseudo)')
       .eq('league_id', leagueId)
       .eq('season', season),
     supabase
@@ -153,7 +151,6 @@ export default async function GPScoresPage({
   type MemberScore = {
     userId:     string
     pseudo:     string
-    isDeleted:  boolean
     isMe:       boolean
     total:      number
     exactTotal: number
@@ -162,7 +159,7 @@ export default async function GPScoresPage({
 
   const memberScores: MemberScore[] = (members ?? [])
     .map((m) => {
-      const profile = (m.profiles as unknown) as { pseudo: string; is_deleted: boolean } | null
+      const profile = (m.profiles as unknown) as { pseudo: string } | null
       const memberId = m.user_id as string
       const bySession: Partial<Record<SessionType, { finalScore: number; exactPositions: number }>> = {}
       let total      = 0
@@ -179,18 +176,14 @@ export default async function GPScoresPage({
 
       return {
         userId:    memberId,
-        pseudo:    profile?.is_deleted ? 'Compte supprimé' : (profile?.pseudo ?? '?'),
-        isDeleted: profile?.is_deleted ?? false,
+        pseudo:    profile?.pseudo ?? '?',
         isMe:      memberId === userId,
         total,
         exactTotal,
         bySession,
       }
     })
-    .sort((a, b) => {
-      if (a.isDeleted !== b.isDeleted) return a.isDeleted ? 1 : -1
-      return b.total - a.total || b.exactTotal - a.exactTotal
-    })
+    .sort((a, b) => b.total - a.total || b.exactTotal - a.exactTotal)
 
   // ── Pronostics vs résultats réels ────────────────────────────────────────
 
@@ -286,7 +279,6 @@ export default async function GPScoresPage({
                   points={m.total}
                   exactPositions={m.exactTotal}
                   isMe={m.isMe}
-                  isDeleted={m.isDeleted}
                   emphasis
                 />
               ))}
@@ -299,7 +291,6 @@ export default async function GPScoresPage({
           const membersWithScore = memberScores
             .filter((m) => m.bySession[sessionType] != null)
             .sort((a, b) => {
-              if (a.isDeleted !== b.isDeleted) return a.isDeleted ? 1 : -1
               const sa = a.bySession[sessionType]!
               const sb = b.bySession[sessionType]!
               return sb.finalScore - sa.finalScore || sb.exactPositions - sa.exactPositions
@@ -323,7 +314,6 @@ export default async function GPScoresPage({
                       points={score.finalScore}
                       exactPositions={score.exactPositions}
                       isMe={m.isMe}
-                      isDeleted={m.isDeleted}
                       emphasis={false}
                     />
                   )

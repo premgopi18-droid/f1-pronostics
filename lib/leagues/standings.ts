@@ -1,7 +1,7 @@
 export type Standing = {
   user_id:  string
   is_admin: boolean
-  profile:  { pseudo: string; avatarKey: string | null; isDeleted: boolean }
+  profile:  { pseudo: string; avatarKey: string | null }
   total:    number
   exact:    number
 }
@@ -9,7 +9,7 @@ export type Standing = {
 export type MemberRow = {
   user_id:  string
   is_admin: boolean
-  profile:  { pseudo: string; avatarKey: string | null; isDeleted: boolean }
+  profile:  { pseudo: string; avatarKey: string | null }
 }
 
 export type ScoreRow = {
@@ -48,7 +48,6 @@ export function buildStandings(
       exact:    exactByUser.get(m.user_id) ?? 0,
     }))
     .sort((a, b) => {
-      if (a.profile.isDeleted !== b.profile.isDeleted) return a.profile.isDeleted ? 1 : -1
       if (b.total !== a.total) return b.total - a.total
       return b.exact - a.exact
     })

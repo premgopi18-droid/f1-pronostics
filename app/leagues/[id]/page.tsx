@@ -37,7 +37,7 @@ export default async function LeaguePage({
     // season_scores.total (bonus WDC/WCC de fin de saison, 1 ligne par user).
     supabase
       .from('league_members')
-      .select('user_id, is_admin, profiles!user_id ( pseudo, avatar_key, is_deleted )')
+      .select('user_id, is_admin, profiles!user_id ( pseudo, avatar_key )')
       .eq('league_id', id)
       .eq('season', season),
     supabase
@@ -62,14 +62,13 @@ export default async function LeaguePage({
 
   // Normalisation des membres pour le Client Component (types sérialisables)
   const members: MemberRow[] = (rawMembers ?? []).map((m) => {
-    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; is_deleted: boolean } | null
+    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null } | null
     return {
       user_id:  m.user_id as string,
       is_admin: m.is_admin as boolean,
       profile: {
-        pseudo:    profile?.is_deleted ? 'Compte supprimé' : (profile?.pseudo ?? '?'),
+        pseudo:    profile?.pseudo ?? '?',
         avatarKey: profile?.avatar_key ?? null,
-        isDeleted: profile?.is_deleted ?? false,
       },
     }
   })

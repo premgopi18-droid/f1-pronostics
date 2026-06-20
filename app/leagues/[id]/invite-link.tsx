@@ -6,7 +6,7 @@ const subscribeNoop = () => () => {}
 const getOrigin     = () => window.location.origin
 const getServerOrigin = () => ''
 
-export function InviteLink({ code }: { code: string }) {
+export function InviteLink({ code, inviteOpen = true }: { code: string; inviteOpen?: boolean }) {
   const origin  = useSyncExternalStore(subscribeNoop, getOrigin, getServerOrigin)
   const fullUrl = origin ? `${origin}/leagues/join?code=${code}` : ''
   const [copied, setCopied] = useState(false)
@@ -25,7 +25,12 @@ export function InviteLink({ code }: { code: string }) {
 
   return (
     <div className="bg-zinc-900 rounded-xl p-4 flex flex-col gap-3">
-      <p className="text-sm text-zinc-400">{"Lien d'invitation"}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-zinc-400">{"Lien d'invitation"}</p>
+        {!inviteOpen && (
+          <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">Inscriptions fermées</span>
+        )}
+      </div>
       <div className="flex items-center gap-2">
         <code className="text-zinc-300 text-sm font-mono bg-zinc-800 rounded px-3 py-1.5 flex-1 truncate min-w-0">
           {displayUrl}

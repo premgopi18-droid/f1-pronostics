@@ -20,7 +20,7 @@ export function AdminPanel({
 
   const handleToggle = () => {
     startToggle(async () => {
-      const result = await toggleInvites(leagueId, open)
+      const result = await toggleInvites(leagueId)
       if (result.error) { setError(result.error); return }
       setOpen((prev) => !prev)
       setError(null)

@@ -10,10 +10,10 @@ type AdminResult = { error?: string; success?: boolean }
 // (`isAdmin` dans page.tsx) ne protège pas l'appel direct. On vérifie l'admin-ship
 // dans le code — défense en profondeur indépendante de la policy RLS. La condition
 // (user + league + saison courante) est identique à celle qui affiche le panel.
-async function assertAdmin(leagueId: string): Promise<{ error: string } | null> {
+async function assertAdmin(leagueId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' }
+  if (!user) return { error: 'Non authentifié' as const }
 
   const { data: membership } = await supabase
     .from('league_members')
@@ -23,21 +23,25 @@ async function assertAdmin(leagueId: string): Promise<{ error: string } | null> 
     .eq('season', getCurrentSeason())
     .maybeSingle()
 
-  if (!membership?.is_admin) return { error: 'Action réservée à l\'administrateur de la ligue' }
-  return null
+  if (!membership?.is_admin) return { error: 'Action réservée à l\'administrateur de la ligue' as const }
+  return { supabase }
 }
 
-export async function toggleInvites(
-  leagueId:  string,
-  inviteOpen: boolean,
-): Promise<AdminResult> {
-  const denied = await assertAdmin(leagueId)
-  if (denied) return denied
+export async function toggleInvites(leagueId: string): Promise<AdminResult> {
+  const auth = await assertAdmin(leagueId)
+  if ('error' in auth) return auth
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { data: league } = await auth.supabase
     .from('leagues')
-    .update({ invite_open: !inviteOpen })
+    .select('invite_open')
+    .eq('id', leagueId)
+    .single()
+
+  if (!league) return { error: 'Ligue introuvable' }
+
+  const { error } = await auth.supabase
+    .from('leagues')
+    .update({ invite_open: !league.invite_open })
     .eq('id', leagueId)
 
   if (error) return { error: 'Erreur lors de la mise à jour' }
@@ -46,13 +50,11 @@ export async function toggleInvites(
   return { success: true }
 }
 
-export async function regenerateInviteCode(
-  leagueId: string,
-): Promise<AdminResult> {
-  const denied = await assertAdmin(leagueId)
-  if (denied) return denied
+export async function regenerateInviteCode(leagueId: string): Promise<AdminResult> {
+  const auth = await assertAdmin(leagueId)
+  if ('error' in auth) return auth
 
-  const supabase = await createClient()
+  const { supabase } = auth
 
   // Même format que create_league : 8 hex majuscules, retry sur collision UNIQUE (rarissime)
   for (let attempt = 0; attempt < 5; attempt++) {

@@ -4,16 +4,16 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 
-type AdminResult = { error?: string; success?: boolean }
+type AdminResult = { error?: string; success?: boolean; inviteOpen?: boolean }
 
 // Garde-fou applicatif : un Server Action est un endpoint POST public, le gate UI
 // (`isAdmin` dans page.tsx) ne protège pas l'appel direct. On vérifie l'admin-ship
 // dans le code — défense en profondeur indépendante de la policy RLS. La condition
 // (user + league + saison courante) est identique à celle qui affiche le panel.
-async function assertAdmin(leagueId: string): Promise<{ error: string } | null> {
+async function assertAdmin(leagueId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' }
+  if (!user) return { error: 'Non authentifié' as const }
 
   const { data: membership } = await supabase
     .from('league_members')
@@ -23,36 +23,31 @@ async function assertAdmin(leagueId: string): Promise<{ error: string } | null> 
     .eq('season', getCurrentSeason())
     .maybeSingle()
 
-  if (!membership?.is_admin) return { error: 'Action réservée à l\'administrateur de la ligue' }
-  return null
+  if (!membership?.is_admin) return { error: 'Action réservée à l\'administrateur de la ligue' as const }
+  return { supabase }
 }
 
-export async function toggleInvites(
-  leagueId:  string,
-  inviteOpen: boolean,
-): Promise<AdminResult> {
-  const denied = await assertAdmin(leagueId)
-  if (denied) return denied
+export async function toggleInvites(leagueId: string): Promise<AdminResult> {
+  const auth = await assertAdmin(leagueId)
+  if ('error' in auth) return auth
 
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('leagues')
-    .update({ invite_open: !inviteOpen })
-    .eq('id', leagueId)
+  // Toggle atomique en base (un seul UPDATE) qui renvoie le nouvel état : le client
+  // n'a rien à inférer, donc plus de divergence UI sur un onglet périmé (cf. #23),
+  // et deux admins concurrents ne peuvent plus se neutraliser.
+  const { data: inviteOpen, error } = await auth.supabase
+    .rpc('toggle_invites', { p_league_id: leagueId })
 
-  if (error) return { error: 'Erreur lors de la mise à jour' }
+  if (error || typeof inviteOpen !== 'boolean') return { error: 'Erreur lors de la mise à jour' }
 
   revalidatePath(`/leagues/${leagueId}`)
-  return { success: true }
+  return { success: true, inviteOpen }
 }
 
-export async function regenerateInviteCode(
-  leagueId: string,
-): Promise<AdminResult> {
-  const denied = await assertAdmin(leagueId)
-  if (denied) return denied
+export async function regenerateInviteCode(leagueId: string): Promise<AdminResult> {
+  const auth = await assertAdmin(leagueId)
+  if ('error' in auth) return auth
 
-  const supabase = await createClient()
+  const { supabase } = auth
 
   // Même format que create_league : 8 hex majuscules, retry sur collision UNIQUE (rarissime)
   for (let attempt = 0; attempt < 5; attempt++) {

@@ -11,39 +11,14 @@
 --   · colonnes grands_prix.notified_open_at/scores_at (20260617160000)
 --   · colonnes sessions.notified_deadline_at/provisional_at (20260620120000)
 --   · check max_members abaissé à 2 (20260619100000)
+--   · durcissement search_path/qualif des triggers league_members (20260619120000)
 -- ============================================================
 
--- ── Fonctions helper RLS ──────────────────────────────────
-
-create or replace function public.is_member_of_league(check_league_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-    select 1 from public.league_members
-    where league_id = check_league_id and user_id = auth.uid()
-  );
-$$;
-
-create or replace function public.shared_league(other_user_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-    select 1
-    from public.league_members lm1
-    join public.league_members lm2
-      on lm1.league_id = lm2.league_id and lm1.season = lm2.season
-    where lm1.user_id = auth.uid()
-      and lm2.user_id = other_user_id
-  );
-$$;
+-- Note : les helpers RLS `is_member_of_league` / `shared_league` (language sql)
+-- sont définis plus bas, APRÈS les tables : leur corps SQL est validé dès le
+-- CREATE (check_function_bodies = on) et référence `public.league_members`.
+-- Les fonctions trigger ci-dessous sont en plpgsql (corps non validé au CREATE),
+-- donc peuvent précéder les tables.
 
 -- ── Fonctions trigger ─────────────────────────────────────
 
@@ -63,21 +38,22 @@ begin
 end;
 $$;
 
+-- État de création : noms non qualifiés, sans search_path fixe.
+-- Durcies (public.* + set search_path = '') par 20260619120000_harden_league_member_triggers.
 create or replace function public.enforce_max_members()
 returns trigger
 language plpgsql
-set search_path = ''
 as $$
 declare
   current_count integer;
   max_allowed   integer;
 begin
   select count(*) into current_count
-  from public.league_members
+  from league_members
   where league_id = new.league_id and season = new.season;
 
   select max_members into max_allowed
-  from public.leagues where id = new.league_id;
+  from leagues where id = new.league_id;
 
   if current_count >= max_allowed then
     raise exception 'La ligue est pleine (max % membres).', max_allowed;
@@ -89,12 +65,11 @@ $$;
 create or replace function public.enforce_min_one_admin()
 returns trigger
 language plpgsql
-set search_path = ''
 as $$
 begin
   if old.is_admin = true and new.is_admin = false then
     if not exists (
-      select 1 from public.league_members
+      select 1 from league_members
       where league_id = new.league_id and season = new.season
         and is_admin = true and id <> new.id
     ) then
@@ -122,7 +97,7 @@ create table if not exists public.leagues (
   name        text        not null,
   invite_code text        not null unique,
   invite_open bool        not null default true,
-  max_members int         not null check (max_members between 3 and 20),
+  max_members int         not null constraint leagues_max_members_check check (max_members between 3 and 20),
   created_at  timestamptz not null default now()
 );
 
@@ -329,6 +304,40 @@ create unique index if not exists items_played_one_per_gp_slot
   on public.items_played (user_id, league_id, gp_id)
   where gp_id is not null;
 
+-- ── Fonctions helper RLS ──────────────────────────────────
+-- Définies ici (après les tables) car le corps des fonctions `language sql` est
+-- validé dès le CREATE et référence `public.league_members`.
+
+create or replace function public.is_member_of_league(check_league_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.league_members
+    where league_id = check_league_id and user_id = auth.uid()
+  );
+$$;
+
+create or replace function public.shared_league(other_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.league_members lm1
+    join public.league_members lm2
+      on lm1.league_id = lm2.league_id and lm1.season = lm2.season
+    where lm1.user_id = auth.uid()
+      and lm2.user_id = other_user_id
+  );
+$$;
+
 -- ── RLS ────────────────────────────────────────────────────
 
 alter table public.profiles              enable row level security;
@@ -349,19 +358,23 @@ alter table public.push_subscriptions    enable row level security;
 alter table public.user_items            enable row level security;
 
 -- profiles
+drop policy if exists "own profile" on public.profiles;
 create policy "own profile"
   on public.profiles for all
   using (auth.uid() = id);
 
+drop policy if exists "league members see bio" on public.profiles;
 create policy "league members see bio"
   on public.profiles for select
   using (public.shared_league(id));
 
 -- leagues
+drop policy if exists "members read league" on public.leagues;
 create policy "members read league"
   on public.leagues for select
   using (public.is_member_of_league(id));
 
+drop policy if exists "admins update league" on public.leagues;
 create policy "admins update league"
   on public.leagues for update
   using (exists (
@@ -370,14 +383,17 @@ create policy "admins update league"
   ));
 
 -- league_members
+drop policy if exists "members read roster" on public.league_members;
 create policy "members read roster"
   on public.league_members for select
   using (public.is_member_of_league(league_id));
 
+drop policy if exists "user joins league" on public.league_members;
 create policy "user joins league"
   on public.league_members for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "admins manage members" on public.league_members;
 create policy "admins manage members"
   on public.league_members for update
   using (exists (
@@ -388,17 +404,24 @@ create policy "admins manage members"
   ));
 
 -- données publiques F1
+drop policy if exists "public read" on public.constructors;
 create policy "public read" on public.constructors    for select using (true);
+drop policy if exists "public read" on public.drivers;
 create policy "public read" on public.drivers         for select using (true);
+drop policy if exists "public read" on public.grands_prix;
 create policy "public read" on public.grands_prix     for select using (true);
+drop policy if exists "public read" on public.sessions;
 create policy "public read" on public.sessions        for select using (true);
+drop policy if exists "public read" on public.session_results;
 create policy "public read" on public.session_results for select using (true);
 
 -- predictions
+drop policy if exists "own predictions" on public.predictions;
 create policy "own predictions"
   on public.predictions for all
   using (auth.uid() = user_id);
 
+drop policy if exists "co-members after lock" on public.predictions;
 create policy "co-members after lock"
   on public.predictions for select
   using (
@@ -411,10 +434,12 @@ create policy "co-members after lock"
   );
 
 -- fastest_lap_predictions
+drop policy if exists "own fl predictions" on public.fastest_lap_predictions;
 create policy "own fl predictions"
   on public.fastest_lap_predictions for all
   using (auth.uid() = user_id);
 
+drop policy if exists "co-members fl after lock" on public.fastest_lap_predictions;
 create policy "co-members fl after lock"
   on public.fastest_lap_predictions for select
   using (
@@ -427,15 +452,18 @@ create policy "co-members fl after lock"
   );
 
 -- scores
+drop policy if exists "league members read scores" on public.scores;
 create policy "league members read scores"
   on public.scores for select
   using (public.is_member_of_league(league_id));
 
 -- items_played
+drop policy if exists "own items played" on public.items_played;
 create policy "own items played"
   on public.items_played for all
   using (auth.uid() = user_id);
 
+drop policy if exists "co-members after resolution" on public.items_played;
 create policy "co-members after resolution"
   on public.items_played for select
   using (
@@ -445,10 +473,12 @@ create policy "co-members after resolution"
   );
 
 -- season_predictions
+drop policy if exists "own season predictions" on public.season_predictions;
 create policy "own season predictions"
   on public.season_predictions for all
   using (auth.uid() = user_id);
 
+drop policy if exists "co-members after lock" on public.season_predictions;
 create policy "co-members after lock"
   on public.season_predictions for select
   using (
@@ -458,16 +488,19 @@ create policy "co-members after lock"
   );
 
 -- season_scores
+drop policy if exists "league members read season scores" on public.season_scores;
 create policy "league members read season scores"
   on public.season_scores for select
   using (public.is_member_of_league(league_id));
 
 -- push_subscriptions
+drop policy if exists "own subscriptions" on public.push_subscriptions;
 create policy "own subscriptions"
   on public.push_subscriptions for all
   using (auth.uid() = user_id);
 
 -- user_items
+drop policy if exists "own items" on public.user_items;
 create policy "own items"
   on public.user_items for all
   using (auth.uid() = user_id);

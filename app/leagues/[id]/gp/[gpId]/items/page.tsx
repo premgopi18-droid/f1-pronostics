@@ -58,7 +58,7 @@ export default async function ItemsPage({
       .single(),
     supabase
       .from('league_members')
-      .select('user_id, profiles!user_id(pseudo, is_deleted)')
+      .select('user_id, profiles!user_id(pseudo)')
       .eq('league_id', leagueId)
       .eq('season', season),
     getCachedDrivers(season),
@@ -78,10 +78,10 @@ export default async function ItemsPage({
   const otherMembers = (members ?? [])
     .filter((m) => m.user_id !== userId)
     .map((m) => {
-      const profile = (m.profiles as unknown) as { pseudo: string; is_deleted: boolean } | null
+      const profile = (m.profiles as unknown) as { pseudo: string } | null
       return {
         userId: m.user_id as string,
-        pseudo: profile?.is_deleted ? 'Compte supprimé' : (profile?.pseudo ?? '?'),
+        pseudo: profile?.pseudo ?? '?',
       }
     })
 

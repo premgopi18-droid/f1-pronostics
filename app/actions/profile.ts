@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { getCurrentSeason } from '@/lib/api/cron'
 import { AVATAR_OPTIONS } from '@/lib/profile/avatars'
 
 export type ProfileActionState = { error?: string; success?: boolean }
@@ -49,11 +48,11 @@ export async function deleteAccount(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  // Tout (transfert d'admin, anonymisation du profil, effacement des données
-  // d'auth) est encapsulé dans le RPC transactionnel `delete_own_account`
-  // (SECURITY DEFINER, scopé sur auth.uid()). Cf. migration
-  // 20260619110000_delete_own_account_rpc.sql.
-  const { error } = await supabase.rpc('delete_own_account', { p_season: getCurrentSeason() })
+  // Tout (transfert d'admin toutes saisons, retrait des ligues, anonymisation du
+  // profil, effacement des données d'auth) est encapsulé dans le RPC transactionnel
+  // `delete_own_account` (SECURITY DEFINER, scopé sur auth.uid()). Cf. migration
+  // 20260620140000_delete_account_admin_transfer_all_seasons.sql.
+  const { error } = await supabase.rpc('delete_own_account')
   if (error) {
     console.error('deleteAccount: échec', error)
     return { error: 'Erreur lors de la suppression du compte' }

@@ -22,34 +22,58 @@ function configureVapid(): boolean {
   return true
 }
 
-export async function sendPushToAll(payload: PushPayload): Promise<void> {
-  if (!configureVapid()) return
+// True si les clés VAPID sont présentes (configure web-push au passage si besoin).
+// À tester avant de "claim"/marquer une notification : évite de brûler le flag de
+// dédup quand aucun push ne pourra partir (VAPID absent ou en panne).
+export function isPushConfigured(): boolean {
+  return configureVapid()
+}
 
+async function deliverToSubs(
+  subs: { endpoint: string; p256dh: string; auth_key: string }[],
+  payload: PushPayload,
+): Promise<void> {
+  if (subs.length === 0) return
   const supabase = createServiceClient()
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth_key')
-
-  if (!subs || subs.length === 0) return
-
   const body = JSON.stringify(payload)
 
   await Promise.allSettled(
     subs.map(async (sub) => {
       try {
         await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint as string,
-            keys: { p256dh: sub.p256dh as string, auth: sub.auth_key as string },
-          },
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
           body,
         )
       } catch (err: unknown) {
-        // 410 Gone = subscription expirée — on supprime proprement
         if (err && typeof err === 'object' && 'statusCode' in err && (err as { statusCode: number }).statusCode === 410) {
           await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
         }
       }
     }),
+  )
+}
+
+export async function sendPushToAll(payload: PushPayload): Promise<void> {
+  if (!configureVapid()) return
+  const supabase = createServiceClient()
+  const { data: subs } = await supabase
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth_key')
+  await deliverToSubs(
+    (subs ?? []).map((s) => ({ endpoint: s.endpoint as string, p256dh: s.p256dh as string, auth_key: s.auth_key as string })),
+    payload,
+  )
+}
+
+export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
+  if (!configureVapid()) return
+  const supabase = createServiceClient()
+  const { data: subs } = await supabase
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth_key')
+    .eq('user_id', userId)
+  await deliverToSubs(
+    (subs ?? []).map((s) => ({ endpoint: s.endpoint as string, p256dh: s.p256dh as string, auth_key: s.auth_key as string })),
+    payload,
   )
 }

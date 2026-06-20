@@ -213,6 +213,61 @@ export async function markGPNotifiedScores(gpId: string): Promise<void> {
   if (error) throw error
 }
 
+// Sessions dont la deadline arrive dans la prochaine heure et pas encore notifiées
+export async function getSessionsNeedingDeadlineNotification(
+  season: number,
+): Promise<{ id: string; type: SessionType; gpId: string; gpName: string }[]> {
+  const supabase = createServiceClient()
+  const now   = new Date()
+  const limit = new Date(now.getTime() + 60 * 60 * 1000)
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('id, type, gp_id, grands_prix!gp_id(name)')
+    .eq('season', season)
+    .is('notified_deadline_at', null)
+    .gte('starts_at', now.toISOString())
+    .lte('starts_at', limit.toISOString())
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id:     row.id as string,
+    type:   row.type as SessionType,
+    gpId:   row.gp_id as string,
+    gpName: (row.grands_prix as unknown as { name: string }).name,
+  }))
+}
+
+// Revendique l'envoi de la notif "deadline" pour cette session : pose
+// notified_deadline_at seulement si encore null (UPDATE conditionnel atomique).
+// Renvoie true si CET appel a revendiqué l'envoi → dédup inter-run garantie,
+// même si plusieurs crons se chevauchent. Marquer avant d'envoyer évite tout
+// re-push de masse si l'envoi échoue ensuite (au pire un rare faux-négatif).
+export async function claimSessionDeadlineNotification(sessionId: string): Promise<boolean> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('sessions')
+    .update({ notified_deadline_at: new Date().toISOString() })
+    .eq('id', sessionId)
+    .is('notified_deadline_at', null)
+    .select('id')
+  if (error) throw error
+  return (data ?? []).length > 0
+}
+
+// Idem pour la notif "scores provisoires" — voir claimSessionDeadlineNotification.
+export async function claimSessionProvisionalNotification(sessionId: string): Promise<boolean> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('sessions')
+    .update({ notified_provisional_at: new Date().toISOString() })
+    .eq('id', sessionId)
+    .is('notified_provisional_at', null)
+    .select('id')
+  if (error) throw error
+  return (data ?? []).length > 0
+}
+
 // Toutes les sessions d'un GP avec leur statut de confirmation — 1 requête vs N getSessionId
 export async function getSessionsForGP(
   gpId: string,

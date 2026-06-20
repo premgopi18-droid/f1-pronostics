@@ -92,12 +92,12 @@ export async function getPendingSessionScores(
 
 // GPs dont la course est scorée mais scoring_finalized_at est null
 export async function getPendingItemResolutions(): Promise<
-  { id: string; season: number }[]
+  { id: string; season: number; name: string }[]
 > {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('grands_prix')
-    .select('id, season, sessions!inner(id, type, results_confirmed_at, scores(id))')
+    .select('id, name, season, sessions!inner(id, type, results_confirmed_at, scores(id))')
     .is('scoring_finalized_at', null)
 
   if (error) throw error
@@ -109,7 +109,7 @@ export async function getPendingItemResolutions(): Promise<
     // GP éligible si la race a des résultats confirmés ET au moins 1 score existant
     const race = sessions.find((s) => s.type === 'race')
     return race?.results_confirmed_at != null && race.scores.length > 0
-  }).map((gp) => ({ id: gp.id as string, season: gp.season as number }))
+  }).map((gp) => ({ id: gp.id as string, name: gp.name as string, season: gp.season as number }))
 }
 
 // ── Écriture ──────────────────────────────────────────────────────────────

@@ -11,13 +11,26 @@ import {
 import { getFastestLapForSession, getPredictionsForSession } from '@/lib/data/predictions'
 import { getConstructorDriversMap, getResultsForSession } from '@/lib/data/session-results'
 import { getItemsForGP, markItemsResolved } from '@/lib/data/items'
-import { getSessionsForGP } from '@/lib/data/f1-sync'
+import {
+  claimSessionDeadlineNotification,
+  claimSessionProvisionalNotification,
+  getGPsNeedingScoreNotification,
+  getSessionsForGP,
+  getSessionsNeedingDeadlineNotification,
+  markGPNotifiedScores,
+} from '@/lib/data/f1-sync'
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
 import { applyItemEffects } from '@/lib/scoring/resolve-items'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
-import { getGPsNeedingScoreNotification, markGPNotifiedScores } from '@/lib/data/f1-sync'
-import { sendPushToAll } from '@/lib/push/send'
+import { isPushConfigured, sendPushToAll, sendPushToUser } from '@/lib/push/send'
 import type { ResolutionContext } from '@/lib/scoring/types'
+
+const SESSION_TYPE_LABELS: Record<string, string> = {
+  qualifying:        'Qualifications',
+  race:              'Course',
+  sprint_qualifying: 'Sprint Qualifying',
+  sprint_race:       'Sprint',
+}
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
 async function handler(request: Request): Promise<Response> {
@@ -28,8 +41,30 @@ async function handler(request: Request): Promise<Response> {
   const season = getCurrentSeason()
 
   try {
-    let sessionsScored = 0
-    let gpsFinalized   = 0
+    let sessionsScored    = 0
+    let gpsFinalized      = 0
+    let deadlineNotified  = 0
+    let provisionalNotified = 0
+    let itemNotified      = 0
+
+    // ── Notifications "deadline dans 1h" ──────────────────────────────────
+    // Guard VAPID : ne rien claim si aucun push ne peut partir, sinon on brûlerait
+    // les flags de dédup sans avoir notifié (cf. send.ts isPushConfigured).
+    const pushReady = isPushConfigured()
+    if (pushReady) {
+      const deadlineSessions = await getSessionsNeedingDeadlineNotification(season)
+      for (const session of deadlineSessions) {
+        // Revendiquer l'envoi avant de pousser : dédup inter-run + pas de re-push si l'envoi échoue.
+        if (!(await claimSessionDeadlineNotification(session.id))) continue
+        const label = SESSION_TYPE_LABELS[session.type] ?? session.type
+        await sendPushToAll({
+          title: `⏰ Deadline dans 1h — ${label}`,
+          body:  `${session.gpName} · Dépose tes pronostics avant le départ !`,
+          url:   `/predictions/${session.gpId}`,
+        })
+        deadlineNotified++
+      }
+    }
 
     const leagues = await getActiveLeagues(season)
 
@@ -63,6 +98,19 @@ async function handler(request: Request): Promise<Response> {
 
         await upsertBaseScores(session.id, leagueId, session.season, userScores)
         sessionsScored++
+
+        // Notification "scores provisoires + classement mis à jour" — une seule fois par
+        // session, tous appels confondus. Le claim atomique dédoublonne aussi bien les
+        // ligues multiples d'un même appel que les re-runs (ex. ligue créée en cours de saison).
+        if (pushReady && (await claimSessionProvisionalNotification(session.id))) {
+          const label = SESSION_TYPE_LABELS[session.type] ?? session.type
+          await sendPushToAll({
+            title: `🏁 Scores ${label} calculés`,
+            body:  'Les scores provisoires sont disponibles — le classement a été mis à jour !',
+            url:   '/',
+          })
+          provisionalNotified++
+        }
       }
     }
 
@@ -71,10 +119,10 @@ async function handler(request: Request): Promise<Response> {
 
     for (const gp of pendingGPs) {
       // 1 requête batch pour toutes les sessions du GP (vs N getSessionId)
-      const sessions       = await getSessionsForGP(gp.id)
+      const sessions        = await getSessionsForGP(gp.id)
       const sessionIdByType = new Map(sessions.map((s) => [s.type, s.id]))
-      const raceSessionId  = sessionIdByType.get('race')
-      const qualSessionId  = sessionIdByType.get('qualifying')
+      const raceSessionId   = sessionIdByType.get('race')
+      const qualSessionId   = sessionIdByType.get('qualifying')
 
       if (!raceSessionId || !qualSessionId) continue
 
@@ -83,6 +131,9 @@ async function handler(request: Request): Promise<Response> {
         getResultsForSession(qualSessionId),
         getConstructorDriversMap(gp.season),
       ])
+
+      // Collecter les utilisateurs ciblés par des items offensifs (toutes ligues)
+      const gpTargetedUserIds = new Set<string>()
 
       for (const leagueId of leagues) {
         const [items, currentScores] = await Promise.all([
@@ -106,14 +157,35 @@ async function handler(request: Request): Promise<Response> {
           updateFinalScores(gp.id, leagueId, currentScores),
           markItemsResolved(items),
         ])
+
+        // Identifier les utilisateurs ciblés par des items offensifs
+        for (const item of items) {
+          const p = item.payload
+          if (p.type === 'block_driver' || p.type === 'wild_card') {
+            gpTargetedUserIds.add(p.targetUserId)
+          }
+        }
       }
 
       await markGPFinalized(gp.id)
       gpsFinalized++
+
+      // Notifier les utilisateurs attaqués — révélation post-course
+      await Promise.all(
+        [...gpTargetedUserIds].map((userId) => {
+          itemNotified++
+          return sendPushToUser(userId, {
+            title: '🎮 Un item a été joué contre toi',
+            body:  `${gp.name} · Un adversaire t'a ciblé — vois le résultat dans ton score !`,
+            url:   '/',
+          })
+        }),
+      )
     }
 
     // ── Notifications "résultats disponibles" (après scoring_finalized_at) ──
-    const gpsScoreNotify = await getGPsNeedingScoreNotification(season)
+    // Même guard VAPID : markGPNotifiedScores brûlerait le flag sans notifier.
+    const gpsScoreNotify = pushReady ? await getGPsNeedingScoreNotification(season) : []
     for (const gp of gpsScoreNotify) {
       await sendPushToAll({
         title: `🏆 ${gp.name}`,
@@ -123,7 +195,14 @@ async function handler(request: Request): Promise<Response> {
       await markGPNotifiedScores(gp.id)
     }
 
-    return Response.json({ sessionsScored, gpsFinalized, notified: gpsScoreNotify.length })
+    return Response.json({
+      sessionsScored,
+      gpsFinalized,
+      notified: gpsScoreNotify.length,
+      deadlineNotified,
+      provisionalNotified,
+      itemNotified,
+    })
   } catch (error) {
     console.error('[api/scores/trigger]', error)
     return Response.json({ error: 'Internal error' }, { status: 500 })

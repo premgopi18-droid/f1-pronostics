@@ -223,19 +223,22 @@ export async function getSessionsNeedingDeadlineNotification(
 
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, type, gp_id, grands_prix!gp_id(name)')
+    .select('id, type, gp_id, grands_prix!gp_id(name, is_cancelled)')
     .eq('season', season)
     .is('notified_deadline_at', null)
     .gte('starts_at', now.toISOString())
     .lte('starts_at', limit.toISOString())
 
   if (error) throw error
-  return (data ?? []).map((row) => ({
-    id:     row.id as string,
-    type:   row.type as SessionType,
-    gpId:   row.gp_id as string,
-    gpName: (row.grands_prix as unknown as { name: string }).name,
-  }))
+  type GPMeta = { name: string; is_cancelled: boolean }
+  return (data ?? [])
+    .filter((row) => !(row.grands_prix as unknown as GPMeta).is_cancelled)
+    .map((row) => ({
+      id:     row.id as string,
+      type:   row.type as SessionType,
+      gpId:   row.gp_id as string,
+      gpName: (row.grands_prix as unknown as GPMeta).name,
+    }))
 }
 
 // Revendique l'envoi de la notif "deadline" pour cette session : pose

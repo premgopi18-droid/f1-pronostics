@@ -69,8 +69,13 @@ async function handler(request: Request): Promise<Response> {
     const leagues = await getActiveLeagues(season)
 
     // ── Phase 1 : scores de base par ligue par session en attente ──────────
+    // Set in-memory pour éviter N-1 UPDATE inutiles quand plusieurs ligues
+    // scorent la même session dans le même run (claimSessionProvisionalNotification
+    // est atomique mais chaque appel coûte 1 aller-retour DB).
+    const claimedProvisional = new Set<string>()
+
     for (const leagueId of leagues) {
-      const pendingSessions = await getPendingSessionScores(leagueId)
+      const pendingSessions = await getPendingSessionScores(leagueId, season)
       if (pendingSessions.length === 0) continue
 
       const members = await getLeagueMembers(leagueId, season)
@@ -102,7 +107,8 @@ async function handler(request: Request): Promise<Response> {
         // Notification "scores provisoires + classement mis à jour" — une seule fois par
         // session, tous appels confondus. Le claim atomique dédoublonne aussi bien les
         // ligues multiples d'un même appel que les re-runs (ex. ligue créée en cours de saison).
-        if (pushReady && (await claimSessionProvisionalNotification(session.id))) {
+        if (pushReady && !claimedProvisional.has(session.id) && (await claimSessionProvisionalNotification(session.id))) {
+          claimedProvisional.add(session.id)
           const label = SESSION_TYPE_LABELS[session.type] ?? session.type
           await sendPushToAll({
             title: `🏁 Scores ${label} calculés`,
@@ -115,7 +121,9 @@ async function handler(request: Request): Promise<Response> {
     }
 
     // ── Phase 2 : résolution des items par GP par ligue ────────────────────
-    const pendingGPs = await getPendingItemResolutions()
+    // Guard : si aucune ligue active, on ne peut pas résoudre les items — ne pas
+    // appeler markGPFinalized pour éviter de clore des GPs sans résolution.
+    const pendingGPs = leagues.length > 0 ? await getPendingItemResolutions() : []
 
     for (const gp of pendingGPs) {
       // 1 requête batch pour toutes les sessions du GP (vs N getSessionId)
@@ -171,16 +179,18 @@ async function handler(request: Request): Promise<Response> {
       gpsFinalized++
 
       // Notifier les utilisateurs attaqués — révélation post-course
-      await Promise.all(
-        [...gpTargetedUserIds].map((userId) => {
-          itemNotified++
-          return sendPushToUser(userId, {
-            title: '🎮 Un item a été joué contre toi',
-            body:  `${gp.name} · Un adversaire t'a ciblé — vois le résultat dans ton score !`,
-            url:   '/',
-          })
-        }),
-      )
+      if (pushReady && gpTargetedUserIds.size > 0) {
+        await Promise.all(
+          [...gpTargetedUserIds].map((userId) => {
+            itemNotified++
+            return sendPushToUser(userId, {
+              title: '🎮 Un item a été joué contre toi',
+              body:  `${gp.name} · Un adversaire t'a ciblé — vois le résultat dans ton score !`,
+              url:   '/',
+            })
+          }),
+        )
+      }
     }
 
     // ── Notifications "résultats disponibles" (après scoring_finalized_at) ──

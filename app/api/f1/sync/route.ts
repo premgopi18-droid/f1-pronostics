@@ -22,7 +22,7 @@ import { upsertSessionResults } from '@/lib/data/session-results'
 import { createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import { getGPsNeedingOpenNotification, markGPNotifiedOpen } from '@/lib/data/f1-sync'
-import { sendPushToAll } from '@/lib/push/send'
+import { isPushConfigured, sendPushToAll } from '@/lib/push/send'
 import type { DriverResult, SessionType } from '@/lib/scoring/types'
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
@@ -88,21 +88,21 @@ async function handler(request: Request): Promise<Response> {
       if (!gp) continue
 
       const sessionType = row.type as SessionType
-      const season      = row.season as number
+      const rowSeason   = row.season as number
       const round       = gp.round
 
       let results: Map<string, DriverResult>
 
       if (sessionType === 'race') {
-        results = await fetchRaceResults(season, round)
+        results = await fetchRaceResults(rowSeason, round)
       } else if (sessionType === 'qualifying') {
-        results = await fetchQualifyingResults(season, round)
+        results = await fetchQualifyingResults(rowSeason, round)
       } else if (sessionType === 'sprint_race') {
-        results = await fetchSprintRaceResults(season, round)
+        results = await fetchSprintRaceResults(rowSeason, round)
       } else if (sessionType === 'sprint_qualifying') {
         const circuitShortName = roundToCircuit.get(round)
         if (!circuitShortName) continue
-        results = await fetchSprintQualifyingResults(season, circuitShortName)
+        results = await fetchSprintQualifyingResults(rowSeason, circuitShortName)
       } else {
         continue
       }
@@ -110,13 +110,15 @@ async function handler(request: Request): Promise<Response> {
       // Résultats pas encore disponibles (course non terminée)
       if (results.size === 0) continue
 
-      await upsertSessionResults(row.id as string, season, results)
+      await upsertSessionResults(row.id as string, rowSeason, results)
       await confirmSessionResults(row.id as string)
       sessionsConfirmed++
     }
 
     // ── Notifications "pronostics ouverts" (48 h avant le week-end) ──────────
-    const gpsToNotify = await getGPsNeedingOpenNotification(season)
+    // Guard VAPID : markGPNotifiedOpen brûlerait le flag de dédup sans push réel.
+    const pushReady = isPushConfigured()
+    const gpsToNotify = pushReady ? await getGPsNeedingOpenNotification(season) : []
     for (const gp of gpsToNotify) {
       await sendPushToAll({
         title: `🏎 ${gp.name}`,

@@ -22,6 +22,13 @@ function configureVapid(): boolean {
   return true
 }
 
+// True si les clés VAPID sont présentes (configure web-push au passage si besoin).
+// À tester avant de "claim"/marquer une notification : évite de brûler le flag de
+// dédup quand aucun push ne pourra partir (VAPID absent ou en panne).
+export function isPushConfigured(): boolean {
+  return configureVapid()
+}
+
 async function deliverToSubs(
   subs: { endpoint: string; p256dh: string; auth_key: string }[],
   payload: PushPayload,

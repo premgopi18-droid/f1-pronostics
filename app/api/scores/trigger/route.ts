@@ -22,7 +22,7 @@ import {
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
 import { applyItemEffects } from '@/lib/scoring/resolve-items'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
-import { sendPushToAll, sendPushToUser } from '@/lib/push/send'
+import { isPushConfigured, sendPushToAll, sendPushToUser } from '@/lib/push/send'
 import type { ResolutionContext } from '@/lib/scoring/types'
 
 const SESSION_TYPE_LABELS: Record<string, string> = {
@@ -48,17 +48,22 @@ async function handler(request: Request): Promise<Response> {
     let itemNotified      = 0
 
     // ── Notifications "deadline dans 1h" ──────────────────────────────────
-    const deadlineSessions = await getSessionsNeedingDeadlineNotification(season)
-    for (const session of deadlineSessions) {
-      // Revendiquer l'envoi avant de pousser : dédup inter-run + pas de re-push si l'envoi échoue.
-      if (!(await claimSessionDeadlineNotification(session.id))) continue
-      const label = SESSION_TYPE_LABELS[session.type] ?? session.type
-      await sendPushToAll({
-        title: `⏰ Deadline dans 1h — ${label}`,
-        body:  `${session.gpName} · Dépose tes pronostics avant le départ !`,
-        url:   `/predictions/${session.gpId}`,
-      })
-      deadlineNotified++
+    // Guard VAPID : ne rien claim si aucun push ne peut partir, sinon on brûlerait
+    // les flags de dédup sans avoir notifié (cf. send.ts isPushConfigured).
+    const pushReady = isPushConfigured()
+    if (pushReady) {
+      const deadlineSessions = await getSessionsNeedingDeadlineNotification(season)
+      for (const session of deadlineSessions) {
+        // Revendiquer l'envoi avant de pousser : dédup inter-run + pas de re-push si l'envoi échoue.
+        if (!(await claimSessionDeadlineNotification(session.id))) continue
+        const label = SESSION_TYPE_LABELS[session.type] ?? session.type
+        await sendPushToAll({
+          title: `⏰ Deadline dans 1h — ${label}`,
+          body:  `${session.gpName} · Dépose tes pronostics avant le départ !`,
+          url:   `/predictions/${session.gpId}`,
+        })
+        deadlineNotified++
+      }
     }
 
     const leagues = await getActiveLeagues(season)
@@ -97,7 +102,7 @@ async function handler(request: Request): Promise<Response> {
         // Notification "scores provisoires + classement mis à jour" — une seule fois par
         // session, tous appels confondus. Le claim atomique dédoublonne aussi bien les
         // ligues multiples d'un même appel que les re-runs (ex. ligue créée en cours de saison).
-        if (await claimSessionProvisionalNotification(session.id)) {
+        if (pushReady && (await claimSessionProvisionalNotification(session.id))) {
           const label = SESSION_TYPE_LABELS[session.type] ?? session.type
           await sendPushToAll({
             title: `🏁 Scores ${label} calculés`,
@@ -179,7 +184,8 @@ async function handler(request: Request): Promise<Response> {
     }
 
     // ── Notifications "résultats disponibles" (après scoring_finalized_at) ──
-    const gpsScoreNotify = await getGPsNeedingScoreNotification(season)
+    // Même guard VAPID : markGPNotifiedScores brûlerait le flag sans notifier.
+    const gpsScoreNotify = pushReady ? await getGPsNeedingScoreNotification(season) : []
     for (const gp of gpsScoreNotify) {
       await sendPushToAll({
         title: `🏆 ${gp.name}`,

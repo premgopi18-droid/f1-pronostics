@@ -12,7 +12,7 @@
 |---|---|
 | **Logique pure** | Le moteur de scoring ne fait aucun I/O — données en entrée, données en sortie |
 | **Couches séparées** | Seul `/lib/data/` touche Supabase. Jamais de requête dans `/lib/scoring/` |
-| **Route handlers fins** | Une route = autorisation + fetch (data) + compute (scoring) + persist (data). ~15 lignes max |
+| **Route handlers fins** | Les routes cron = autorisation + fetch + compute + persist. ~15 lignes max. Le CRUD utilisateur passe par Server Actions (co-localisées, typées, pas de couche HTTP). |
 | **Valeurs configurables** | Zéro magic number dans la logique — tout dans `constants.ts` |
 | **Idempotence** | Le scoring peut être relancé N fois sur le même GP : même résultat, UPSERT sur les clés uniques |
 | **Portabilité** | Toute la logique métier dans Next.js. Aucune logique dans Supabase Edge Functions |
@@ -24,15 +24,34 @@
 ```
 /app
   /page.tsx
-  /leagues/[id]/
-  /predictions/
-  /leaderboard/
-  /api/
-    /f1/sync/route.ts          → synchronisation calendrier + résultats Jolpica
-    /scores/trigger/route.ts   → déclenchement du scoring (cron + admin manuel)
-    /predictions/route.ts
-    /leagues/route.ts
-    /notifications/route.ts
+  /login/page.tsx
+  /profile/page.tsx
+  /season/page.tsx
+  /predictions/[gpId]/page.tsx
+  /leagues/
+    /new/page.tsx
+    /join/page.tsx
+    /[id]/page.tsx
+    /[id]/gp/[gpId]/page.tsx
+    /[id]/gp/[gpId]/items/page.tsx
+
+  /actions/                         ← Server Actions — toutes les mutations utilisateur
+    auth.ts                         → signInWithGoogle, signOut
+    predictions.ts                  → submitPrediction, submitFastestLap
+    season-predictions.ts           → submitSeasonPrediction
+    leagues.ts                      → createLeagueAction, joinLeagueAction
+    league-admin.ts                 → toggleInvites, regenerateInviteCode
+    items.ts                        → playItemAction
+    items-payload.ts                → helpers de construction payload (+ items-payload.test.ts)
+    push.ts                         → subscribeAction, unsubscribeAction
+    profile.ts                      → updatePseudo, updateAvatar, deleteAccount
+
+  /api/                             ← Route handlers — crons + callbacks uniquement
+    /auth/callback/route.ts         → OAuth callback Supabase
+    /f1/sync/route.ts               → synchronisation calendrier + résultats Jolpica
+    /scores/trigger/route.ts        → scoring Phase 1 (base) + Phase 2 (items), notifications
+    /scores/season/route.ts         → scoring saison WDC/WCC (cron)
+    /dev/seed-predictions/route.ts  → seed prédictions de test (dev uniquement)
 
 /lib
   /scoring/                    ← DOMAINE PUR — zéro import Supabase, zéro I/O
@@ -41,21 +60,42 @@
     base-score.ts              → computeBaseScore, computeFastestLap, computeSessionBaseScore
     resolve-items.ts           → pipeline §3 (shield → block → wildcard → double → bonus)
     season-score.ts            → computeSeasonScore (WDC/WCC)
-    leaderboard.ts             → agrégation leaderboard (si logique custom nécessaire)
+    (tests co-localisés : base-score.test.ts, resolve-items.test.ts, season-score.test.ts)
 
   /data/                       ← PERSISTANCE — le seul endroit qui touche Supabase
     predictions.ts             → getPredictionsForSession, getFastestLapPrediction
-    session-results.ts         → getResultsForSession, getResultsForGP
-    items.ts                   → getItemsForGP, markItemsResolved, restoreItems
-    scores.ts                  → upsertSessionScores, upsertSeasonScores
-    leagues.ts                 → getActiveLeaguesForGP, getLeagueMembers
+    season-predictions.ts      → getSeasonPrediction, upsertSeasonPrediction, getAllSeasonPredictions
+    session-results.ts         → getResultsForSession, upsertSessionResults
+    items.ts                   → getItemsForGP, markItemsResolved, insertPlayedItem
+    scores.ts                  → upsertBaseScores, updateFinalScores, getPendingItemResolutions
+    leagues.ts                 → getActiveLeagues, getLeagueMembers
+    f1-sync.ts                 → upsertGrandsPrix, upsertSessions, confirmSessionResults, helpers notifications
 
   /f1/
-    jolpica.ts                 → client Jolpica API + mappers → types domaine
-    openf1.ts                  → client OpenF1 API (fallback résultats rapides)
+    jolpica.ts                 → client Jolpica API + mappers → types domaine (+ jolpica.test.ts)
+    openf1.ts                  → client OpenF1 API (fallback sprint qualifying)
+    cached.ts                  → cache Next.js pour pilotes/constructeurs (revalidateTag)
 
-  supabase.ts                  → 2 clients : createClient() (cookie/RLS) + createServiceClient() (service-role)
+  /leagues/
+    standings.ts               → buildStandings — agrégation classement (lecture UI, pas /lib/data/)
+
+  /profile/
+    avatars.ts                 → liste des avatars disponibles
+
+  /push/
+    send.ts                    → sendPushToAll, sendPushToUser (Web Push API)
+
+  /api/
+    cron.ts                    → getCurrentSeason(), isCronAuthorized()
+
+  supabase.ts                  → createClient() (cookie/RLS) + createServiceClient() (service-role)
+  supabase-browser.ts          → createBrowserClient() pour les composants client
+
+/proxy.ts                      → middleware Supabase Auth : refresh token, injection x-user-id,
+                                  redirect → /login si non authentifié (sauf /api/* et /login)
 ```
+
+> **Pourquoi des Server Actions et non des route handlers pour le CRUD ?** Les Server Actions sont co-localisées avec les pages, partagent les types TypeScript, et évitent la couche HTTP pour les mutations déclenchées par l'utilisateur. Les route handlers sont réservés aux crons (pas de session utilisateur) et au callback OAuth.
 
 > **Règle d'import** : `/lib/scoring/` peut importer depuis lui-même et depuis `/lib/scoring/types`. Il ne peut **jamais** importer depuis `/lib/data/`, `/lib/f1/`, ou Supabase. Si tu te surprends à importer Supabase dans `/lib/scoring/`, la logique est au mauvais endroit.
 

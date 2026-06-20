@@ -60,6 +60,7 @@ export async function getCurrentScoresForGP(
 // automatique, (2) de rejouer indépendamment par ligue si le cron plante à mi-chemin.
 export async function getPendingSessionScores(
   leagueId: string,
+  season:   number,
 ): Promise<{ id: string; gpId: string; season: number; type: SessionType }[]> {
   const supabase = createServiceClient()
 
@@ -68,6 +69,7 @@ export async function getPendingSessionScores(
       supabase
         .from('sessions')
         .select('id, gp_id, season, type')
+        .eq('season', season)
         .not('results_confirmed_at', 'is', null),
       supabase
         .from('scores')

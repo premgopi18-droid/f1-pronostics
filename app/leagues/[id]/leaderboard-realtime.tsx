@@ -83,10 +83,10 @@ export function LeaderboardRealtime({
             key={member.user_id}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
               member.user_id === currentUserId ? 'bg-zinc-800' : 'bg-zinc-900'
-            } ${member.profile.isDeleted ? 'opacity-50' : ''}`}
+            }`}
           >
             <span className="text-zinc-500 text-sm w-5 text-right">{index + 1}</span>
-            <span className={`flex-1 font-medium ${member.profile.isDeleted ? 'text-zinc-500' : 'text-white'}`}>
+            <span className="flex-1 font-medium text-white">
               {member.profile.pseudo}
               {member.is_admin && <span className="ml-2 text-xs text-zinc-500">admin</span>}
             </span>

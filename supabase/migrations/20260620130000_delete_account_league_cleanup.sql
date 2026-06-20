@@ -2,10 +2,13 @@
 -- l'utilisateur restait "membre fantôme" dans toutes ses ligues. Si Supabase
 -- OAuth réutilisait le même UUID à la ré-inscription, le rejoindre échouait
 -- avec "déjà membre". Même sans réutilisation d'UUID, le slot était bloqué.
--- Solution : supprimer les adhésions + inventaire d'items à la clôture du compte.
+--
+-- Ce fichier consolide deux migrations appliquées en production :
+--   20260620113820 delete_account_league_cleanup         (league_members + user_items + raw_app_meta_data)
+--   20260620123836 delete_account_admin_transfer_all_seasons (transfert admin toutes saisons, pas juste p_season)
+--
 -- Les lignes scores/predictions/items_played restent (FK → auth.users.id,
 -- pas → league_members) pour l'intégrité des calculs passés.
--- raw_app_meta_data vidé pour couper le lien OAuth résiduel côté Gotrue.
 
 create or replace function public.delete_own_account(p_season integer)
 returns void
@@ -22,18 +25,18 @@ begin
     raise exception 'not_authenticated';
   end if;
 
-  -- 1. Transfert d'admin : pour chaque ligue de la saison où l'utilisateur est
-  --    admin, nommer le plus ancien membre encore actif, puis se retirer.
+  -- 1. Transfert d'admin : pour CHAQUE (ligue, saison) où l'utilisateur est admin,
+  --    nommer le plus ancien membre encore actif de cette même saison, puis se retirer.
   for v_league in
-    select league_id
+    select league_id, season
     from public.league_members
-    where user_id = v_user and season = p_season and is_admin = true
+    where user_id = v_user and is_admin = true
   loop
     select lm.user_id into v_next
     from public.league_members lm
     join public.profiles p on p.id = lm.user_id
     where lm.league_id = v_league.league_id
-      and lm.season    = p_season
+      and lm.season    = v_league.season
       and lm.user_id  <> v_user
       and p.is_deleted = false
     order by lm.joined_at asc
@@ -42,9 +45,9 @@ begin
     if v_next is not null then
       -- Nommer le successeur AVANT de se retirer (respecte le trigger « ≥1 admin »).
       update public.league_members set is_admin = true
-        where league_id = v_league.league_id and season = p_season and user_id = v_next;
+        where league_id = v_league.league_id and season = v_league.season and user_id = v_next;
       update public.league_members set is_admin = false
-        where league_id = v_league.league_id and season = p_season and user_id = v_user;
+        where league_id = v_league.league_id and season = v_league.season and user_id = v_user;
     end if;
   end loop;
 
@@ -53,8 +56,7 @@ begin
   delete from public.user_items     where user_id = v_user;
   delete from public.league_members where user_id = v_user;
 
-  -- 2. Anonymisation du profil. Les lignes scores/predictions/items_played restent
-  --    (FK NO ACTION) pour l'intégrité du classement, mais sans PII.
+  -- 2. Anonymisation du profil. scores/predictions/items_played restent (FK → auth.users.id).
   update public.profiles
   set pseudo     = 'Compte supprimé ' || substr(v_user::text, 1, 8),
       avatar_key = null,

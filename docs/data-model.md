@@ -11,7 +11,7 @@
 - **UTC** pour tous les timestamps — conversion en heure locale côté client
 - **Colonne `season`** (INTEGER, ex: 2026) sur toutes les tables pertinentes — prépare le multi-saisons v2. Exception : `leagues` est une entité persistante sans saison.
 - **JSONB** pour les listes ordonnées (prediction entries) — 1 ligne par prédiction, pas de JOIN
-- **Pas d'écrasement** — les données passées ne sont jamais supprimées ou modifiées
+- **Pas d'écrasement** — les données de jeu passées (`scores`, `predictions`, `items_played`) ne sont jamais supprimées ou modifiées. **Exception : suppression de compte (RGPD)** — `delete_own_account` retire les adhésions (`league_members`) et l'inventaire d'items non joués (`user_items`) de l'utilisateur, toutes saisons confondues, pour libérer les slots de ligue. Les données de jeu ci-dessus restent (liées à l'UUID anonymisé), donc les calculs de points passés restent intègres.
 - **RLS Supabase** sur toutes les tables exposées au client
 - **Codes pilotes/écuries** (ex: "VER", "RED_BULL") dans les JSONB de prédictions — trade-off délibéré : lisibilité > intégrité référentielle sur ces champs. Le moteur de scoring mappe code → UUID au moment du calcul.
 
@@ -133,9 +133,9 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 **RLS :**
 - L'utilisateur lit et modifie son propre profil
 - Les membres d'une même ligue voient le pseudo et l'avatar
-- `is_deleted = true` → pseudo remplacé par "Compte supprimé" côté UI
+- `is_deleted = true` → l'anonymisation est faite **au niveau DB** (le `pseudo` est écrasé par « Compte supprimé … »). Le flag sert de marqueur d'audit ; un compte supprimé n'apparaît plus dans les listes de membres (ses `league_members` sont retirées).
 
-> **Suppression de compte (RGPD)** : tout passe par le RPC `delete_own_account` (cf. §RPC). La ligne `profiles` et les `scores` sont conservés (intégrité du classement) mais anonymisés — `pseudo` écrasé par une valeur neutre (libère la contrainte `UNIQUE`), `avatar_key` à null, `is_deleted = true`. Côté auth : `auth.users.email` + `raw_user_meta_data` neutralisés, les lignes `auth.identities` et `push_subscriptions` supprimées. Pas de hard-delete de `auth.users` (la cascade `profiles → auth.users` serait bloquée par les FK `NO ACTION` de `scores`/`league_members`), mais sans identité la ligne devient non-connectable et l'email d'origine est libéré → une reconnexion Google recrée un compte neuf.
+> **Suppression de compte (RGPD)** : tout passe par le RPC `delete_own_account` (cf. §RPC). L'utilisateur est **retiré de toutes ses ligues** — `league_members` et `user_items` supprimés (toutes saisons) pour libérer les slots et permettre le re-join. La ligne `profiles` et les données de jeu (`scores`, `predictions`, `items_played`, FK → `auth.users.id`) sont conservées mais anonymisées — `pseudo` écrasé par une valeur neutre (libère la contrainte `UNIQUE`), `avatar_key` à null, `is_deleted = true`. Côté auth : `auth.users.email` + `raw_user_meta_data` + `raw_app_meta_data` neutralisés, les lignes `auth.identities` et `push_subscriptions` supprimées. Pas de hard-delete de `auth.users` (la cascade `profiles → auth.users` serait bloquée par les FK `NO ACTION` des `scores`), mais sans identité ni métadonnées la ligne devient non-connectable et l'email d'origine est libéré → une reconnexion Google recrée un compte neuf.
 
 ---
 
@@ -442,7 +442,6 @@ Le classement est calculé à la volée. `exact_positions` est lu depuis la colo
 SELECT
   p.pseudo,
   p.avatar_key,
-  p.is_deleted,
   COALESCE(SUM(s.final_score), 0) + COALESCE(ss.total, 0) AS total_season,
   COALESCE(SUM(s.exact_positions), 0)                      AS total_exact_positions
 FROM league_members lm
@@ -454,8 +453,8 @@ LEFT JOIN season_scores ss ON ss.user_id = lm.user_id
   AND ss.league_id = lm.league_id
   AND ss.season = lm.season
 WHERE lm.league_id = $1 AND lm.season = $2
-GROUP BY p.id, p.pseudo, p.avatar_key, p.is_deleted, ss.total
-ORDER BY p.is_deleted ASC, total_season DESC, total_exact_positions DESC
+GROUP BY p.id, p.pseudo, p.avatar_key, ss.total
+ORDER BY total_season DESC, total_exact_positions DESC
 ```
 
 ---
@@ -526,16 +525,17 @@ Applique un item saison (`wdc_move` / `wcc_move`) en une seule transaction :
 
 Remplace l'enchaînement upsert → insert → upsert côté serveur, qui pouvait laisser la prédiction mutée sans décrément (échec partiel) ou sur-dépenser en concurrence. Appelée par `applySeasonItemAction` (`app/actions/season-predictions.ts`). Migration : `20260617140000_season_items_and_apply_rpc.sql`.
 
-### `delete_own_account(p_season)`
+### `delete_own_account()`
 
 Supprime le compte de l'appelant en une seule transaction, **scopée sur `auth.uid()`** (aucun id n'est passé par le client → pas d'IDOR) :
 
-1. **Transfert d'admin** : pour chaque ligue de la saison où l'utilisateur est admin, nomme le plus ancien membre encore actif (`joined_at`, `is_deleted = false`) puis se retire — dans cet ordre, pour respecter le trigger « ≥1 admin ».
-2. **Anonymisation du profil** : `pseudo` neutre, `avatar_key` null, `is_deleted = true`, `deleted_at`.
-3. **Effacement des données d'auth** : neutralise `auth.users.email` + `raw_user_meta_data` et supprime les `auth.identities`.
-4. **Effacement des `push_subscriptions`** : sinon `sendPushToAll` (qui ne filtre pas `is_deleted`) continuerait de notifier l'appareil d'un compte supprimé.
+1. **Transfert d'admin** : pour **chaque `(ligue, saison)`** où l'utilisateur est admin, nomme le plus ancien membre encore actif de cette saison (`joined_at`, `is_deleted = false`) puis se retire — dans cet ordre, pour respecter le trigger « ≥1 admin » (qui ne se déclenche que sur UPDATE, pas sur le DELETE de l'étape 2).
+2. **Retrait des ligues** : supprime `league_members` + `user_items` de l'utilisateur, **toutes saisons confondues** — libère les slots (`enforce_max_members`) et permet le re-join après ré-inscription.
+3. **Anonymisation du profil** : `pseudo` neutre, `avatar_key` null, `is_deleted = true`, `deleted_at`.
+4. **Effacement des données d'auth** : neutralise `auth.users.email` + `raw_user_meta_data` + `raw_app_meta_data` (coupe le lien provider résiduel côté Gotrue) et supprime les `auth.identities`.
+5. **Effacement des `push_subscriptions`** : sinon `sendPushToAll` continuerait de notifier l'appareil d'un compte supprimé.
 
-`SECURITY DEFINER` (owner `postgres`, qui a les droits d'écriture sur le schéma `auth`) avec `search_path = ''` et objets pleinement qualifiés. `execute` accordé à `authenticated` uniquement. Appelée par `deleteAccount` (`app/actions/profile.ts`). Migration : `20260619110000_delete_own_account_rpc.sql`.
+`SECURITY DEFINER` (owner `postgres`, qui a les droits d'écriture sur le schéma `auth`) avec `search_path = ''` et objets pleinement qualifiés. Sans paramètre (entièrement toutes-saisons). `execute` accordé à `authenticated` uniquement. Appelée par `deleteAccount` (`app/actions/profile.ts`). Migrations : `20260619110000_delete_own_account_rpc.sql`, `20260620130000_delete_account_league_cleanup.sql`, `20260620140000_delete_account_admin_transfer_all_seasons.sql`.
 
 ---
 

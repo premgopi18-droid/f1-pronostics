@@ -52,7 +52,6 @@
     /scores/trigger/route.ts        → scoring Phase 1 (base) + Phase 2 (items), notifications
     /scores/season/route.ts         → scoring saison WDC/WCC (cron)
     /dev/seed-predictions/route.ts  → seed prédictions de test (dev uniquement)
-    /dev/seed-items/route.ts        → seed items de test + reset GP (dev uniquement)
 
 /lib
   /scoring/                    ← DOMAINE PUR — zéro import Supabase, zéro I/O
@@ -65,7 +64,7 @@
 
   /data/                       ← PERSISTANCE — le seul endroit qui touche Supabase
     predictions.ts             → getPredictionsForSession, getFastestLapPrediction
-    season-predictions.ts      → getSeasonPredictions, upsertSeasonPrediction
+    season-predictions.ts      → getSeasonPrediction, upsertSeasonPrediction, getAllSeasonPredictions
     session-results.ts         → getResultsForSession, upsertSessionResults
     items.ts                   → getItemsForGP, markItemsResolved, insertPlayedItem
     scores.ts                  → upsertBaseScores, updateFinalScores, getPendingItemResolutions

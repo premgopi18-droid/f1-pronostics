@@ -91,7 +91,7 @@ export function resolveWildCards(
     if (attacker) attacker.finalScore += stolen
 
     wc.payload.pointsStolen = stolen
-    wc.effectApplied        = stolen > 0
+    wc.effectApplied        = true
   }
 }
 

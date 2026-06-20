@@ -537,6 +537,12 @@ Supprime le compte de l'appelant en une seule transaction, **scopée sur `auth.u
 
 `SECURITY DEFINER` (owner `postgres`, qui a les droits d'écriture sur le schéma `auth`) avec `search_path = ''` et objets pleinement qualifiés. Sans paramètre (entièrement toutes-saisons). `execute` accordé à `authenticated` uniquement. Appelée par `deleteAccount` (`app/actions/profile.ts`). Migrations : `20260619110000_delete_own_account_rpc.sql`, `20260620130000_delete_account_league_cleanup.sql`, `20260620140000_delete_account_admin_transfer_all_seasons.sql`.
 
+### `toggle_invites(p_league_id)`
+
+Bascule `leagues.invite_open` en un seul statement (`set invite_open = not invite_open … returning invite_open`) et retourne le nouvel état. Atomique → remplace le read-modify-write côté Server Action (deux admins concurrents ne se neutralisent plus) et supprime la divergence UI quand l'onglet est périmé : le client applique l'état renvoyé au lieu de l'inférer.
+
+Contrairement aux autres RPC, **`SECURITY INVOKER`** (défaut) : l'écriture est gouvernée par la policy RLS « admins update league » — un non-admin touche 0 ligne, la fonction renvoie `NULL`. `assertAdmin` (`app/actions/league-admin.ts`) reste le garde-fou principal (défense en profondeur). `execute` accordé à `authenticated` uniquement. Appelée par `toggleInvites`. Migration : `20260620150000_toggle_invites_rpc.sql`.
+
 ---
 
 ## Récapitulatif des 17 tables

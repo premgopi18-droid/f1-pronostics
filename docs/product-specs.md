@@ -262,6 +262,8 @@ Ordre strict d'application pour chaque GP :
 > **Wild Cards simultanés** : si plusieurs joueurs se volent mutuellement sur le même GP, chaque vol est calculé sur le score original de la victime (avant que celle-ci n'ait encaissé ses propres gains). Résolution en parallèle, pas en cascade.
 >
 > **Interaction Wild Card + Dernier tour de magie** : si une victime joue ×2 sur une session et se fait voler dessus, l'ordre steal-then-double la remet quasi entière (elle double ce qui lui reste), mais l'attaquant conserve quand même sa moitié volée. Comportement intentionnel — légèrement favorable à la victime, et amusant.
+>
+> **Wild Card sur une victime à 0 point** : si la victime a 0 point sur la session ciblée, le vol est de 0 — mais la Wild Card est quand même **consommée**. Jouer une Wild Card sur quelqu'un sans score est un coup raté ; c'est un risque assumé par l'attaquant.
 
 > Le bouclier se joue **en aveugle** — avant de savoir si on est ciblé. Les attaques ne sont révélées qu'après la course, en même temps que les résultats. Le bouclier peut donc échouer si personne ne t'a ciblé — c'est une part du jeu.
 

@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
+import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import { getUserGPItems, getPlayedGPItemForUser } from '@/lib/data/items'
 import type { SessionType } from '@/lib/scoring/types'
 import { PlayItemForm } from './play-item-form'
@@ -25,17 +27,19 @@ export default async function ItemsPage({
   const { id: leagueId, gpId } = await params
   const supabase = await createClient()
   const season   = getCurrentSeason()
+  const userId   = (await headers()).get('x-user-id')!
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) notFound()
-
+  // Toutes les requêtes en parallèle — y compris les items (userId dispo via header)
+  // et drivers/constructors servis depuis le cache (0 RTT après le premier chargement)
   const [
     { data: gp },
     { data: sessions },
     { data: league },
     { data: members },
-    { data: drivers },
-    { data: constructors },
+    driversRaw,
+    constructorsRaw,
+    userItems,
+    playedItem,
   ] = await Promise.all([
     supabase
       .from('grands_prix')
@@ -57,25 +61,14 @@ export default async function ItemsPage({
       .select('user_id, profiles!user_id(pseudo, is_deleted)')
       .eq('league_id', leagueId)
       .eq('season', season),
-    supabase
-      .from('drivers')
-      .select('id, code, first_name, last_name, number')
-      .eq('season', season)
-      .order('last_name'),
-    supabase
-      .from('constructors')
-      .select('id, code, name')
-      .eq('season', season)
-      .order('name'),
+    getCachedDrivers(season),
+    getCachedConstructors(season),
+    getUserGPItems(userId, leagueId, season),
+    getPlayedGPItemForUser(userId, gpId, leagueId),
   ])
 
   if (!gp || !league) notFound()
   if (gp.season !== season || gp.is_cancelled) notFound()
-
-  const [userItems, playedItem] = await Promise.all([
-    getUserGPItems(user.id, leagueId, season),
-    getPlayedGPItemForUser(user.id, gpId, leagueId),
-  ])
 
   // Deadline = début de la première session du GP
   const firstSession = sessions?.[0]
@@ -83,7 +76,7 @@ export default async function ItemsPage({
   const isDeadlinePassed = deadlineDate ? deadlineDate <= new Date() : false
 
   const otherMembers = (members ?? [])
-    .filter((m) => m.user_id !== user.id)
+    .filter((m) => m.user_id !== userId)
     .map((m) => {
       const profile = (m.profiles as unknown) as { pseudo: string; is_deleted: boolean } | null
       return {
@@ -92,7 +85,7 @@ export default async function ItemsPage({
       }
     })
 
-  const driverList = (drivers ?? []).map((d) => ({
+  const driverList = driversRaw.map((d) => ({
     id:        d.id as string,
     code:      d.code as string,
     firstName: d.first_name as string,
@@ -100,7 +93,7 @@ export default async function ItemsPage({
     number:    d.number as number | null,
   }))
 
-  const constructorList = (constructors ?? []).map((c) => ({
+  const constructorList = constructorsRaw.map((c) => ({
     id:   c.id as string,
     code: c.code as string,
     name: c.name as string,

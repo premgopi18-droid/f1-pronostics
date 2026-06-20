@@ -1,4 +1,5 @@
 {
+  "regions": ["fra1"],
   "functions": {
     "app/api/f1/sync/route.ts": {
       "maxDuration": 60

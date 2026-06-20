@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient, createServiceClient } from '@/lib/supabase'
+import { headers } from 'next/headers'
+import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
+import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import {
   getSeasonPrediction,
   getSeasonDeadlines,
@@ -12,39 +14,37 @@ import { SeasonFormLoader } from './season-form-loader'
 export default async function SeasonPage() {
   const supabase = await createClient()
   const season   = getCurrentSeason()
+  const userId   = (await headers()).get('x-user-id')
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const db = createServiceClient()
+  if (!userId) redirect('/login')
 
   const [
-    { data: drivers },
-    { data: constructors },
+    driversRaw,
+    constructorsRaw,
     wdcEntries,
     wccEntries,
     deadlines,
     seasonItems,
   ] = await Promise.all([
-    db.from('drivers').select('code, first_name, last_name').eq('season', season).order('last_name'),
-    db.from('constructors').select('code, name').eq('season', season).order('name'),
-    getSeasonPrediction(user.id, season, 'wdc'),
-    getSeasonPrediction(user.id, season, 'wcc'),
+    getCachedDrivers(season),
+    getCachedConstructors(season),
+    getSeasonPrediction(userId, season, 'wdc'),
+    getSeasonPrediction(userId, season, 'wcc'),
     getSeasonDeadlines(season),
-    getSeasonItems(user.id, season),
+    getSeasonItems(userId, season),
   ])
 
   const now = new Date()
   const isSubmissionOpen = !deadlines.submissionDeadline || now < deadlines.submissionDeadline
   const isItemsOpen      = !deadlines.itemDeadline       || now < deadlines.itemDeadline
 
-  const driverList = (drivers ?? []).map((d) => ({
+  const driverList = driversRaw.map((d) => ({
     code:      d.code as string,
     firstName: d.first_name as string,
     lastName:  d.last_name as string,
   }))
 
-  const constructorList = (constructors ?? []).map((c) => ({
+  const constructorList = constructorsRaw.map((c) => ({
     code: c.code as string,
     name: c.name as string,
   }))

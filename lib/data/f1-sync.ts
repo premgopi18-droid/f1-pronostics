@@ -213,6 +213,49 @@ export async function markGPNotifiedScores(gpId: string): Promise<void> {
   if (error) throw error
 }
 
+// Sessions dont la deadline arrive dans la prochaine heure et pas encore notifiées
+export async function getSessionsNeedingDeadlineNotification(
+  season: number,
+): Promise<{ id: string; type: SessionType; gpId: string; gpName: string }[]> {
+  const supabase = createServiceClient()
+  const now   = new Date()
+  const limit = new Date(now.getTime() + 60 * 60 * 1000)
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('id, type, gp_id, grands_prix!gp_id(name)')
+    .eq('season', season)
+    .is('notified_deadline_at', null)
+    .gte('starts_at', now.toISOString())
+    .lte('starts_at', limit.toISOString())
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id:     row.id as string,
+    type:   row.type as SessionType,
+    gpId:   row.gp_id as string,
+    gpName: (row.grands_prix as unknown as { name: string }).name,
+  }))
+}
+
+export async function markSessionDeadlineNotified(sessionId: string): Promise<void> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('sessions')
+    .update({ notified_deadline_at: new Date().toISOString() })
+    .eq('id', sessionId)
+  if (error) throw error
+}
+
+export async function markSessionProvisionalNotified(sessionId: string): Promise<void> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('sessions')
+    .update({ notified_provisional_at: new Date().toISOString() })
+    .eq('id', sessionId)
+  if (error) throw error
+}
+
 // Toutes les sessions d'un GP avec leur statut de confirmation — 1 requête vs N getSessionId
 export async function getSessionsForGP(
   gpId: string,

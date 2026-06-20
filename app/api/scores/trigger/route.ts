@@ -11,13 +11,26 @@ import {
 import { getFastestLapForSession, getPredictionsForSession } from '@/lib/data/predictions'
 import { getConstructorDriversMap, getResultsForSession } from '@/lib/data/session-results'
 import { getItemsForGP, markItemsResolved } from '@/lib/data/items'
-import { getSessionsForGP } from '@/lib/data/f1-sync'
+import {
+  getGPsNeedingScoreNotification,
+  getSessionsForGP,
+  getSessionsNeedingDeadlineNotification,
+  markGPNotifiedScores,
+  markSessionDeadlineNotified,
+  markSessionProvisionalNotified,
+} from '@/lib/data/f1-sync'
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
 import { applyItemEffects } from '@/lib/scoring/resolve-items'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
-import { getGPsNeedingScoreNotification, markGPNotifiedScores } from '@/lib/data/f1-sync'
-import { sendPushToAll } from '@/lib/push/send'
-import type { ResolutionContext } from '@/lib/scoring/types'
+import { sendPushToAll, sendPushToUser } from '@/lib/push/send'
+import type { ItemPayload, ResolutionContext } from '@/lib/scoring/types'
+
+const SESSION_TYPE_LABELS: Record<string, string> = {
+  qualifying:        'Qualifications',
+  race:              'Course',
+  sprint_qualifying: 'Sprint Qualifying',
+  sprint_race:       'Sprint',
+}
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
 async function handler(request: Request): Promise<Response> {
@@ -28,12 +41,32 @@ async function handler(request: Request): Promise<Response> {
   const season = getCurrentSeason()
 
   try {
-    let sessionsScored = 0
-    let gpsFinalized   = 0
+    let sessionsScored    = 0
+    let gpsFinalized      = 0
+    let deadlineNotified  = 0
+    let provisionalNotified = 0
+    let itemNotified      = 0
+
+    // ── Notifications "deadline dans 1h" ──────────────────────────────────
+    const deadlineSessions = await getSessionsNeedingDeadlineNotification(season)
+    for (const session of deadlineSessions) {
+      const label = SESSION_TYPE_LABELS[session.type] ?? session.type
+      await sendPushToAll({
+        title: `⏰ Deadline dans 1h — ${label}`,
+        body:  `${session.gpName} · Dépose tes pronostics avant le départ !`,
+        url:   `/predictions/${session.gpId}`,
+      })
+      await markSessionDeadlineNotified(session.id)
+      deadlineNotified++
+    }
 
     const leagues = await getActiveLeagues(season)
 
     // ── Phase 1 : scores de base par ligue par session en attente ──────────
+    // Set pour ne notifier qu'une seule fois par session (plusieurs ligues peuvent
+    // traiter la même session au cours du même appel).
+    const notifiedProvisionalSessions = new Set<string>()
+
     for (const leagueId of leagues) {
       const pendingSessions = await getPendingSessionScores(leagueId)
       if (pendingSessions.length === 0) continue
@@ -63,6 +96,21 @@ async function handler(request: Request): Promise<Response> {
 
         await upsertBaseScores(session.id, leagueId, session.season, userScores)
         sessionsScored++
+
+        // Notification "scores provisoires + classement mis à jour" — une seule fois par session
+        if (!notifiedProvisionalSessions.has(session.id)) {
+          notifiedProvisionalSessions.add(session.id)
+          const label = SESSION_TYPE_LABELS[session.type] ?? session.type
+          await Promise.all([
+            sendPushToAll({
+              title: `🏁 Scores ${label} calculés`,
+              body:  'Les scores provisoires sont disponibles — le classement a été mis à jour !',
+              url:   '/',
+            }),
+            markSessionProvisionalNotified(session.id),
+          ])
+          provisionalNotified++
+        }
       }
     }
 
@@ -71,10 +119,10 @@ async function handler(request: Request): Promise<Response> {
 
     for (const gp of pendingGPs) {
       // 1 requête batch pour toutes les sessions du GP (vs N getSessionId)
-      const sessions       = await getSessionsForGP(gp.id)
+      const sessions        = await getSessionsForGP(gp.id)
       const sessionIdByType = new Map(sessions.map((s) => [s.type, s.id]))
-      const raceSessionId  = sessionIdByType.get('race')
-      const qualSessionId  = sessionIdByType.get('qualifying')
+      const raceSessionId   = sessionIdByType.get('race')
+      const qualSessionId   = sessionIdByType.get('qualifying')
 
       if (!raceSessionId || !qualSessionId) continue
 
@@ -83,6 +131,9 @@ async function handler(request: Request): Promise<Response> {
         getResultsForSession(qualSessionId),
         getConstructorDriversMap(gp.season),
       ])
+
+      // Collecter les utilisateurs ciblés par des items offensifs (toutes ligues)
+      const gpTargetedUserIds = new Set<string>()
 
       for (const leagueId of leagues) {
         const [items, currentScores] = await Promise.all([
@@ -106,10 +157,30 @@ async function handler(request: Request): Promise<Response> {
           updateFinalScores(gp.id, leagueId, currentScores),
           markItemsResolved(items),
         ])
+
+        // Identifier les utilisateurs ciblés par des items offensifs
+        for (const item of items) {
+          const p = item.payload as ItemPayload
+          if (p.type === 'block_driver' || p.type === 'wild_card') {
+            gpTargetedUserIds.add(p.targetUserId)
+          }
+        }
       }
 
       await markGPFinalized(gp.id)
       gpsFinalized++
+
+      // Notifier les utilisateurs attaqués — révélation post-course
+      await Promise.all(
+        [...gpTargetedUserIds].map((userId) => {
+          itemNotified++
+          return sendPushToUser(userId, {
+            title: '🎮 Un item a été joué contre toi',
+            body:  `${gp.name} · Découvre quel effet ça a eu sur tes points !`,
+            url:   '/',
+          })
+        }),
+      )
     }
 
     // ── Notifications "résultats disponibles" (après scoring_finalized_at) ──
@@ -123,7 +194,14 @@ async function handler(request: Request): Promise<Response> {
       await markGPNotifiedScores(gp.id)
     }
 
-    return Response.json({ sessionsScored, gpsFinalized, notified: gpsScoreNotify.length })
+    return Response.json({
+      sessionsScored,
+      gpsFinalized,
+      notified: gpsScoreNotify.length,
+      deadlineNotified,
+      provisionalNotified,
+      itemNotified,
+    })
   } catch (error) {
     console.error('[api/scores/trigger]', error)
     return Response.json({ error: 'Internal error' }, { status: 500 })

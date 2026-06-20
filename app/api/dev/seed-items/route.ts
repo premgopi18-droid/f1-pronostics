@@ -10,6 +10,9 @@ import { isCronAuthorized } from '@/lib/api/cron'
 //   ≥ 3 membres : + block_driver (M2 → M1, P1 en qualif)
 //   ≥ 4 membres : + double_points (M3, race)
 //
+// noShield=1 : remplace le shield de M1 par double_points (race) — teste
+// l'interaction wild_card + ×2 (vol sur snapshot, puis double du reste).
+//
 // Appel local :
 //   curl -H "x-cron-secret: $CRON_SECRET" \
 //     "http://localhost:3000/api/dev/seed-items?season=2026&round=1&leagueId=<id>"
@@ -74,6 +77,9 @@ export async function GET(request: Request): Promise<Response> {
     .select('user_id')
     .eq('league_id', leagueId)
     .eq('season', season)
+    // Ordre déterministe : M0 = membre le plus ancien → rôles (attaquant/victime)
+    // stables d'un replay à l'autre.
+    .order('joined_at', { ascending: true })
 
   if (!members || members.length < 2) {
     return Response.json(
@@ -99,6 +105,26 @@ export async function GET(request: Request): Promise<Response> {
   // ── Remise à zéro : supprime les items existants + déverrouille le GP ─────
   await supabase.from('items_played').delete().eq('gp_id', gp.id).eq('league_id', leagueId)
   await supabase.from('grands_prix').update({ scoring_finalized_at: null }).eq('id', gp.id)
+
+  // Rejoue la Phase 2 proprement : la Phase 1 ne re-baseline pas les sessions déjà
+  // scorées, et la résolution repart de `final_score` (pas de `base_score`). Sans
+  // ce reset, un re-seed + re-trigger ré-appliquerait les effets par-dessus les
+  // anciens → dérive. On remet donc `final_score = base_score` avant de déverrouiller.
+  const sessionIds = sessions!.map((s) => s.id as string)
+  const { data: scoreRows } = await supabase
+    .from('scores')
+    .select('id, base_score')
+    .eq('league_id', leagueId)
+    .in('session_id', sessionIds)
+
+  await Promise.all(
+    (scoreRows ?? []).map((row) =>
+      supabase
+        .from('scores')
+        .update({ final_score: row.base_score })
+        .eq('id', row.id as string),
+    ),
+  )
 
   // ── Items à insérer ───────────────────────────────────────────────────────
   const now = new Date().toISOString()

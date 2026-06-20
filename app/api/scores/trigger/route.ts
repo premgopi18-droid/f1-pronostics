@@ -12,18 +12,18 @@ import { getFastestLapForSession, getPredictionsForSession } from '@/lib/data/pr
 import { getConstructorDriversMap, getResultsForSession } from '@/lib/data/session-results'
 import { getItemsForGP, markItemsResolved } from '@/lib/data/items'
 import {
+  claimSessionDeadlineNotification,
+  claimSessionProvisionalNotification,
   getGPsNeedingScoreNotification,
   getSessionsForGP,
   getSessionsNeedingDeadlineNotification,
   markGPNotifiedScores,
-  markSessionDeadlineNotified,
-  markSessionProvisionalNotified,
 } from '@/lib/data/f1-sync'
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
 import { applyItemEffects } from '@/lib/scoring/resolve-items'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import { sendPushToAll, sendPushToUser } from '@/lib/push/send'
-import type { ItemPayload, ResolutionContext } from '@/lib/scoring/types'
+import type { ResolutionContext } from '@/lib/scoring/types'
 
 const SESSION_TYPE_LABELS: Record<string, string> = {
   qualifying:        'Qualifications',
@@ -50,23 +50,20 @@ async function handler(request: Request): Promise<Response> {
     // ── Notifications "deadline dans 1h" ──────────────────────────────────
     const deadlineSessions = await getSessionsNeedingDeadlineNotification(season)
     for (const session of deadlineSessions) {
+      // Revendiquer l'envoi avant de pousser : dédup inter-run + pas de re-push si l'envoi échoue.
+      if (!(await claimSessionDeadlineNotification(session.id))) continue
       const label = SESSION_TYPE_LABELS[session.type] ?? session.type
       await sendPushToAll({
         title: `⏰ Deadline dans 1h — ${label}`,
         body:  `${session.gpName} · Dépose tes pronostics avant le départ !`,
         url:   `/predictions/${session.gpId}`,
       })
-      await markSessionDeadlineNotified(session.id)
       deadlineNotified++
     }
 
     const leagues = await getActiveLeagues(season)
 
     // ── Phase 1 : scores de base par ligue par session en attente ──────────
-    // Set pour ne notifier qu'une seule fois par session (plusieurs ligues peuvent
-    // traiter la même session au cours du même appel).
-    const notifiedProvisionalSessions = new Set<string>()
-
     for (const leagueId of leagues) {
       const pendingSessions = await getPendingSessionScores(leagueId)
       if (pendingSessions.length === 0) continue
@@ -97,18 +94,16 @@ async function handler(request: Request): Promise<Response> {
         await upsertBaseScores(session.id, leagueId, session.season, userScores)
         sessionsScored++
 
-        // Notification "scores provisoires + classement mis à jour" — une seule fois par session
-        if (!notifiedProvisionalSessions.has(session.id)) {
-          notifiedProvisionalSessions.add(session.id)
+        // Notification "scores provisoires + classement mis à jour" — une seule fois par
+        // session, tous appels confondus. Le claim atomique dédoublonne aussi bien les
+        // ligues multiples d'un même appel que les re-runs (ex. ligue créée en cours de saison).
+        if (await claimSessionProvisionalNotification(session.id)) {
           const label = SESSION_TYPE_LABELS[session.type] ?? session.type
-          await Promise.all([
-            sendPushToAll({
-              title: `🏁 Scores ${label} calculés`,
-              body:  'Les scores provisoires sont disponibles — le classement a été mis à jour !',
-              url:   '/',
-            }),
-            markSessionProvisionalNotified(session.id),
-          ])
+          await sendPushToAll({
+            title: `🏁 Scores ${label} calculés`,
+            body:  'Les scores provisoires sont disponibles — le classement a été mis à jour !',
+            url:   '/',
+          })
           provisionalNotified++
         }
       }
@@ -160,7 +155,7 @@ async function handler(request: Request): Promise<Response> {
 
         // Identifier les utilisateurs ciblés par des items offensifs
         for (const item of items) {
-          const p = item.payload as ItemPayload
+          const p = item.payload
           if (p.type === 'block_driver' || p.type === 'wild_card') {
             gpTargetedUserIds.add(p.targetUserId)
           }
@@ -176,7 +171,7 @@ async function handler(request: Request): Promise<Response> {
           itemNotified++
           return sendPushToUser(userId, {
             title: '🎮 Un item a été joué contre toi',
-            body:  `${gp.name} · Découvre quel effet ça a eu sur tes points !`,
+            body:  `${gp.name} · Un adversaire t'a ciblé — vois le résultat dans ton score !`,
             url:   '/',
           })
         }),

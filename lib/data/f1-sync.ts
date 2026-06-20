@@ -238,22 +238,34 @@ export async function getSessionsNeedingDeadlineNotification(
   }))
 }
 
-export async function markSessionDeadlineNotified(sessionId: string): Promise<void> {
+// Revendique l'envoi de la notif "deadline" pour cette session : pose
+// notified_deadline_at seulement si encore null (UPDATE conditionnel atomique).
+// Renvoie true si CET appel a revendiqué l'envoi → dédup inter-run garantie,
+// même si plusieurs crons se chevauchent. Marquer avant d'envoyer évite tout
+// re-push de masse si l'envoi échoue ensuite (au pire un rare faux-négatif).
+export async function claimSessionDeadlineNotification(sessionId: string): Promise<boolean> {
   const supabase = createServiceClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('sessions')
     .update({ notified_deadline_at: new Date().toISOString() })
     .eq('id', sessionId)
+    .is('notified_deadline_at', null)
+    .select('id')
   if (error) throw error
+  return (data ?? []).length > 0
 }
 
-export async function markSessionProvisionalNotified(sessionId: string): Promise<void> {
+// Idem pour la notif "scores provisoires" — voir claimSessionDeadlineNotification.
+export async function claimSessionProvisionalNotification(sessionId: string): Promise<boolean> {
   const supabase = createServiceClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('sessions')
     .update({ notified_provisional_at: new Date().toISOString() })
     .eq('id', sessionId)
+    .is('notified_provisional_at', null)
+    .select('id')
   if (error) throw error
+  return (data ?? []).length > 0
 }
 
 // Toutes les sessions d'un GP avec leur statut de confirmation — 1 requête vs N getSessionId

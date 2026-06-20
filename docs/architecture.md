@@ -52,6 +52,7 @@
     /scores/trigger/route.ts        → scoring Phase 1 (base) + Phase 2 (items), notifications
     /scores/season/route.ts         → scoring saison WDC/WCC (cron)
     /dev/seed-predictions/route.ts  → seed prédictions de test (dev uniquement)
+    /dev/seed-items/route.ts        → seed items de test + reset GP (dev uniquement)
 
 /lib
   /scoring/                    ← DOMAINE PUR — zéro import Supabase, zéro I/O

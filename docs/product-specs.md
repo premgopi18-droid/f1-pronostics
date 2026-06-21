@@ -423,6 +423,12 @@ Un assistant basé sur Claude (Anthropic) pourrait aider les utilisateurs à aff
   - Toutes gratuites (Google Fonts)
 - **Pas de texture fibre carbone** — esthétique flat, accents rouges sparingly
 
+### Internationalisation (i18n)
+
+- **Cible** : l'app vise l'international, mais **lance en français uniquement**.
+- **Approche A — « i18n-ready »** (décidée 2026-06-22) : toute chaîne UI passe par une clé de catalogue (`lib/i18n/fr.ts`, accès `t('…')`), **aucun texte affiché en dur**. Une seule locale active (FR), **pas de routing `/[locale]` ni de switcher** pour l'instant.
+- **Évolution** : ajouter une langue = ajouter un catalogue de même forme ; l'implémentation de `t()` pourra être remplacée (ex. next-intl) sans toucher aux écrans.
+
 ### Navigation principale (bottom nav — 5 tabs)
 
 La bottom nav est présente sur **toutes les pages** de l'app authentifiée. Exceptions (pré-authentification uniquement) : page de login, onboarding étape 1 & 2, `/join/[token]` non connecté.

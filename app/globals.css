@@ -22,6 +22,10 @@
   --popover: #1E1E2A;
   --popover-foreground: #FFFFFF;
 
+  /* Surface inversée — CTA sur fond clair (ex. « Continuer avec Google ») */
+  --surface-inverse: #FFFFFF;
+  --foreground-inverse: #18181B;
+
   /* Accent F1 Red */
   --primary: #FF1801;
   --primary-foreground: #FFFFFF;
@@ -41,12 +45,15 @@
   --gold: #F2C94C;
   --gold-soft: #F2C94C24; /* gold à ~14% */
 
-  /* États */
+  /* États (couleur pleine + variante « soft » ~15% pour les badges) */
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
+  --destructive-soft: #EF444426;
 
   --success: #22C55E;
+  --success-soft: #22C55E26;
   --warning: #F59E0B;
+  --warning-soft: #F59E0B26;
 
   /* Bordures & inputs */
   --border: #2A2A3A;
@@ -73,6 +80,9 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
 
+  --color-surface-inverse: var(--surface-inverse);
+  --color-foreground-inverse: var(--foreground-inverse);
+
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
 
@@ -91,9 +101,12 @@
 
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
 
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
 
   --color-border: var(--border);
   --color-input: var(--input);
@@ -106,6 +119,8 @@
   --font-sans: var(--font-inter);
   --font-display: var(--font-titillium);
   --font-numeric: var(--font-rajdhani); /* chiffres : scores, positions, points, countdown */
+
+  --text-2xs: 0.6875rem; /* 11px — micro-texte : badges, métadonnées */
 
   /* Border radius */
   --radius-sm: calc(var(--radius) - 4px);

@@ -14,8 +14,8 @@ const buttonVariants = cva(
         secondary: "border border-border bg-card text-foreground hover:bg-secondary/40",
         /** Tertiaire — contour discret */
         ghost: "border border-border bg-transparent text-text-secondary hover:bg-card",
-        /** CTA sur fond sombre (ex. « Continuer avec Google ») */
-        light: "bg-white text-zinc-900 hover:bg-white/90",
+        /** CTA sur fond sombre (ex. « Continuer avec Google ») — surface inversée themeable */
+        light: "bg-surface-inverse text-foreground-inverse hover:bg-surface-inverse/90",
       },
       size: {
         // h-11 = 44px : cible tactile minimale accessible
@@ -35,10 +35,13 @@ export interface ButtonProps
   ref?: React.Ref<HTMLButtonElement>;
 }
 
-export function Button({ className, variant, size, ref, ...props }: ButtonProps) {
+// `type="button"` par défaut : évite une soumission accidentelle dans un <form>.
+// Reste surchargeable (un `type="submit"` explicite via les props l'emporte).
+export function Button({ className, variant, size, type = "button", ref, ...props }: ButtonProps) {
   return (
     <button
       ref={ref}
+      type={type}
       className={cn(buttonVariants({ variant, size }), className)}
       {...props}
     />

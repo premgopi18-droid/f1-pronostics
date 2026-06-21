@@ -397,6 +397,8 @@ Un assistant basé sur Claude (Anthropic) pourrait aider les utilisateurs à aff
 
 ## 7. Design & UX (décisions juin 2026)
 
+> **Source de vérité visuelle** : prototype interactif **BoxBox** sur Claude Design — projet « Boxbox », fichier `BoxBox.dc.html` ([claude.ai/design](https://claude.ai/design/p/33e383a1-a58e-441f-a3c4-3c5d3920fb31?file=BoxBox.dc.html)). Copie stable dans le repo : [`docs/design/`](design/) (`BoxBox-shareable.html` ouvrable hors-ligne + screenshots). Couvre tous les écrans (login, onboarding, home, ligues, pronos, résultats, profil, predict, recap, WDC/WCC, création/join de ligue, league-detail, gp-results, compare, admin, notifications). Tokens et polices déjà câblés dans [`app/globals.css`](../app/globals.css) et [`app/layout.tsx`](../app/layout.tsx). Le prototype est une maquette HTML (runtime propriétaire) — les écrans restent à implémenter en React/shadcn.
+
 ### Identité visuelle
 
 - **Dark theme uniquement** — pas de light mode. Cohérent avec l'esthétique F1 moderne.
@@ -406,16 +408,24 @@ Un assistant basé sur Claude (Anthropic) pourrait aider les utilisateurs à aff
   - Bordures : `#2A2A3A`
   - Accent : `#FF1801` (F1 Red officiel)
   - Accent transparent : `#FF18011A` (badges, états)
+  - Gold : `#F2C94C` (scores & points — omniprésent dans l'UI)
+  - Gold transparent : `#F2C94C24` (fonds de badges « meilleur score »)
   - Texte primaire : `#FFFFFF`
   - Texte secondaire : `#A0A0B0`
   - Texte muted : `#606070`
   - Succès : `#22C55E`
   - Warning : `#F59E0B`
   - Danger : `#EF4444`
-- **Typographie** : Titillium Web (titres — proche de la police F1) + Inter (corps — lisibilité mobile)
+- **Typographie** :
+  - **Titres** : Titillium Web (proche de la police officielle F1 TV)
+  - **Chiffres** (scores, positions, points, countdown) : Rajdhani — condensée et anguleuse, donne le punch « racing » là où les chiffres sont omniprésents (classements, points)
+  - **Corps / labels** : Inter (neutre, lisibilité mobile)
+  - Toutes gratuites (Google Fonts)
 - **Pas de texture fibre carbone** — esthétique flat, accents rouges sparingly
 
 ### Navigation principale (bottom nav — 5 tabs)
+
+La bottom nav est présente sur **toutes les pages** de l'app authentifiée. Exceptions (pré-authentification uniquement) : page de login, onboarding étape 1 & 2, `/join/[token]` non connecté.
 
 ```
 🏠 Home  |  🏆 Ligues  |  📋 Mes Pronos  |  🏁 GP Résultats  |  👤 Profil
@@ -542,8 +552,9 @@ Palmarès (vide en v1, structure en place)
 - Couleur écurie sur badge pilote
 - **Interactions** : hold `⠿` → drag & drop (principal) ; tap n'importe où sur la ligne → sélectionne le pilote (surlignage), tap sur une autre ligne → place le pilote (secondaire, sans UI supplémentaire, disponible pour tous)
 
-**Meilleur tour** — intégré en bas de la page Course (pas une pill séparée) :
-- Section "Meilleur tour 🏆" après la liste des 22 pilotes
+**Meilleur tour** — intégré en bas de la page Course, **pas une pill séparée dans le sélecteur de sessions** :
+- Le sélecteur de sessions affiche uniquement les sessions dédiées : `[Qualif]` `[Course]` (classique) ou `[SQ]` `[SR]` `[Qualif]` `[Course]` (sprint) — jamais de pill `[M.Tour]`
+- Section "Meilleur tour 🏆" affichée après la liste des 22 pilotes sur la page Course
 - CTA "Choisir un pilote →" → bottom sheet avec barre de recherche + liste scrollable
 - La pill `[Course]` passe à ✓ uniquement quand les 22 positions ET le meilleur tour sont soumis
 

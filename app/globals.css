@@ -8,6 +8,7 @@
 
   --card: #1E1E2A;
   --card-foreground: #FFFFFF;
+  --surface-2: #252533; /* surface surélevée — dégradés de cards */
 
   --popover: #1E1E2A;
   --popover-foreground: #FFFFFF;
@@ -58,6 +59,7 @@
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-surface-2: var(--surface-2);
 
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);

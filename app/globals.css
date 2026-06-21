@@ -1,6 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/*
+ * Thème par défaut = BoxBox (dark). Tous les tokens ci-dessous sont *themeables*.
+ * Multi-theme (ex. livrées d'écuries) : surcharger les tokens dans un scope, ex.
+ *   [data-theme="ferrari"]  { --primary: #DC0000; --ring: #DC0000; }
+ *   [data-theme="mercedes"] { --primary: #00D2BE; --ring: #00D2BE; }
+ * Les composants n'utilisent QUE des tokens sémantiques (jamais de couleur brute)
+ * → le changement de thème est automatique. Un skin complet peut aussi surcharger
+ * polices (--font-*) et rayons (--radius*).
+ */
 :root {
   /* Fond & surfaces */
   --background: #15151E;
@@ -121,9 +130,10 @@ body {
   50% { opacity: 0.25; }
 }
 @keyframes bx-pulse {
+  /* part de l'accent (token) et s'évanouit vers transparent — aucun rouge en dur */
   0% { box-shadow: 0 0 0 0 var(--accent-soft); }
-  70% { box-shadow: 0 0 0 14px rgba(255, 24, 1, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 24, 1, 0); }
+  70% { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 @keyframes bx-up {
   from { transform: translateY(18px); opacity: 0; }

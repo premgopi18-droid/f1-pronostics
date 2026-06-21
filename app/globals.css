@@ -1,6 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/*
+ * Thème par défaut = BoxBox (dark). Tous les tokens ci-dessous sont *themeables*.
+ * Multi-theme (ex. livrées d'écuries) : surcharger les tokens dans un scope, ex.
+ *   [data-theme="ferrari"]  { --primary: #DC0000; --ring: #DC0000; }
+ *   [data-theme="mercedes"] { --primary: #00D2BE; --ring: #00D2BE; }
+ * Les composants n'utilisent QUE des tokens sémantiques (jamais de couleur brute)
+ * → le changement de thème est automatique. Un skin complet peut aussi surcharger
+ * polices (--font-*) et rayons (--radius*).
+ */
 :root {
   /* Fond & surfaces */
   --background: #15151E;
@@ -8,9 +17,14 @@
 
   --card: #1E1E2A;
   --card-foreground: #FFFFFF;
+  --surface-2: #252533; /* surface surélevée — dégradés de cards */
 
   --popover: #1E1E2A;
   --popover-foreground: #FFFFFF;
+
+  /* Surface inversée — CTA sur fond clair (ex. « Continuer avec Google ») */
+  --surface-inverse: #FFFFFF;
+  --foreground-inverse: #18181B;
 
   /* Accent F1 Red */
   --primary: #FF1801;
@@ -31,12 +45,15 @@
   --gold: #F2C94C;
   --gold-soft: #F2C94C24; /* gold à ~14% */
 
-  /* États */
+  /* États (couleur pleine + variante « soft » ~15% pour les badges) */
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
+  --destructive-soft: #EF444426;
 
   --success: #22C55E;
+  --success-soft: #22C55E26;
   --warning: #F59E0B;
+  --warning-soft: #F59E0B26;
 
   /* Bordures & inputs */
   --border: #2A2A3A;
@@ -58,9 +75,13 @@
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-surface-2: var(--surface-2);
 
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+
+  --color-surface-inverse: var(--surface-inverse);
+  --color-foreground-inverse: var(--foreground-inverse);
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
@@ -80,9 +101,12 @@
 
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
 
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
 
   --color-border: var(--border);
   --color-input: var(--input);
@@ -96,11 +120,14 @@
   --font-display: var(--font-titillium);
   --font-numeric: var(--font-rajdhani); /* chiffres : scores, positions, points, countdown */
 
+  --text-2xs: 0.6875rem; /* 11px — micro-texte : badges, métadonnées */
+
   /* Border radius */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px); /* 20px — cards */
 }
 
 body {
@@ -118,9 +145,10 @@ body {
   50% { opacity: 0.25; }
 }
 @keyframes bx-pulse {
+  /* part de l'accent (token) et s'évanouit vers transparent — aucun rouge en dur */
   0% { box-shadow: 0 0 0 0 var(--accent-soft); }
-  70% { box-shadow: 0 0 0 14px rgba(255, 24, 1, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 24, 1, 0); }
+  70% { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 @keyframes bx-up {
   from { transform: translateY(18px); opacity: 0; }

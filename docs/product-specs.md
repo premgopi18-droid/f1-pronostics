@@ -70,7 +70,13 @@ Application web (PWA) de pronostics Formula 1 entre amis. Les utilisateurs rejoi
 
 #### Quitter une ligue (v1)
 
-- **En cours de saison** : impossible de quitter ou de supprimer une ligue — la saison doit aller à son terme
+- **En cours de saison** : autorisé à tout moment.
+  - Les scores et pronostics passés sont **conservés** et restent dans l'historique de la ligue (intégrité des données)
+  - Le joueur apparaît en "Ancien membre" grisé dans le classement — il n'est plus actif
+  - Son slot est libéré — un nouveau membre peut rejoindre si les inscriptions sont ouvertes
+  - **Retour** : possible via le lien d'invitation si les inscriptions sont ouvertes et une place disponible. Ses scores passés sont récupérés — pas de pénalité, pas de remise à zéro. Le retour est décidé par l'admin via le toggle inscriptions (pas de réinvitation explicite requise).
+  - **Si l'admin quitte** : le rôle est automatiquement transféré au membre actif le plus ancien (par date d'entrée dans la ligue) — même règle que pour la suppression de compte.
+- **Suppression d'une ligue** : non disponible en cours de saison
 
 ### 3.3 Pronostics
 
@@ -279,7 +285,7 @@ Les notifications sont envoyées via Web Push (standard ouvert, compatible iOS 1
 | Scores provisoires disponibles | Après chaque session (qualif, sprint) — scores de base sans items |
 | Résultats définitifs publiés | Après la course du dimanche — scores finaux avec items résolus |
 | Item joué contre vous | Après la course, en même temps que les résultats définitifs — surprise révélée avec les scores |
-| Classement mis à jour | Après chaque calcul de score (provisoire ou définitif) |
+| Classement mis à jour | Après chaque calcul de score (provisoire ou définitif) — fusionné dans la catégorie "Résultats & scores" dans les réglages utilisateur |
 
 ---
 
@@ -389,22 +395,409 @@ Un assistant basé sur Claude (Anthropic) pourrait aider les utilisateurs à aff
 
 ---
 
-## 7. Ce qui reste à définir (TBD)
+## 7. Design & UX (décisions juin 2026)
+
+### Identité visuelle
+
+- **Dark theme uniquement** — pas de light mode. Cohérent avec l'esthétique F1 moderne.
+- **Palette couleurs** :
+  - Fond principal : `#15151E` (near-black bleuté, fond officiel site F1)
+  - Surface (cards, modals) : `#1E1E2A`
+  - Bordures : `#2A2A3A`
+  - Accent : `#FF1801` (F1 Red officiel)
+  - Accent transparent : `#FF18011A` (badges, états)
+  - Texte primaire : `#FFFFFF`
+  - Texte secondaire : `#A0A0B0`
+  - Texte muted : `#606070`
+  - Succès : `#22C55E`
+  - Warning : `#F59E0B`
+  - Danger : `#EF4444`
+- **Typographie** : Titillium Web (titres — proche de la police F1) + Inter (corps — lisibilité mobile)
+- **Pas de texture fibre carbone** — esthétique flat, accents rouges sparingly
+
+### Navigation principale (bottom nav — 5 tabs)
+
+```
+🏠 Home  |  🏆 Ligues  |  📋 Mes Pronos  |  🏁 GP Résultats  |  👤 Profil
+```
+
+| Tab | Contenu |
+|---|---|
+| **Home** | Card GP précédent (résultats rapides) + Card prochain GP (CTA pronostic + countdown) + CTAs "Créer une ligue" / "Rejoindre" |
+| **Ligues** | Liste des ligues, classements, items par ligue |
+| **Mes Pronos** | Tous mes pronostics : GPs (session par session) + saison (WDC/WCC) |
+| **GP Résultats** | Calendrier de la saison + résultats officiels de chaque GP |
+| **Profil** | Pseudo, avatar, notifications, accessibilité, gestion du compte |
+
+### Page d'accueil (Home) — structure
+
+- **GP-centric** : le GP en cours / prochain est l'élément central, pas la ligue
+- **2 cards GP** toujours visibles : résultats du précédent GP + pronostic du prochain GP
+- **2 CTAs** toujours visibles : "Créer une ligue" + "Rejoindre via lien" (pour inviter ou rejoindre)
+- L'avatar de l'utilisateur est affiché dans la nav et dans tous les écrans sociaux (classement, révélation items, comparaison pronos)
+
+### Onboarding
+
+**Page de login** : fond `#15151E` avec glow rouge radial centré derrière le logo (option C — sobre et premium). Un seul CTA "Continuer avec Google". Pas de light mode.
+
+**Workflow onboarding en 2 étapes** (premier lancement uniquement, obligatoire — pas de skip) :
+
+```
+Login Google
+    ↓
+Étape 1 — Pseudo
+  → Champ texte + validation temps réel (disponibilité via API)
+  → "Suivant" désactivé tant que pseudo invalide ou déjà pris
+    ↓
+Étape 2 — Avatar
+  → Grille d'avatars prédéfinis (casques F1 stylisés flat)
+  → "C'est parti !" pour confirmer
+    ↓
+  Si token d'invitation en attente → auto-join ligue → /leagues/[id]
+  Sinon → Home (état vide) → CTA "Créer une ligue" ou "Rejoindre via lien"
+```
+
+**Parcours invité (parcours le plus critique)** : le token d'invitation est sauvegardé avant le Google OAuth et survit à l'onboarding. Après completion des 2 étapes, la ligue est rejointe automatiquement et l'utilisateur atterrit sur `/leagues/[id]` — jamais sur une Home vide.
+
+**Pronostics sans ligue** : un utilisateur peut soumettre ses pronostics sans appartenir à une ligue (les pronos sont globaux). Ses scores seront calculés rétroactivement dans toutes les ligues qu'il rejoindra ensuite.
+
+### Avatar
+
+- **Style** : casques F1 stylisés (illustration flat) — ~12-16 options en v1
+- **Upload perso** : disponible rapidement après v1 (pas une évolution lointaine) — les deux options coexisteront
+- **Stockage** : Supabase Storage pour les uploads personnalisés
+- **Règle pseudo** : modifiable 1 fois par mois, maximum 5 fois par saison
+- **Validation pseudo** : 3-20 caractères, lettres/chiffres/underscore uniquement
+- L'avatar est affiché : dans la nav, dans les classements de ligue, dans la révélation des items, dans la comparaison des pronostics
+
+### Tab Ligues
+
+**Card de ligue** (une par ligue) :
+- Nom de la ligue + badge admin si applicable
+- Position dans la ligue / nombre de membres + points saison
+- Ligne items GP disponibles : icônes avec compteur restant, épuisés grisés (items saison exclus des cards)
+- Pas de "X membres ont pronostiqué" en v1
+
+**Comportements** :
+- Pas d'alerte deadline sur les cards — bannière sticky en haut du tab pendant le race weekend
+- Ordre : chronologique (date d'adhésion, plus ancienne d'abord) ; ligues avec deadline active remontent pendant le race weekend ; ligues terminées/inactives en bas
+- CTA "+" dans le header pour créer ou rejoindre une ligue
+- État vide (aucune ligue) : CTA plein écran
+
+**Détail d'une ligue** (page scrollable, pas de tabs internes) :
+
+```
+Classement saison (membres + badge admin fusionnés — pas de tab Membres séparé)
+  ↓
+Scores du dernier GP / GP en cours
+  ↓
+Mes items disponibles + [Jouer un item] → bottom sheet multi-étapes
+  ↓
+Aperçu saison (3 derniers GPs en mini tableau) + [Voir tous les GPs →]
+  ↓
+Palmarès (vide en v1, structure en place)
+```
+
+- `/leagues/[id]/saison` : page dédiée avec tous les GPs de la saison et points par membre
+- Responsive desktop : layout 2 colonnes (sidebar classement + contenu principal)
+- Partager le lien d'invitation : accessible à tous les membres (pas admin only)
+- ⚙️ admin : régénérer lien, ouvrir/fermer inscriptions, transférer rôle admin
+
+**Flow "Jouer un item"** (bottom sheet, étapes) :
+1. Sélectionner l'item
+2. Configurer (cible membre si offensif / session / pilote selon l'item)
+3. Récap + confirmation irréversible
+
+### Tab Mes Pronos
+
+**Structure de la page** (scrollable) :
+- Pronostics saison (WDC/WCC) + items saison (Coup de clé à molette, Boost turbo)
+- GP en cours / prochain avec sessions et statuts
+- Historique des GPs passés avec scores
+
+**Page de soumission d'un pronostic** — plein écran par session :
+
+| Élément | Décision |
+|---|---|
+| Format | Page plein écran (pas modal) |
+| Navigation | Flèche retour haut gauche → Mes Pronos |
+| Sélecteur sessions | Pills horizontales scrollables avec état (✓ soumis / ● actif / ○ vide / 🔒 verrouillé) |
+| Sauvegarde | Auto-save continu + statut dans le header (Incomplet / Sauvegardé ✓) |
+
+**Pré-remplissage intelligent** :
+
+| Session | Pré-remplissage si pas encore soumis |
+|---|---|
+| Qualifications | Classement championnat pilotes (top 10) |
+| Course | Résultats qualifications si dispo, sinon classement championnat |
+| Sprint Qualifying | Classement championnat (top 5) |
+| Sprint Race | Résultats Sprint Qualifying si dispo, sinon classement championnat |
+
+- **Bouton "Repartir de l'ordre des qualifs"** : affiché sur la page Course uniquement si qualifs terminées ET prédiction déjà sauvegardée avant qualifs
+
+**Composant de saisie** — liste unique scrollable :
+- Course (22 pilotes) : tous classés, drag & drop, pas de section "Non classés"
+- Qualifications (top 10) / Sprint Race (top 8) / Sprint Qualifying (top 5) : section "Mon classement" en haut + section "Non classés" en bas, séparées par un diviseur
+- Poignée de drag `⠿` visible à droite de chaque pilote
+- Couleur écurie sur badge pilote
+- **Interactions** : hold `⠿` → drag & drop (principal) ; tap n'importe où sur la ligne → sélectionne le pilote (surlignage), tap sur une autre ligne → place le pilote (secondaire, sans UI supplémentaire, disponible pour tous)
+
+**Meilleur tour** — intégré en bas de la page Course (pas une pill séparée) :
+- Section "Meilleur tour 🏆" après la liste des 22 pilotes
+- CTA "Choisir un pilote →" → bottom sheet avec barre de recherche + liste scrollable
+- La pill `[Course]` passe à ✓ uniquement quand les 22 positions ET le meilleur tour sont soumis
+
+**Longueur des pronostics** :
+
+| Session | Longueur |
+|---|---|
+| Qualifications | Top 10 uniquement |
+| Course | Ordre complet (~22 pilotes) |
+| Sprint Qualifying | Top 5 |
+| Sprint Race | Top 8 |
+| Meilleur tour | 1 pilote |
+
+### Tab Mes Pronos — Pronostics saison WDC/WCC
+
+**Accès** :
+- Tab "Mes Pronos" → section "Pronostics saison" en haut (point d'entrée principal)
+- Tab "GP Résultats" → standings WDC/WCC → lien contextuel "Voir mon pronostic →" (point d'entrée secondaire)
+
+**Page WDC/WCC** — 3 états selon le moment de la saison :
+
+| État | Comportement |
+|---|---|
+| Avant verrouillage (avant Q1 premier GP) | Page éditable — utilise le même composant `PredictionRankList` (deux zones : Mon Top 10 / Non classés) — les interactions accessibilité (tap-pour-sélectionner, ↑↓ en mode accessibilité) sont donc couvertes automatiquement |
+| Après verrouillage | Lecture seule + colonne officielle actuelle pour comparaison + bouton item si disponible |
+| Fin de saison | Comparaison finale + score WDC/WCC révélé |
+
+**Vue comparaison (post-verrouillage)** :
+```
+Mon prono        Officiel actuel   Écart
+P1 Verstappen ✓  Verstappen         0
+P2 Leclerc    ~  Norris            ↕1
+P3 Norris     ~  Leclerc           ↕1
+P4 Russell    ✓  Russell            0
+```
+
+**Items saison** :
+- Icônes en lecture seule dans la section "Pronostics saison" de Mes Pronos (awareness)
+- Bouton d'action "Utiliser 🔧" directement dans la page WDC/WCC (contextuel)
+- Deadline non affichée dans l'UI — gérée via notification push quand le dernier GP approche
+- Item utilisé → grisé + "Utilisé ✓"
+
+### Home — états de la page d'accueil
+
+La home change de visage selon le moment de la saison.
+
+**État 1 — Entre deux GP** (état de repos)
+- Card GP précédent : podium officiel (P1/P2/P3) + score brut de prédiction (sans items, global)
+- Card prochain GP : nom + date + countdown + CTA "Je pronostique →"
+- CTAs toujours visibles : "Créer une ligue" / "Rejoindre"
+
+**État 2 — Race weekend, sessions ouvertes**
+- Card GP en cours avec liste des sessions + statut par session (✓ verrouillé / ⚠️ ouvert avec deadline / ○ à venir)
+- CTA "Modifier mes pronos →"
+- Deadline en rouge si < 24h
+
+**État 3 — Session live**
+- Indicateur "🔴 LIVE · [Session] en cours"
+- "Les pronostics sont fermés — résultats disponibles après la session"
+- Sobre — pas de suivi temps réel en v1
+
+**État 4 — Résultats en cours de traitement** (dimanche soir)
+- "⏳ Calcul des scores en cours — items en cours de résolution"
+
+**État 5 — Résultats définitifs disponibles**
+- Card résultats : podium + score brut + révélation items reçus ("🃏 Wild Card reçue — -8 pts")
+- Card prochain GP déjà visible en dessous
+- Moment fort : la révélation des items coïncide avec les scores finaux
+
+### Page /gp/[id]/recap — Mon recap GP
+
+Accessible depuis : card Home résultats + historique Mes Pronos.
+
+Structure complète (page scrollable) :
+
+```
+Podium officiel (course + sprint si sprint weekend)
+Score de prédiction global (par session + total brut)
+Détail par session (résumé ✓/~/·/✗ + liste dépliable)
+Dans mes ligues (cards : score brut → items → score final → évolution classement)
+[Voir les résultats F1 officiels →]  ← en bas
+```
+
+**Détail scoring** (code couleur) :
+- ✓ vert = position exacte
+- ↑↓ orange = écart ±1
+- · jaune = écart ±2
+- ✗ gris = hors portée (0 pt)
+- Résumé en haut (ex: "4 exactes 40pts · 3 à ±1 6pts") + liste dépliable
+
+**Cards "Dans mes ligues"** :
+- Score brut → items appliqués (reçus ou joués) → score final
+- Évolution de position (↑ ↓ =)
+- Plusieurs ligues : dans le flux de page (pas de scroll imbriqué)
+
+**Week-end sprint** : deux podiums (course + sprint) + 5 sections de détail dépliables.
+
+**Lien résultats officiels** : en bas de page (pas en haut — on garde l'utilisateur sur son recap d'abord).
+
+### Desktop
+
+- **< 1024px** (mobile + tablette) → bottom nav
+- **≥ 1024px** (desktop) → sidebar gauche fixe (~220px, icônes + labels, avatar + pseudo en bas)
+- Design desktop détaillé différé — à affiner une fois la version mobile fonctionnelle
+- Drag & drop sur desktop : natif avec la souris, aucune adaptation nécessaire
+
+### Marqueur provisoire / définitif
+
+À afficher sur tous les écrans exposant des scores en cours de week-end :
+- Home (état race weekend / résultats) ✅
+- `/gp/[id]/recap` → badge sur chaque score de session + sur les cards "Dans mes ligues"
+- Détail ligue section "Scores du GP" → badge sur les scores affichés
+- Règle : badge "Provisoire" tant que la course du dimanche n'est pas scorée, badge "Définitif" après
+
+### Deadline items dans l'UI
+
+La deadline des items GP est la même que celle des pronostics (Q1 ou Sprint Qualifying sur week-end sprint).
+- **Bannière sticky tab Ligues** : "⏱️ Deadline pronos & items · sam. 15h00 (Q1)"
+- **Flow "Jouer un item" (bottom sheet)** : deadline affichée dès l'étape 1 avec countdown
+
+### Pronos verrouillés des autres membres
+
+Page `/leagues/[id]/gp/[gp-id]/compare` — accessible depuis : détail ligue → Scores du GP → "Voir les pronos →"
+
+**Vue groupe (défaut)** — par session, tous les membres :
+- Sélecteur de sessions en haut (pills)
+- Pour chaque position : qui a prédit quoi avec indicateur ✓/✗ par membre
+- Insights automatiques : "Personne n'a prédit Norris en P1"
+
+**Vue tête-à-tête** — tap sur l'avatar d'un membre :
+- Toi vs [membre] côte à côte, position par position
+- Navigation `< >` pour switcher entre membres sans revenir en arrière
+
+Règle d'accès : visible uniquement après verrouillage de chaque session.
+
+### Pages manquantes — mappées
+
+#### `/join/[token]` — Page d'invitation
+
+Première page vue par un nouvel utilisateur arrivant via lien ou code d'invitation. Affiche le nom de la ligue, l'admin, le nombre de membres, et une courte accroche sur l'app.
+
+**6 états :**
+
+| État | Comportement |
+|---|---|
+| Non connecté | CTA "Se connecter" → Google OAuth → retour sur la page → rejoint automatiquement |
+| Connecté, pas encore membre | CTA "Rejoindre la ligue" |
+| Déjà membre | "Tu fais déjà partie de cette ligue" → redirect vers `/leagues/[id]` |
+| Ligue complète | Message "La ligue est complète (12/12)" — pas de CTA |
+| Inscriptions fermées | Message "L'admin a fermé les inscriptions" — pas de CTA |
+| Token invalide/expiré | "Ce lien n'est plus valide — demande un nouveau à l'admin" |
+
+#### `/leagues/create` — Créer une ligue
+
+Formulaire simple : nom de la ligue + nombre maximum de membres (2-20). Après création → redirect vers `/leagues/[id]` avec lien d'invitation affiché immédiatement pour partage.
+
+#### `/leagues/[id]/admin` — Paramètres admin
+
+Accessible uniquement à l'admin (redirect sinon). Contenu :
+- **Code d'invitation** : code court (ex: `ABC123`) + bouton "Copier le code"
+- **Lien complet** : URL complète + bouton "Copier le lien" + bouton "Régénérer" (invalide l'ancien)
+- **Inscriptions** : toggle ouvert/fermé
+- **Liste des membres** : avec badge admin sur soi-même
+- **Transférer l'admin** : choisir un membre + confirmation avec avertissement
+
+#### Flow "Rejoindre une ligue"
+
+Depuis le CTA "Rejoindre" (Home ou tab Ligues) → page ou bottom sheet avec deux options :
+- Saisir un **code court** (ex: `ABC123`)
+- Coller un **lien complet** (`boxbox.app/join/…`)
+
+Les deux mènent à `/join/[token]`.
+
+**Code = lien** : le code est simplement les derniers caractères du token du lien. Aucune logique backend supplémentaire.
+
+### Tab GP Résultats
+
+Segmented control en haut (3 vues) :
+
+```
+[ Calendrier ]  [ Pilotes WDC ]  [ Écuries WCC ]
+```
+
+**Vue Calendrier** :
+- Prochain GP mis en avant (horaires sessions)
+- Liste chronologique : GP passés (vainqueur + lien recap) / GP en cours / GP futurs
+- GP futurs cliquables → page de prédiction `/predictions/[gp-id]`
+
+**Vue Pilotes WDC / Écuries WCC** :
+- Classement officiel complet
+- Lien "Voir mon pronostic →" vers la page WDC/WCC de Mes Pronos
+
+**Page résultats officiels GP** (`/gp/[id]/results`) :
+- Segmented control [Course | Qualifications | Sprint*] selon le type de weekend
+- Résultats officiels complets par session
+
+### Notifications
+
+4 catégories, toutes activées par défaut :
+- **Deadline pronos & items** — 1h avant chaque session (pronos) + rappel deadline items GP (même verrou Q1)
+- **Résultats & scores** — scores provisoires après chaque session + résultats définitifs dimanche + classement mis à jour
+- **Items reçus** — révélation après la course
+- **GP approche** — J-2 avant le week-end
+- Notification dédiée : "Tu as un item saison non utilisé — dernier GP dans X jours" (deadline items saison)
+
+### Accessibilité
+
+**Niveau WCAG cible** :
+- Mode normal : WCAG AA
+- Mode accessibilité : WCAG AAA
+- `prefers-reduced-motion` (préférence système) : appliqué automatiquement via CSS — pas de toggle nécessaire
+
+**Mode accessibilité** — toggle disponible dans :
+- Page Profil → section "Accessibilité"
+- Tooltip contextuel au premier lancement de `PredictionRankList` : "Difficultés avec le drag & drop ? [Activer le mode accessibilité]" — pas en onboarding pour ne pas alourdir le flow
+
+**Ce que le mode accessibilité modifie** :
+
+| Élément | Mode normal | Mode accessibilité |
+|---|---|---|
+| `PredictionRankList` | Drag & drop | Tap-pour-sélectionner + tap-pour-placer + boutons ↑↓ |
+| Animations | Activées | Réduites |
+| Taille de texte | Standard | +2px sur les éléments clés |
+| Contraste | WCAG AA | WCAG AAA |
+
+**Interactions `PredictionRankList`** :
+
+| Mode | Interactions disponibles |
+|---|---|
+| **Normal** | Drag & drop (hold `⠿`) + tap-pour-sélectionner/placer (secondaire, pas d'UI supplémentaire) |
+| **Accessibilité** | Tap-pour-sélectionner/placer (principal) + boutons ↑↓ (secondaire, pour ajustements ±1) |
+
+- Tap-pour-sélectionner : 2 taps pour déplacer n'importe quel pilote n'importe où — efficace même sur 22 pilotes
+- ↑↓ uniquement en mode accessibilité — évite de surcharger l'interface en mode normal
+- Drag & drop disponible en parallèle même en mode accessibilité
+
+---
+
+## 8. Ce qui reste à définir (TBD)
 
 - [x] Nom de l'application : **BoxBox** — nom affiché dans l'UI et le PWA manifest. Le projet Supabase et les noms d'infrastructure utilisent un nom générique (`f1-pronostics`) pour ne pas être couplés au nom de marque.
 
-## 8. Points UX à traiter pendant le développement
+## 9. Points UX à traiter pendant le développement
 
 Ces sujets ne bloquent pas le démarrage mais doivent être adressés avant le lancement :
 
 - [ ] **Onboarding & états vides** — premier lancement sans ligue, ligue sans pronostics encore soumis, classement avant la première course. La promesse "3 minutes pour rejoindre et pronostiquer" se joue ici.
-- [ ] **Transparence du scoring** — afficher le détail point par point de comment le score a été calculé (essentiel pour la confiance dans un jeu entre amis)
-- [ ] **Historique des pronostics des autres** — visibilité des pronostics verrouillés passés des autres membres, pas seulement les siens
+- [ ] **Transparence du scoring** — largement couvert par le détail scoring de `/gp/[id]/recap` (résumé ✓/~/·/✗ + liste dépliable). À finaliser : s'assurer que le détail est suffisamment lisible et pédagogique pour un nouvel utilisateur.
+- [x] **Historique des pronostics des autres** — couvert par la page `/leagues/[id]/gp/[gp-id]/compare` (vue groupe par session + vue tête-à-tête)
 - [ ] **Statut "forfait"** — libellé humoristique à définir pour les joueurs qui n'ont pas soumis de pronostic
 - [ ] **Légal** — CGU, politique de confidentialité, mention âge minimum (prévoir avant ouverture publique)
 - [ ] **Unicité et modération des pseudos** — règles de validation (longueur, caractères autorisés, mots interdits)
 
-## 9. Dette technique & sujets engineering différés
+## 10. Dette technique & sujets engineering différés
 
 À traiter quand le schéma de données est stabilisé (plus aucune migration en cours), avant les premiers vrais utilisateurs.
 

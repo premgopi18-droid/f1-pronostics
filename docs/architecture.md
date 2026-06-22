@@ -404,6 +404,8 @@ describe('computeBaseScore', () => {
 
 **Règle absolue :** ne jamais mocker Supabase dans les tests de `/lib/data/`. Toute divergence mock/prod est un bug silencieux.
 
+> **Exception — helpers d'orchestration.** La règle ci-dessus vise les fonctions qui **construisent des requêtes** (c'est là que mock ≠ prod fait mal). Un helper de `/lib/data/` qui n'émet **aucun SQL** et se contente d'orchestrer (lecture de cookie, délégation à une autre fonction `lib/data`, fail-safe) peut être testé **unitairement** avec ses collaborateurs mockés — on teste son contrat, pas la DB. Ex. `consumePendingInvite` (parcours invité) : mocke `next/headers` + `joinLeagueByCode`, jamais le client Supabase.
+
 **Script :** `npm test` (one-shot CI) / `npm run test:watch` (dev).
 
 ---

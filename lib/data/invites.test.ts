@@ -29,6 +29,13 @@ describe('consumePendingInvite', () => {
     expect(cookieDelete).not.toHaveBeenCalled()
   })
 
+  it('cookie présent mais vide/espaces : renvoie null sans toucher au join ni effacer', async () => {
+    cookieGet.mockReturnValue({ value: '   ' })
+    expect(await consumePendingInvite('u1')).toBeNull()
+    expect(joinLeagueByCode).not.toHaveBeenCalled()
+    expect(cookieDelete).not.toHaveBeenCalled()
+  })
+
   it('succès : auto-join, code normalisé en majuscules, cookie effacé', async () => {
     cookieGet.mockReturnValue({ value: '  abcd1234  ' })
     joinLeagueByCode.mockResolvedValue({ leagueId: 'L1' })

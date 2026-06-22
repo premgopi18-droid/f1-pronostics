@@ -10,7 +10,7 @@ export const getCachedDrivers = unstable_cache(
     const db = createServiceClient()
     const { data } = await db
       .from('drivers')
-      .select('id, code, first_name, last_name, number')
+      .select('id, code, first_name, last_name, number, constructor_id')
       .eq('season', season)
       .order('code')
     return data ?? []

@@ -1,24 +1,27 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
+import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
-import { getCachedDrivers } from '@/lib/f1/cached'
+import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
-import { PredictionForm } from './prediction-form'
+import { t } from '@/lib/i18n'
+import { PredictionTabs, type SessionData } from './prediction-tabs'
+import type { Driver } from './prediction-form'
 import type { SessionType } from '@/lib/scoring/types'
 
-export default async function PredictionsPage({
+export default async function PredictPage({
   params,
 }: {
   params: Promise<{ gpId: string }>
 }) {
-  const { gpId } = await params
-  const supabase  = await createClient()
-  const season    = getCurrentSeason()
-  const userId    = (await headers()).get('x-user-id')!
+  const { gpId }   = await params
+  const supabase   = await createClient()
+  const season     = getCurrentSeason()
+  const userId     = (await headers()).get('x-user-id')!
 
-  const [{ data: gp }, { data: sessions }, driversRaw] = await Promise.all([
+  const [{ data: gp }, { data: sessions }, driversRaw, constructorsRaw] = await Promise.all([
     supabase
       .from('grands_prix')
       .select('id, name, country, round')
@@ -31,9 +34,27 @@ export default async function PredictionsPage({
       .eq('season', season)
       .order('starts_at'),
     getCachedDrivers(season),
+    getCachedConstructors(season),
   ])
 
   if (!gp) notFound()
+
+  const constructorByCode = new Map(
+    constructorsRaw.map((c) => [c.id as string, { code: c.code as string, name: c.name as string }]),
+  )
+
+  const drivers: Driver[] = driversRaw.map((d) => {
+    const constructor = constructorByCode.get(d.constructor_id as string) ?? { code: '', name: '' }
+    return {
+      id:        d.id as string,
+      code:      d.code as string,
+      firstName: d.first_name as string,
+      lastName:  d.last_name as string,
+      number:    d.number as number,
+      teamCode:  constructor.code,
+      teamName:  constructor.name,
+    }
+  })
 
   const sessionIds = (sessions ?? []).map((s) => s.id as string)
 
@@ -67,47 +88,42 @@ export default async function PredictionsPage({
 
   const now = new Date()
 
-  const mappedDrivers = driversRaw.map((d) => ({
-    id:        d.id as string,
-    code:      d.code as string,
-    firstName: d.first_name as string,
-    lastName:  d.last_name as string,
-    number:    d.number as number,
-  }))
+  const sessionList: SessionData[] = (sessions ?? []).map((s) => {
+    const type = s.type as SessionType
+    return {
+      id:                 s.id as string,
+      type,
+      startsAt:           s.starts_at as string,
+      expectedCount:      POSITIONS_TO_SCORE[type],
+      existingEntries:    predictionsBySession.get(s.id as string) ?? [],
+      existingFastestLap: fastestLapBySession.get(s.id as string) ?? null,
+      isLocked:           new Date(s.starts_at as string) <= now,
+    }
+  })
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8">
-      <div className="max-w-sm mx-auto flex flex-col gap-8">
+    <main className="min-h-screen bg-background px-4 pb-24 pt-6">
+      <div className="mx-auto flex max-w-sm flex-col gap-6">
 
         {/* Header */}
         <div className="flex flex-col gap-1">
-          <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors mb-1">
-            ← Accueil
+          <Link
+            href="/"
+            className="flex items-center gap-1 text-sm text-text-secondary transition-colors hover:text-foreground"
+          >
+            <ChevronLeft size={16} aria-hidden="true" />
+            {t('predict.back')}
           </Link>
-          <h1 className="text-2xl font-bold text-white">{gp.name as string}</h1>
-          <p className="text-zinc-400 text-sm">
-            {gp.country as string} · Round {gp.round as number} · {season}
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            {gp.name as string}
+          </h1>
+          <p className="text-sm text-text-secondary">
+            {gp.country as string} · {t('home.round')} {gp.round as number} · {season}
           </p>
         </div>
 
-        {sessions?.length === 0 && (
-          <p className="text-zinc-500 text-sm">Les sessions ne sont pas encore disponibles.</p>
-        )}
-
-        {/* Formulaire par session */}
-        {(sessions ?? []).map((session) => (
-          <div key={session.id as string} className="bg-zinc-900 rounded-xl p-4">
-            <PredictionForm
-              sessionId={session.id as string}
-              sessionType={session.type as SessionType}
-              drivers={mappedDrivers}
-              expectedCount={POSITIONS_TO_SCORE[session.type as SessionType]}
-              existingEntries={predictionsBySession.get(session.id as string) ?? []}
-              existingFastestLap={fastestLapBySession.get(session.id as string) ?? null}
-              isLocked={new Date(session.starts_at as string) <= now}
-            />
-          </div>
-        ))}
+        {/* Tabs + forms */}
+        <PredictionTabs sessions={sessionList} drivers={drivers} />
 
       </div>
     </main>

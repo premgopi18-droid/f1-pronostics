@@ -18,7 +18,7 @@ export async function GET(request: Request) {
           .from('profiles')
           .select('onboarding_completed')
           .eq('id', user.id)
-          .single()
+          .maybeSingle()
         if (profile?.onboarding_completed) {
           const leagueId = await consumePendingInvite(user.id)
           if (leagueId) return NextResponse.redirect(new URL(`/leagues/${leagueId}`, origin))

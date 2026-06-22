@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { PENDING_INVITE_COOKIE, PENDING_INVITE_MAX_AGE } from '@/lib/invites'
+import { PENDING_INVITE_COOKIE, PENDING_INVITE_MAX_AGE, INVITE_CODE_PATTERN } from '@/lib/invites'
 
 export async function proxy(request: NextRequest) {
   // Ne jamais faire confiance à un x-user-id entrant : c'est un header d'auth
@@ -53,7 +53,7 @@ export async function proxy(request: NextRequest) {
     // garde dans un cookie ; il sera consommé après login/onboarding (auto-join).
     if (path === '/leagues/join') {
       const code = request.nextUrl.searchParams.get('code')
-      if (code) {
+      if (code && INVITE_CODE_PATTERN.test(code)) {
         response.cookies.set(PENDING_INVITE_COOKIE, code, {
           httpOnly: true,
           sameSite: 'lax',

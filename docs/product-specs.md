@@ -487,6 +487,7 @@ Login Google
 ### Avatar
 
 - **Style** : casques F1 stylisés (illustration flat) — ~12-16 options en v1
+- **Implémentation** (décision 2026-06-22, remplace l'ancien système d'emojis) : `avatar_key` stocke l'`id` d'un casque du catalogue `lib/profile/avatars.ts` (couleur). Rendu via `AvatarHelmet` / `UserAvatar`. Sélection via `HelmetPicker` (partagé onboarding + profil).
 - **Upload perso** : disponible rapidement après v1 (pas une évolution lointaine) — les deux options coexisteront
 - **Stockage** : Supabase Storage pour les uploads personnalisés
 - **Règle pseudo** : modifiable 1 fois par mois, maximum 5 fois par saison

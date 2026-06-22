@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { AVATAR_OPTIONS } from '@/lib/profile/avatars'
+import { HELMET_IDS } from '@/lib/profile/avatars'
 
 export type ProfileActionState = { error?: string; success?: boolean }
 
@@ -21,7 +21,7 @@ export async function updateProfile(
   if (pseudo.length < 2 || pseudo.length > 30) {
     return { error: 'Le pseudo doit faire entre 2 et 30 caractères' }
   }
-  if (avatarKey !== null && !(AVATAR_OPTIONS as readonly string[]).includes(avatarKey)) {
+  if (avatarKey !== null && !HELMET_IDS.includes(avatarKey)) {
     return { error: 'Avatar invalide' }
   }
 

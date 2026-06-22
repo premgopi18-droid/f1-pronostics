@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { updateProfile, deleteAccount, type ProfileActionState } from '@/app/actions/profile'
-import { AVATAR_OPTIONS } from '@/lib/profile/avatars'
+import { HelmetPicker } from '@/app/components/helmet-picker'
 
 const initialState: ProfileActionState = {}
 
@@ -51,22 +51,7 @@ export function ProfileForm({
         {/* Avatar */}
         <div className="flex flex-col gap-2">
           <span className="text-sm text-zinc-400">Avatar</span>
-          <div className="grid grid-cols-6 gap-2">
-            {AVATAR_OPTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => setSelectedAvatar(emoji)}
-                className={`aspect-square text-2xl flex items-center justify-center rounded-xl transition-colors ${
-                  selectedAvatar === emoji
-                    ? 'bg-red-600/20 ring-2 ring-red-500'
-                    : 'bg-zinc-900 hover:bg-zinc-800'
-                }`}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
+          <HelmetPicker value={selectedAvatar} onChange={setSelectedAvatar} />
         </div>
 
         {updateState.error && (

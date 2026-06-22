@@ -6,6 +6,7 @@ import {
   type HomeGpPhase,
   type WeekendSession,
 } from '@/lib/home-phase'
+import type { SessionType } from '@/lib/scoring/types'
 
 const RACE_SESSION_TYPE = 'race'
 const PODIUM_SIZE = 3
@@ -45,7 +46,10 @@ export async function getCurrentGpView(
 
   return {
     phase,
-    sessions: sessions.map((s) => ({ type: s.type, lockState: sessionLockState(nowMs, s.starts_at) })),
+    sessions: sessions.map((s) => ({
+      type: s.type as SessionType,
+      lockState: sessionLockState(nowMs, s.starts_at),
+    })),
   }
 }
 

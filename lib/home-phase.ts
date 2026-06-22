@@ -1,3 +1,5 @@
+import type { SessionType } from "@/lib/scoring/types";
+
 /**
  * Phase de la Home pour le GP courant (le prochain GP non finalisé) :
  * - `upcoming`   : le week-end n'a pas commencé → card countdown ;
@@ -41,4 +43,4 @@ export function sessionLockState(nowMs: number, startsAt: string): SessionLockSt
 }
 
 /** Session telle qu'affichée dans la card week-end de la Home. */
-export type WeekendSession = { type: string; lockState: SessionLockState };
+export type WeekendSession = { type: SessionType; lockState: SessionLockState };

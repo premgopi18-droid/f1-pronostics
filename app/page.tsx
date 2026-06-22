@@ -111,13 +111,15 @@ export default async function HomePage() {
                 {t('home.predict')} <span aria-hidden="true">→</span>
               </Link>
             </Card>
-          ) : (
+          ) : phase === 'weekend' || phase === 'live' ? (
+            // En week-end/live, des sessions restent ouvertes → card sessions (CTA pertinent).
+            // En processing, tout est verrouillé → seule la bannière « Calcul » ci-dessus s'affiche.
             <GpWeekendCard
               name={nextGP.name as string}
               gpId={nextGP.id as string}
               sessions={gpView?.sessions ?? []}
             />
-          )}
+          ) : null}
         </>
       ) : (
         <Card>

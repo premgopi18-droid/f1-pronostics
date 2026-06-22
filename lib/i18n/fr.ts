@@ -38,6 +38,9 @@ export const fr = {
   home: {
     greeting: "Salut,",
     nextGpLabel: "Prochain GP",
+    previousGpLabel: "Dernier GP",
+    rawScore: "Ton score brut",
+    points: "pts",
     round: "Manche",
     countdownDays: "jours",
     countdownHours: "heures",

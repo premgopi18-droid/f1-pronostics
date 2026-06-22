@@ -55,6 +55,27 @@ export async function proxy(request: NextRequest) {
 
   if (!user) return supabaseResponse
 
+  // Gating onboarding : tant que le compte n'est pas finalisé (pseudo + casque), on
+  // le force vers /onboarding ; une fois finalisé, /onboarding renvoie vers la Home.
+  // Fail-open : si la lecture échoue (ex. colonne absente avant migration), on ne
+  // bloque pas l'app.
+  if (!path.startsWith('/api')) {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('onboarding_completed')
+      .eq('id', user.id)
+      .single()
+    if (!error && profile) {
+      const completed = profile.onboarding_completed === true
+      if (!completed && path !== '/onboarding') {
+        return NextResponse.redirect(new URL('/onboarding', request.url))
+      }
+      if (completed && path === '/onboarding') {
+        return NextResponse.redirect(new URL('/', request.url))
+      }
+    }
+  }
+
   // Injecter x-user-id dans les headers de la requête transmise aux Server Components.
   // baseHeaders est déjà débarrassé de tout x-user-id client (cf. en-tête de fonction).
   // Reconstruire le Cookie header depuis request.cookies (inclut les tokens refreshés).

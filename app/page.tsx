@@ -9,7 +9,8 @@ import { buttonVariants } from '@/app/ui/button'
 import { Card, CardTitle } from '@/app/ui/card'
 import { Countdown } from '@/app/components/countdown'
 import { PreviousGpCard } from '@/app/components/previous-gp-card'
-import { getPreviousGpCard } from '@/lib/data/home'
+import { GpWeekendCard } from '@/app/components/gp-weekend-card'
+import { getPreviousGpCard, getCurrentGpView } from '@/lib/data/home'
 import { cn } from '@/lib/utils'
 import { t } from '@/lib/i18n'
 
@@ -43,6 +44,12 @@ export default async function HomePage() {
     return { id: m.league_id as string, name: league?.name ?? 'Ligue sans nom' }
   })
 
+  // Phase du GP courant (countdown / week-end / live / calcul) + ses sessions.
+  const gpView = nextGP
+    ? await getCurrentGpView(nextGP.id as string, (nextGP.weekend_starts_at as string | null) ?? null)
+    : null
+  const phase = gpView?.phase ?? 'upcoming'
+
   return (
     <main className="flex flex-1 flex-col gap-6 px-page pb-6 pt-3">
       {/* Header */}
@@ -60,28 +67,58 @@ export default async function HomePage() {
         </Link>
       </div>
 
-      {/* Card prochain GP */}
+      {/* GP courant — countdown / week-end / live / calcul */}
       {nextGP ? (
-        <Card variant="gradient">
-          <div className="text-2xs font-bold uppercase tracking-wider text-primary">
-            {t('home.nextGpLabel')}
-          </div>
-          <CardTitle className="mt-2 text-2xl">{nextGP.name as string}</CardTitle>
-          <div className="mt-1 text-sm text-text-secondary">
-            {t('home.round')} {nextGP.round as number} · {nextGP.country as string}
-          </div>
-          {nextGP.weekend_starts_at && (
-            <div className="mt-4">
-              <Countdown targetIso={nextGP.weekend_starts_at as string} />
+        <>
+          {phase === 'live' && (
+            <div className="flex items-center gap-2 rounded-xl border border-primary bg-accent-soft px-3.5 py-2.5">
+              <span
+                className="h-2.5 w-2.5 rounded-full bg-primary [animation:bx-blink_1.1s_infinite] motion-reduce:[animation:none]"
+                aria-hidden
+              />
+              <span className="text-sm font-semibold text-foreground">{t('home.liveLabel')}</span>
+              <span className="ml-auto text-xs text-text-secondary">{t('home.liveClosed')}</span>
             </div>
           )}
-          <Link
-            href={`/predictions/${nextGP.id as string}`}
-            className={cn(buttonVariants({ size: 'block' }), 'mt-4')}
-          >
-            {t('home.predict')} <span aria-hidden="true">→</span>
-          </Link>
-        </Card>
+          {phase === 'processing' && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
+              <span
+                className="h-4 w-4 rounded-full border-2 border-border border-t-primary [animation:bx-spin_.8s_linear_infinite] motion-reduce:[animation:none]"
+                aria-hidden
+              />
+              <span className="text-sm text-text-secondary">{t('home.processing')}</span>
+            </div>
+          )}
+
+          {phase === 'upcoming' ? (
+            <Card variant="gradient">
+              <div className="text-2xs font-bold uppercase tracking-wider text-primary">
+                {t('home.nextGpLabel')}
+              </div>
+              <CardTitle className="mt-2 text-2xl">{nextGP.name as string}</CardTitle>
+              <div className="mt-1 text-sm text-text-secondary">
+                {t('home.round')} {nextGP.round as number} · {nextGP.country as string}
+              </div>
+              {nextGP.weekend_starts_at && (
+                <div className="mt-4">
+                  <Countdown targetIso={nextGP.weekend_starts_at as string} />
+                </div>
+              )}
+              <Link
+                href={`/predictions/${nextGP.id as string}`}
+                className={cn(buttonVariants({ size: 'block' }), 'mt-4')}
+              >
+                {t('home.predict')} <span aria-hidden="true">→</span>
+              </Link>
+            </Card>
+          ) : (
+            <GpWeekendCard
+              name={nextGP.name as string}
+              gpId={nextGP.id as string}
+              sessions={gpView?.sessions ?? []}
+            />
+          )}
+        </>
       ) : (
         <Card>
           <p className="text-sm text-text-secondary">{t('home.noNextGp')}</p>

@@ -1,8 +1,57 @@
 import { createServiceClient } from '@/lib/supabase'
 import { rawGpScore } from '@/lib/gp-score'
+import {
+  homeGpPhase,
+  sessionLockState,
+  type HomeGpPhase,
+  type WeekendSession,
+} from '@/lib/home-phase'
+import type { SessionType } from '@/lib/scoring/types'
 
 const RACE_SESSION_TYPE = 'race'
 const PODIUM_SIZE = 3
+
+export type CurrentGpView = { phase: HomeGpPhase; sessions: WeekendSession[] }
+
+/**
+ * Phase du GP courant (countdown / week-end / live / calcul) + ses sessions pour la
+ * card week-end. `Date.now()` est lu ici (fonction de données, hors render React).
+ */
+export async function getCurrentGpView(
+  gpId: string,
+  weekendStartsAt: string | null,
+): Promise<CurrentGpView> {
+  const supabase = createServiceClient()
+  const nowMs = Date.now()
+
+  const { data: rows, error } = await supabase
+    .from('sessions')
+    .select('type, starts_at, results_confirmed_at')
+    .eq('gp_id', gpId)
+    .order('starts_at', { ascending: true })
+
+  if (error) console.error('[data/home] sessions (view)', error)
+
+  const sessions = (rows ?? []) as Array<{
+    type: string
+    starts_at: string
+    results_confirmed_at: string | null
+  }>
+
+  const phase = homeGpPhase(
+    nowMs,
+    weekendStartsAt,
+    sessions.map((s) => ({ startsAt: s.starts_at, resultsConfirmedAt: s.results_confirmed_at })),
+  )
+
+  return {
+    phase,
+    sessions: sessions.map((s) => ({
+      type: s.type as SessionType,
+      lockState: sessionLockState(nowMs, s.starts_at),
+    })),
+  }
+}
 
 export type PreviousGpCard = {
   name: string

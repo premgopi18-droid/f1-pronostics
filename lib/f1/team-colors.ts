@@ -6,8 +6,8 @@ export const TEAM_COLORS: Record<string, string> = {
   ASTON_MARTIN:  '#229971',
   ALPINE:        '#0093CC',
   WILLIAMS:      '#64C4FF',
-  RACING_BULLS:  '#6692FF',
+  RB:            '#6692FF',
   HAAS:          '#B6BABD',
-  STAKE:         '#52E252',
+  AUDI:          '#4B4F54',
   CADILLAC:      '#6CD3BF',
 }

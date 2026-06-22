@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { PredictionForm, type Driver } from './prediction-form'
 import { buildTabLabel } from '@/lib/predictions/helpers'
 import { Badge } from '@/app/ui/badge'
@@ -45,11 +45,33 @@ export function PredictionTabs({ sessions, drivers }: Props) {
     setSavedEntries((prev) => new Map(prev).set(sessionId, entries))
   }
 
+  // Roving tabindex : navigation clavier par flèches dans le tablist (pattern WAI-ARIA).
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const focusTab = (index: number) => {
+    setActiveIndex(index)
+    tabRefs.current[index]?.focus()
+  }
+
+  const onTabKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const count = sessions.length
+    let next: number | null = null
+    if (event.key === 'ArrowRight') next = (activeIndex + 1) % count
+    else if (event.key === 'ArrowLeft') next = (activeIndex - 1 + count) % count
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = count - 1
+    if (next !== null) {
+      event.preventDefault()
+      focusTab(next)
+    }
+  }
+
   if (sessions.length === 0) {
     return <p className="text-sm text-text-secondary">{t('predict.noSessions')}</p>
   }
 
   const activeSession = sessions[activeIndex]
+  const hasTabs       = sessions.length > 1
   const activeEntries = savedEntries.get(activeSession.id) ?? activeSession.existingEntries
   const isComplete    = activeEntries.length === activeSession.expectedCount
 
@@ -77,17 +99,22 @@ export function PredictionTabs({ sessions, drivers }: Props) {
       </div>
 
       {/* Tab switcher */}
-      {sessions.length > 1 && (
+      {hasTabs && (
         <div
           role="tablist"
-          aria-label="Sessions"
+          aria-label={t('predict.sessionsLabel')}
+          onKeyDown={onTabKeyDown}
           className="flex gap-1 rounded-xl border border-border bg-card p-1"
         >
           {sessions.map((session, i) => (
             <button
               key={session.id}
+              ref={(el) => { tabRefs.current[i] = el }}
+              id={`predict-tab-${session.id}`}
               role="tab"
               aria-selected={i === activeIndex}
+              aria-controls="predict-tabpanel"
+              tabIndex={i === activeIndex ? 0 : -1}
               onClick={() => setActiveIndex(i)}
               className={cn(
                 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -103,17 +130,25 @@ export function PredictionTabs({ sessions, drivers }: Props) {
       )}
 
       {/* Active form */}
-      <PredictionForm
-        key={activeSession.id}
-        sessionId={activeSession.id}
-        sessionType={activeSession.type}
-        drivers={drivers}
-        expectedCount={activeSession.expectedCount}
-        existingEntries={activeSession.existingEntries}
-        existingFastestLap={activeSession.existingFastestLap}
-        isLocked={activeSession.isLocked}
-        onSaved={(entries) => handleSaved(activeSession.id, entries)}
-      />
+      <div
+        role={hasTabs ? 'tabpanel' : undefined}
+        id={hasTabs ? 'predict-tabpanel' : undefined}
+        aria-labelledby={hasTabs ? `predict-tab-${activeSession.id}` : undefined}
+        tabIndex={hasTabs ? 0 : undefined}
+        className="focus-visible:outline-none"
+      >
+        <PredictionForm
+          key={activeSession.id}
+          sessionId={activeSession.id}
+          sessionType={activeSession.type}
+          drivers={drivers}
+          expectedCount={activeSession.expectedCount}
+          existingEntries={savedEntries.get(activeSession.id) ?? activeSession.existingEntries}
+          existingFastestLap={activeSession.existingFastestLap}
+          isLocked={activeSession.isLocked}
+          onSaved={(entries) => handleSaved(activeSession.id, entries)}
+        />
+      </div>
     </div>
   )
 }

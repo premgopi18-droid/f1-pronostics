@@ -223,7 +223,7 @@ function RaceForm({
                       <DriverInfo driver={driver} position={i + 1} />
                       <button
                         {...dragHandleProps}
-                        aria-label="Réordonner"
+                        aria-label={t('predict.reorder')}
                         className="shrink-0 touch-none cursor-grab p-1 text-text-secondary active:cursor-grabbing hover:text-foreground"
                       >
                         <GripVertical size={16} aria-hidden="true" />
@@ -377,14 +377,14 @@ function QualifsForm({
                         <DriverInfo driver={driver} />
                         <button
                           {...dragHandleProps}
-                          aria-label="Réordonner"
+                          aria-label={t('predict.reorder')}
                           className="shrink-0 touch-none cursor-grab p-1 text-text-secondary active:cursor-grabbing hover:text-foreground"
                         >
                           <GripVertical size={14} aria-hidden="true" />
                         </button>
                         <button
                           onClick={() => remove(i)}
-                          aria-label={`Retirer ${driver.firstName} ${driver.lastName}`}
+                          aria-label={`${t('predict.remove')} ${driver.firstName} ${driver.lastName}`}
                           className="shrink-0 p-1 text-text-secondary transition-colors hover:text-destructive"
                         >
                           <span aria-hidden="true" className="text-base leading-none">×</span>
@@ -424,7 +424,7 @@ function QualifsForm({
                 <button
                   onClick={() => add(driver.code)}
                   disabled={isComplete}
-                  aria-label={`Ajouter ${driver.firstName} ${driver.lastName}`}
+                  aria-label={`${t('predict.add')} ${driver.firstName} ${driver.lastName}`}
                   className="shrink-0 text-sm font-semibold text-primary transition-colors hover:text-primary/80 disabled:pointer-events-none disabled:opacity-30"
                 >
                   {t('predict.add')}
@@ -471,7 +471,9 @@ export function PredictionForm({
   onSaved,
 }: Props) {
   const driverByCode  = new Map(drivers.map((d) => [d.code, d]))
-  const isRaceMode    = sessionType === 'race' || sessionType === 'sprint_race'
+  // Seule la course se pronostique sur la grille complète (22). Le sprint race
+  // ne score que le top 8 → mode « classés / non classés » comme les qualifs.
+  const isRaceMode    = sessionType === 'race'
 
   if (isLocked) {
     return (

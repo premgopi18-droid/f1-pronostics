@@ -6,8 +6,6 @@ const PODIUM_SIZE = 3
 
 export type PreviousGpCard = {
   name: string
-  round: number
-  country: string
   podium: { position: number; code: string }[]
   /** Score brut global de l'utilisateur sur ce GP, ou null s'il n'en a pas (aucune ligue / pas calculé). */
   rawScore: number | null
@@ -23,9 +21,9 @@ export async function getPreviousGpCard(
 ): Promise<PreviousGpCard | null> {
   const supabase = createServiceClient()
 
-  const { data: gp } = await supabase
+  const { data: gp, error: gpError } = await supabase
     .from('grands_prix')
-    .select('id, name, round, country')
+    .select('id, name')
     .eq('season', season)
     .eq('is_cancelled', false)
     .not('scoring_finalized_at', 'is', null)
@@ -33,12 +31,16 @@ export async function getPreviousGpCard(
     .limit(1)
     .maybeSingle()
 
+  // Fail-soft : la card est non critique, on ne casse pas la Home — mais on trace.
+  if (gpError) console.error('[data/home] grands_prix', gpError)
   if (!gp) return null
 
-  const { data: sessions } = await supabase
+  const { data: sessions, error: sessionsError } = await supabase
     .from('sessions')
     .select('id, type')
     .eq('gp_id', gp.id)
+
+  if (sessionsError) console.error('[data/home] sessions', sessionsError)
 
   const sessionIds = (sessions ?? []).map((s) => s.id as string)
   const raceSession = (sessions ?? []).find((s) => s.type === RACE_SESSION_TYPE)
@@ -52,11 +54,14 @@ export async function getPreviousGpCard(
           .gt('position', 0)
           .lte('position', PODIUM_SIZE)
           .order('position', { ascending: true })
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     sessionIds.length
       ? supabase.from('scores').select('session_id, base_score').eq('user_id', userId).in('session_id', sessionIds)
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
   ])
+
+  if (podiumResult.error) console.error('[data/home] session_results', podiumResult.error)
+  if (scoreResult.error) console.error('[data/home] scores', scoreResult.error)
 
   const podium = ((podiumResult.data ?? []) as unknown as Array<{
     position: number
@@ -70,8 +75,6 @@ export async function getPreviousGpCard(
 
   return {
     name: gp.name as string,
-    round: gp.round as number,
-    country: gp.country as string,
     podium,
     rawScore,
   }

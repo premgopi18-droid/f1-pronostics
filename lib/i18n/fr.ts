@@ -9,6 +9,7 @@ export const fr = {
   common: {
     loading: "Chargement…",
     next: "Suivant →",
+    back: "Précédent",
     comingSoon: "Bientôt disponible.",
   },
   login: {

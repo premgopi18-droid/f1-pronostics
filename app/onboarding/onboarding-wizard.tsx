@@ -53,6 +53,15 @@ export function OnboardingWizard() {
     return () => clearTimeout(timer);
   }, [pseudo]);
 
+  // Si le pseudo a été pris entre l'étape 1 et la soumission (race tranchée par la
+  // contrainte UNIQUE), ramener l'utilisateur au champ pseudo avec l'erreur affichée.
+  useEffect(() => {
+    if (state.error === "taken") {
+      setStep(1);
+      setAvailability({ status: "error", error: "taken" });
+    }
+  }, [state]);
+
   const canContinue = availability.status === "ok";
 
   return (
@@ -63,7 +72,7 @@ export function OnboardingWizard() {
           <button
             type="button"
             onClick={() => setStep(1)}
-            aria-label={t("common.next")}
+            aria-label={t("common.back")}
             className="rounded-md text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ChevronLeft size={22} aria-hidden />

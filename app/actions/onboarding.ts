@@ -8,7 +8,7 @@ import { HELMET_IDS } from '@/lib/profile/avatars'
 /** Codes d'erreur communs (traduits côté UI). */
 export type OnboardingError = PseudoError | 'taken' | 'avatar' | 'generic'
 
-export type PseudoCheck = { ok: boolean; error?: PseudoError | 'taken' }
+export type PseudoCheck = { ok: boolean; error?: PseudoError | 'taken' | 'generic' }
 
 /**
  * Vérifie la validité + la disponibilité d'un pseudo (appelée en direct, débouncée
@@ -22,7 +22,7 @@ export async function checkPseudoAvailability(rawPseudo: string): Promise<Pseudo
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'taken' } // garde-fou : non authentifié
+  if (!user) return { ok: false, error: 'generic' } // garde-fou : non authentifié
 
   const { data } = await supabase
     .from('profiles')

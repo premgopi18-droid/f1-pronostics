@@ -27,5 +27,20 @@ export const fr = {
   },
   avatar: {
     helmetAlt: "Avatar casque",
+    pickLegend: "Choisis ton casque",
+    colors: {
+      red: "Casque rouge",
+      orange: "Casque orange",
+      amber: "Casque jaune",
+      green: "Casque vert",
+      teal: "Casque turquoise",
+      cyan: "Casque cyan",
+      blue: "Casque bleu",
+      indigo: "Casque indigo",
+      purple: "Casque violet",
+      pink: "Casque rose",
+      white: "Casque blanc",
+      slate: "Casque gris",
+    },
   },
 } as const;

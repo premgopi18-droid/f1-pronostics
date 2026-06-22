@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { PENDING_INVITE_COOKIE, PENDING_INVITE_MAX_AGE, INVITE_CODE_PATTERN } from '@/lib/invites'
 
 export async function proxy(request: NextRequest) {
   // Ne jamais faire confiance à un x-user-id entrant : c'est un header d'auth
@@ -46,7 +47,22 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/api/dev')
 
   if (!user && !isPublicPath) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const response = NextResponse.redirect(new URL('/login', request.url))
+    // Parcours invité : un visiteur non connecté qui ouvre un lien d'invitation
+    // (/leagues/join?code=…) verrait le code perdu au passage par /login. On le
+    // garde dans un cookie ; il sera consommé après login/onboarding (auto-join).
+    if (path === '/leagues/join') {
+      const code = request.nextUrl.searchParams.get('code')
+      if (code && INVITE_CODE_PATTERN.test(code)) {
+        response.cookies.set(PENDING_INVITE_COOKIE, code, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: PENDING_INVITE_MAX_AGE,
+        })
+      }
+    }
+    return response
   }
 
   if (user && path === '/login') {

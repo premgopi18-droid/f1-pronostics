@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { validatePseudo, type PseudoError } from '@/lib/profile/pseudo'
 import { HELMET_IDS } from '@/lib/profile/avatars'
+import { consumePendingInvite } from '@/lib/data/invites'
 
 /** Codes d'erreur communs (traduits côté UI). */
 export type OnboardingError = PseudoError | 'taken' | 'avatar' | 'generic'
@@ -71,6 +72,8 @@ export async function completeOnboarding(
     return { error: 'generic' }
   }
 
-  // Parcours invité (token → auto-join) : branché au ticket #43. Par défaut → Home.
-  redirect('/')
+  // Parcours invité : si un code d'invitation est en attente, auto-join et atterrissage
+  // sur la ligue ; sinon Home.
+  const leagueId = await consumePendingInvite(user.id)
+  redirect(leagueId ? `/leagues/${leagueId}` : '/')
 }

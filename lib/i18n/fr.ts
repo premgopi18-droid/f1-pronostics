@@ -11,6 +11,12 @@ export const fr = {
     next: "Suivant →",
     comingSoon: "Bientôt disponible.",
   },
+  login: {
+    tagline1: "Pronostics F1 entre amis.",
+    tagline2: "Ligues privées · items stratégiques.",
+    cta: "Continuer avec Google",
+    footer: "Pas d'installation · partage par lien",
+  },
   nav: {
     label: "Navigation principale",
     home: "Accueil",

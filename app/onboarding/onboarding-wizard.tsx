@@ -119,7 +119,12 @@ export function OnboardingWizard() {
             aria-live="polite"
             className={cn(
               "mt-2.5 min-h-[18px] text-xs",
-              availability.status === "ok" ? "text-success" : "text-destructive",
+              availability.status === "ok" && "text-success",
+              availability.status === "error" && "text-destructive",
+              // 'checking' / 'idle' : couleur neutre — un message d'attente ne doit
+              // pas ressembler à une erreur (rouge).
+              (availability.status === "checking" || availability.status === "idle") &&
+                "text-text-secondary",
             )}
           >
             {availability.status === "checking" && t("onboarding.pseudoChecking")}

@@ -1,4 +1,4 @@
-export type LeagueJoinStatus = "open" | "full" | "closed";
+export type LeagueJoinStatus = 'open' | 'full' | 'closed'
 
 /**
  * Statut de jonction d'une ligue, dans l'ordre de priorité :
@@ -11,7 +11,7 @@ export function leagueJoinStatus(
   memberCount: number,
   maxMembers: number,
 ): LeagueJoinStatus {
-  if (!inviteOpen) return "closed";
-  if (memberCount >= maxMembers) return "full";
-  return "open";
+  if (!inviteOpen) return 'closed'
+  if (memberCount >= maxMembers) return 'full'
+  return 'open'
 }

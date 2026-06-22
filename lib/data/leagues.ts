@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
 import { ITEM_USES_PER_SEASON } from '@/lib/scoring/constants'
+import { leagueJoinStatus, type LeagueJoinStatus } from '@/lib/leagues/join-status'
 
 // ── Lecture (cron) ────────────────────────────────────────────────────────
 
@@ -83,6 +84,64 @@ export async function createLeague(
   if (error) throw error
   const row = data as { league_id: string; invite_code: string }
   return { leagueId: row.league_id, inviteCode: row.invite_code }
+}
+
+export type LeaguePreview =
+  | { status: 'not_found' }
+  | {
+      status: LeagueJoinStatus
+      id: string
+      name: string
+      memberCount: number
+      maxMembers: number
+      adminPseudo: string | null
+      season: number
+    }
+
+/**
+ * Aperçu d'une ligue depuis son code d'invitation, SANS rejoindre — pour la landing
+ * d'invitation. Service client (l'invité n'est pas encore membre → hors RLS).
+ */
+export async function getLeagueByCode(
+  inviteCode: string,
+  season: number,
+): Promise<LeaguePreview> {
+  const supabase = createServiceClient()
+
+  const { data: league } = await supabase
+    .from('leagues')
+    .select('id, name, invite_open, max_members')
+    .eq('invite_code', inviteCode)
+    .maybeSingle()
+
+  if (!league) return { status: 'not_found' }
+
+  const { count } = await supabase
+    .from('league_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('league_id', league.id)
+    .eq('season', season)
+
+  const { data: admin } = await supabase
+    .from('league_members')
+    .select('profiles!user_id ( pseudo )')
+    .eq('league_id', league.id)
+    .eq('season', season)
+    .eq('is_admin', true)
+    .maybeSingle()
+
+  const memberCount = count ?? 0
+  const adminPseudo = (admin?.profiles as unknown as { pseudo: string } | null)?.pseudo ?? null
+
+  return {
+    status: leagueJoinStatus(league.invite_open, memberCount, league.max_members),
+    id: league.id as string,
+    name: league.name as string,
+    memberCount,
+    maxMembers: league.max_members as number,
+    adminPseudo,
+    season,
+  }
 }
 
 export async function joinLeagueByCode(

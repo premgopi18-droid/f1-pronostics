@@ -5,9 +5,10 @@ import { getCurrentSeason } from '@/lib/api/cron'
 import { signOut } from '@/app/actions/auth'
 import { PushSubscribe } from '@/app/components/push-subscribe'
 import { UserAvatar } from '@/app/components/user-avatar'
-import { Button } from '@/app/ui/button'
+import { buttonVariants } from '@/app/ui/button'
 import { Card, CardTitle } from '@/app/ui/card'
 import { Countdown } from '@/app/components/countdown'
+import { cn } from '@/lib/utils'
 import { t } from '@/lib/i18n'
 
 export default async function HomePage() {
@@ -71,8 +72,11 @@ export default async function HomePage() {
               <Countdown targetIso={nextGP.weekend_starts_at as string} />
             </div>
           )}
-          <Link href={`/predictions/${nextGP.id as string}`} className="mt-4 block">
-            <Button size="block">{t('home.predict')}</Button>
+          <Link
+            href={`/predictions/${nextGP.id as string}`}
+            className={cn(buttonVariants({ size: 'block' }), 'mt-4')}
+          >
+            {t('home.predict')} <span aria-hidden="true">→</span>
           </Link>
         </Card>
       ) : (
@@ -83,11 +87,17 @@ export default async function HomePage() {
 
       {/* CTAs ligues */}
       <div className="flex gap-2.5">
-        <Link href="/leagues/new" className="flex-1">
-          <Button variant="secondary" size="block">{t('home.createLeague')}</Button>
+        <Link
+          href="/leagues/new"
+          className={cn(buttonVariants({ variant: 'secondary', size: 'block' }), 'flex-1')}
+        >
+          {t('home.createLeague')}
         </Link>
-        <Link href="/leagues/join" className="flex-1">
-          <Button variant="secondary" size="block">{t('home.joinLeague')}</Button>
+        <Link
+          href="/leagues/join"
+          className={cn(buttonVariants({ variant: 'secondary', size: 'block' }), 'flex-1')}
+        >
+          {t('home.joinLeague')}
         </Link>
       </div>
 

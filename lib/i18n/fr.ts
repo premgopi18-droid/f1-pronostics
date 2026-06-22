@@ -42,7 +42,7 @@ export const fr = {
     countdownDays: "jours",
     countdownHours: "heures",
     countdownMins: "min",
-    predict: "Je pronostique →",
+    predict: "Je pronostique",
     noNextGp: "Aucun Grand Prix à venir pour le moment.",
     createLeague: "Créer une ligue",
     joinLeague: "Rejoindre 🔗",

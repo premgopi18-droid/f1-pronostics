@@ -151,7 +151,9 @@ export function OnboardingWizard() {
             <HelmetPicker value={avatar} onChange={setAvatar} />
           </div>
 
-          {state.error && (
+          {/* 'taken' est surfacé à l'étape 1 (cf. effet ci-dessus) — on ne le réaffiche
+              pas ici, sinon le message persiste sous le casque après le rebond. */}
+          {state.error && state.error !== "taken" && (
             <p aria-live="polite" className="mt-4 text-xs text-destructive">
               {t(ERROR_KEY[state.error])}
             </p>

@@ -28,7 +28,7 @@ const TABS: readonly Tab[] = [
 
 /**
  * Préfixes de routes pré-authentification : la nav y est masquée (specs §7).
- * `/onboarding` et `/join` sont des routes planifiées (specs §nav, archi `/join/page.tsx`)
+ * `/onboarding` et `/join` sont des routes planifiées (specs §7, archi `/join/page.tsx`)
  * pas encore implémentées — listées ici par anticipation.
  */
 const HIDDEN_PREFIXES = ["/login", "/onboarding", "/join"];

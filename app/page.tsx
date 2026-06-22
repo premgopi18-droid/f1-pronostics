@@ -8,6 +8,8 @@ import { UserAvatar } from '@/app/components/user-avatar'
 import { buttonVariants } from '@/app/ui/button'
 import { Card, CardTitle } from '@/app/ui/card'
 import { Countdown } from '@/app/components/countdown'
+import { PreviousGpCard } from '@/app/components/previous-gp-card'
+import { getPreviousGpCard } from '@/lib/data/home'
 import { cn } from '@/lib/utils'
 import { t } from '@/lib/i18n'
 
@@ -16,7 +18,7 @@ export default async function HomePage() {
   const season = getCurrentSeason()
   const userId = (await headers()).get('x-user-id')!
 
-  const [{ data: profile }, { data: memberships }, { data: nextGP }] = await Promise.all([
+  const [{ data: profile }, { data: memberships }, { data: nextGP }, previousGp] = await Promise.all([
     supabase.from('profiles').select('pseudo, avatar_key').eq('id', userId).single(),
     supabase
       .from('league_members')
@@ -32,6 +34,7 @@ export default async function HomePage() {
       .order('round', { ascending: true })
       .limit(1)
       .maybeSingle(),
+    getPreviousGpCard(userId, season),
   ])
 
   const pseudo = profile?.pseudo ?? ''
@@ -84,6 +87,9 @@ export default async function HomePage() {
           <p className="text-sm text-text-secondary">{t('home.noNextGp')}</p>
         </Card>
       )}
+
+      {/* Card dernier GP — podium officiel + score brut global */}
+      {previousGp && <PreviousGpCard card={previousGp} />}
 
       {/* CTAs ligues */}
       <div className="flex gap-2.5">

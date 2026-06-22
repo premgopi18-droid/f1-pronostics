@@ -2,10 +2,13 @@
 
 import { useState } from 'react'
 import { PredictionForm, type Driver } from './prediction-form'
+import { buildTabLabel } from '@/lib/predictions/helpers'
 import { Badge } from '@/app/ui/badge'
 import { t } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import type { SessionType } from '@/lib/scoring/types'
+
+export { buildTabLabel }
 
 const TAB_LABELS: Record<SessionType, string> = {
   qualifying:        t('predict.tab.qualifying'),
@@ -50,15 +53,12 @@ export function PredictionTabs({ sessions, drivers }: Props) {
   const activeEntries = savedEntries.get(activeSession.id) ?? activeSession.existingEntries
   const isComplete    = activeEntries.length === activeSession.expectedCount
 
-  const tabLabel = (session: SessionData, index: number) => {
-    const base       = TAB_LABELS[session.type]
-    const hasSaved   = (savedEntries.get(session.id) ?? session.existingEntries).length > 0
-    const isActive   = index === activeIndex
-
-    if (hasSaved) return `✓ ${base}`
-    if (isActive) return `• ${base}`
-    return base
-  }
+  const tabLabel = (session: SessionData, index: number) =>
+    buildTabLabel(
+      TAB_LABELS[session.type],
+      (savedEntries.get(session.id) ?? session.existingEntries).length > 0,
+      index === activeIndex,
+    )
 
   return (
     <div className="flex flex-col gap-4">

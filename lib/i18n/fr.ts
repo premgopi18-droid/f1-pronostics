@@ -97,6 +97,7 @@ export const fr = {
     back: "Retour",
     noSessions: "Les sessions ne sont pas encore disponibles.",
     noPrediction: "Aucun pronostic soumis",
+    emptyClassees: "Ajoute des pilotes ci-dessous",
     saved: "Sauvegardé ✓",
     open: "Ouvert",
     locked: "Verrouillé",

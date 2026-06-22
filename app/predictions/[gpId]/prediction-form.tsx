@@ -21,6 +21,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { submitPredictionAction, submitFastestLapAction } from '@/app/actions/predictions'
 import { TEAM_COLORS } from '@/lib/f1/team-colors'
+import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
+import { buildRaceOrder } from '@/lib/predictions/helpers'
 import { t } from '@/lib/i18n'
 import { Badge } from '@/app/ui/badge'
 import { Button } from '@/app/ui/button'
@@ -48,7 +50,10 @@ interface Props {
   onSaved?:           (entries: string[]) => void
 }
 
+const DRAG_ACTIVATION_DISTANCE = 6 // px — évite les drags accidentels sur tap mobile
+
 const POSITION_COLORS: Record<number, string> = { 1: '#FFD700', 2: '#C0C0C0', 3: '#CD7F32' }
+
 
 function positionStyle(pos: number) {
   const color = POSITION_COLORS[pos]
@@ -58,11 +63,12 @@ function positionStyle(pos: number) {
 // ─── Sortable row wrapper ──────────────────────────────────────────────────
 
 interface SortableRowProps {
-  id:       string
-  children: (dragHandleProps: React.HTMLAttributes<HTMLButtonElement>, isDragging: boolean) => React.ReactNode
+  id:            string
+  reducedMotion: boolean
+  children:      (dragHandleProps: React.HTMLAttributes<HTMLButtonElement>, isDragging: boolean) => React.ReactNode
 }
 
-function SortableRow({ id, children }: SortableRowProps) {
+function SortableRow({ id, reducedMotion, children }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -75,7 +81,10 @@ function SortableRow({ id, children }: SortableRowProps) {
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{
+        transform:  CSS.Transform.toString(transform),
+        transition: reducedMotion ? undefined : transition,
+      }}
     >
       {children({ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>, isDragging)}
     </div>
@@ -140,20 +149,18 @@ function RaceForm({
   existingFastestLap: string | null
   onSaved?:           (entries: string[]) => void
 }) {
-  const allCodes     = drivers.map((d) => d.code)
-  const initialOrder = existingEntries.length > 0
-    ? [...existingEntries, ...allCodes.filter((c) => !existingEntries.includes(c))]
-    : allCodes
+  const allCodes = drivers.map((d) => d.code)
 
-  const [selected,   setSelected]   = useState<string[]>(initialOrder)
+  const [selected,   setSelected]   = useState<string[]>(() => buildRaceOrder(existingEntries, allCodes))
   const [fastestLap, setFastestLap] = useState(existingFastestLap ?? '')
   const [message,    setMessage]    = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending,  startTransition] = useTransition()
+  const reducedMotion = usePrefersReducedMotion()
 
   const driverByCode = new Map(drivers.map((d) => [d.code, d]))
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -202,7 +209,7 @@ function RaceForm({
               const driver = driverByCode.get(code)
               if (!driver) return null
               return (
-                <SortableRow key={code} id={code}>
+                <SortableRow key={code} id={code} reducedMotion={reducedMotion}>
                   {(dragHandleProps, isDragging) => (
                     <li
                       className={cn(
@@ -288,13 +295,14 @@ function QualifsForm({
   const [selected,  setSelected]   = useState<string[]>(existingEntries)
   const [message,   setMessage]    = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
+  const reducedMotion = usePrefersReducedMotion()
 
   const driverByCode = new Map(drivers.map((d) => [d.code, d]))
   const unranked     = drivers.filter((d) => !selected.includes(d.code))
   const isComplete   = selected.length === expectedCount
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -355,7 +363,7 @@ function QualifsForm({
                 const driver = driverByCode.get(code)
                 if (!driver) return null
                 return (
-                  <SortableRow key={code} id={code}>
+                  <SortableRow key={code} id={code} reducedMotion={reducedMotion}>
                     {(dragHandleProps, isDragging) => (
                       <li
                         className={cn(
@@ -392,7 +400,7 @@ function QualifsForm({
 
         {selected.length === 0 && (
           <p className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-sm text-text-secondary">
-            Ajoute des pilotes ci-dessous
+            {t('predict.emptyClassees')}
           </p>
         )}
       </div>

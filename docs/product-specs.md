@@ -456,6 +456,7 @@ La bottom nav est présente sur **toutes les pages** de l'app authentifiée. Exc
 
 - **GP-centric** : le GP en cours / prochain est l'élément central, pas la ligue
 - **2 cards GP** toujours visibles : résultats du précédent GP + pronostic du prochain GP
+- **Card GP précédent = podium officiel uniquement** (décision 2026-06-22) : la Home étant GP-centric (l'utilisateur peut être dans plusieurs ligues), elle n'affiche **pas** de score ni d'items spécifiques à une ligue — seulement le podium officiel + un lien « voir mon recap ». Le score et les items par ligue restent dans la page de ligue.
 - **2 CTAs** toujours visibles : "Créer une ligue" + "Rejoindre via lien" (pour inviter ou rejoindre)
 - L'avatar de l'utilisateur est affiché dans la nav et dans tous les écrans sociaux (classement, révélation items, comparaison pronos)
 
@@ -616,7 +617,7 @@ P4 Russell    ✓  Russell            0
 La home change de visage selon le moment de la saison.
 
 **État 1 — Entre deux GP** (état de repos)
-- Card GP précédent : podium officiel (P1/P2/P3) + score brut de prédiction (sans items, global)
+- Card GP précédent : podium officiel (P1/P2/P3) + lien « voir mon recap » (décision 2026-06-22 : pas de score sur la Home, cf. §7 structure — le détail/score est dans le recap)
 - Card prochain GP : nom + date + countdown + CTA "Je pronostique →"
 - CTAs toujours visibles : "Créer une ligue" / "Rejoindre"
 

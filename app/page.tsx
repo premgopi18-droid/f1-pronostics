@@ -4,18 +4,20 @@ import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { signOut } from '@/app/actions/auth'
 import { PushSubscribe } from '@/app/components/push-subscribe'
+import { UserAvatar } from '@/app/components/user-avatar'
+import { buttonVariants } from '@/app/ui/button'
+import { Card, CardTitle } from '@/app/ui/card'
+import { Countdown } from '@/app/components/countdown'
+import { cn } from '@/lib/utils'
+import { t } from '@/lib/i18n'
 
 export default async function HomePage() {
   const supabase = await createClient()
-  const season   = getCurrentSeason()
-  const userId   = (await headers()).get('x-user-id')!
+  const season = getCurrentSeason()
+  const userId = (await headers()).get('x-user-id')!
 
   const [{ data: profile }, { data: memberships }, { data: nextGP }] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('pseudo')
-      .eq('id', userId)
-      .single(),
+    supabase.from('profiles').select('pseudo, avatar_key').eq('id', userId).single(),
     supabase
       .from('league_members')
       .select('league_id, leagues!league_id ( name )')
@@ -23,7 +25,7 @@ export default async function HomePage() {
       .eq('season', season),
     supabase
       .from('grands_prix')
-      .select('id, name, country, round')
+      .select('id, name, country, round, weekend_starts_at')
       .eq('season', season)
       .eq('is_cancelled', false)
       .is('scoring_finalized_at', null)
@@ -32,99 +34,115 @@ export default async function HomePage() {
       .maybeSingle(),
   ])
 
+  const pseudo = profile?.pseudo ?? ''
   const leagues = (memberships ?? []).map((m) => {
-    const league = (m.leagues as unknown) as { name: string } | null
+    const league = m.leagues as unknown as { name: string } | null
     return { id: m.league_id as string, name: league?.name ?? 'Ligue sans nom' }
   })
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8">
-      <div className="max-w-sm mx-auto flex flex-col gap-8">
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">BoxBox</h1>
-          <form action={signOut}>
-            <button type="submit" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors cursor-pointer">
-              Déconnexion
-            </button>
-          </form>
+    <main className="flex flex-1 flex-col gap-6 px-page pb-6 pt-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm text-text-secondary">{t('home.greeting')}</div>
+          <div className="font-display text-2xl font-bold text-foreground">{pseudo}</div>
         </div>
+        <Link
+          href="/profile"
+          aria-label={t('nav.profile')}
+          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <UserAvatar avatarKey={profile?.avatar_key ?? null} size={40} label={pseudo} />
+        </Link>
+      </div>
 
-        <p className="text-zinc-400 text-sm">
-          Bonjour, <Link href="/profile" className="text-white font-medium hover:text-zinc-300 transition-colors">{profile?.pseudo}</Link>
-        </p>
-
-        {/* Prochain GP */}
-        {nextGP ? (
+      {/* Card prochain GP */}
+      {nextGP ? (
+        <Card variant="gradient">
+          <div className="text-2xs font-bold uppercase tracking-wider text-primary">
+            {t('home.nextGpLabel')}
+          </div>
+          <CardTitle className="mt-2 text-2xl">{nextGP.name as string}</CardTitle>
+          <div className="mt-1 text-sm text-text-secondary">
+            {t('home.round')} {nextGP.round as number} · {nextGP.country as string}
+          </div>
+          {nextGP.weekend_starts_at && (
+            <div className="mt-4">
+              <Countdown targetIso={nextGP.weekend_starts_at as string} />
+            </div>
+          )}
           <Link
             href={`/predictions/${nextGP.id as string}`}
-            className="flex items-center justify-between bg-red-600/10 hover:bg-red-600/20 border border-red-600/30 rounded-xl px-4 py-4 transition-colors"
+            className={cn(buttonVariants({ size: 'block' }), 'mt-4')}
           >
-            <div>
-              <p className="text-xs text-red-400 font-medium uppercase tracking-wider mb-0.5">
-                Pronostics ouverts
-              </p>
-              <p className="text-white font-semibold">{nextGP.name as string}</p>
-              <p className="text-zinc-400 text-sm">{nextGP.country as string} · Round {nextGP.round as number}</p>
-            </div>
-            <span className="text-red-400 text-lg">→</span>
+            {t('home.predict')} <span aria-hidden="true">→</span>
           </Link>
-        ) : null}
+        </Card>
+      ) : (
+        <Card>
+          <p className="text-sm text-text-secondary">{t('home.noNextGp')}</p>
+        </Card>
+      )}
 
-        {/* Pronostics saison */}
+      {/* CTAs ligues */}
+      <div className="flex gap-2.5">
         <Link
-          href="/season"
-          className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
+          href="/leagues/new"
+          className={cn(buttonVariants({ variant: 'secondary', size: 'block' }), 'flex-1')}
         >
-          <span className="text-white text-sm font-medium">🏆 Pronostics saison WDC / WCC</span>
-          <span className="text-zinc-500 text-xs">→</span>
+          {t('home.createLeague')}
         </Link>
+        <Link
+          href="/leagues/join"
+          className={cn(buttonVariants({ variant: 'secondary', size: 'block' }), 'flex-1')}
+        >
+          {t('home.joinLeague')}
+        </Link>
+      </div>
 
-        {/* Ligues */}
+      {/* Accès rapides — temporaires : déménageront dans les onglets dédiés (#47 Ligues, #45 Pronos, #51 Profil) */}
+      <div className="flex flex-col gap-3 border-t border-border pt-5">
+        <h2 className="text-2xs font-bold uppercase tracking-wider text-text-secondary">
+          {t('home.myLeagues')}
+        </h2>
         {leagues.length > 0 ? (
-          <div className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Mes ligues</h2>
-            <div className="flex flex-col gap-2">
-              {leagues.map((league) => (
-                <Link
-                  key={league.id}
-                  href={`/leagues/${league.id}`}
-                  className="flex items-center justify-between bg-zinc-900 hover:bg-zinc-800 rounded-xl px-4 py-3 transition-colors"
-                >
-                  <span className="text-white font-medium">{league.name}</span>
-                  <span className="text-zinc-500 text-sm">→</span>
-                </Link>
-              ))}
-            </div>
+          <div className="flex flex-col gap-2">
+            {leagues.map((league) => (
+              <Link key={league.id} href={`/leagues/${league.id}`}>
+                <Card padding="sm" className="flex items-center justify-between">
+                  <span className="font-semibold text-foreground">{league.name}</span>
+                  <span className="text-text-muted">→</span>
+                </Card>
+              </Link>
+            ))}
           </div>
         ) : (
-          <div className="bg-zinc-900 rounded-xl p-6 flex flex-col gap-2 text-center">
-            <p className="text-white font-medium">Pas encore de ligue</p>
-            <p className="text-zinc-500 text-sm">Crée ou rejoins une ligue pour commencer</p>
-          </div>
+          <Card className="text-center">
+            <p className="font-semibold text-foreground">{t('home.noLeaguesTitle')}</p>
+            <p className="mt-1 text-sm text-text-secondary">{t('home.noLeaguesText')}</p>
+          </Card>
         )}
 
-        {/* Notifications */}
+        <Link href="/season">
+          <Card padding="sm" className="flex items-center justify-between">
+            <span className="text-sm font-medium text-foreground">{t('home.seasonLink')}</span>
+            <span className="text-text-muted">→</span>
+          </Card>
+        </Link>
+
         <PushSubscribe />
-
-        {/* Actions */}
-        <div className="flex flex-col gap-2">
-          <Link
-            href="/leagues/new"
-            className="bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg px-4 py-2.5 text-center transition-colors"
-          >
-            Créer une ligue
-          </Link>
-          <Link
-            href="/leagues/join"
-            className="bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-lg px-4 py-2.5 text-center transition-colors"
-          >
-            Rejoindre avec un code
-          </Link>
-        </div>
-
       </div>
+
+      {/* Déconnexion — déménagera dans le profil (#51) */}
+      <form action={signOut} className="mt-auto pt-2">
+        <button
+          type="submit"
+          className="text-xs text-text-muted transition-colors hover:text-text-secondary"
+        >
+          {t('home.signOut')}
+        </button>
+      </form>
     </main>
   )
 }

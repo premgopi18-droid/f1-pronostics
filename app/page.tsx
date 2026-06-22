@@ -77,7 +77,6 @@ export default async function HomePage() {
                 aria-hidden
               />
               <span className="text-sm font-semibold text-foreground">{t('home.liveLabel')}</span>
-              <span className="ml-auto text-xs text-text-secondary">{t('home.liveClosed')}</span>
             </div>
           )}
           {phase === 'processing' && (

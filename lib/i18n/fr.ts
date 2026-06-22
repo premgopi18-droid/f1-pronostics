@@ -48,7 +48,6 @@ export const fr = {
     predict: "Je pronostique",
     noNextGp: "Aucun Grand Prix à venir pour le moment.",
     liveLabel: "LIVE",
-    liveClosed: "pronos fermés",
     processing: "Calcul des scores — résolution des items…",
     weekendInProgress: "Week-end en cours",
     modifyPredictions: "Modifier mes pronos",

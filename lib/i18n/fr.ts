@@ -9,6 +9,7 @@ export const fr = {
   common: {
     loading: "Chargement…",
     next: "Suivant →",
+    back: "Précédent",
     comingSoon: "Bientôt disponible.",
   },
   login: {
@@ -16,6 +17,23 @@ export const fr = {
     tagline2: "Ligues privées · items stratégiques.",
     cta: "Continuer avec Google",
     footer: "Pas d'installation · partage par lien",
+  },
+  onboarding: {
+    pseudoStep: "Étape 1 / 2",
+    pseudoTitle: "Choisis ton pseudo",
+    pseudoSubtitle: "C'est le nom que verront tes amis dans les classements.",
+    pseudoPlaceholder: "ex: BoxBoxRomain",
+    pseudoChecking: "Vérification…",
+    pseudoAvailable: "Disponible",
+    avatarStep: "Étape 2 / 2",
+    avatarTitle: "Choisis ton casque",
+    avatarSubtitle: "Tu pourras importer le tien plus tard.",
+    finish: "C'est parti ! 🏁",
+    errorLength: "Entre 3 et 20 caractères.",
+    errorChars: "Lettres, chiffres et underscore uniquement.",
+    errorTaken: "Ce pseudo est déjà pris.",
+    errorAvatar: "Choisis un casque pour continuer.",
+    errorGeneric: "Une erreur est survenue. Réessaie.",
   },
   nav: {
     label: "Navigation principale",

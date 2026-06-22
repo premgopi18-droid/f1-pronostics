@@ -6,7 +6,7 @@ import { t } from "@/lib/i18n";
  */
 export function TabPlaceholder({ title }: { title: string }) {
   return (
-    <main className="flex flex-1 flex-col px-[18px] pt-2">
+    <main className="flex flex-1 flex-col px-page pt-2">
       <h1 className="py-2 font-display text-2xl font-bold text-foreground">{title}</h1>
       <p className="text-sm text-text-secondary">{t("common.comingSoon")}</p>
     </main>

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { HELMET_IDS } from '@/lib/profile/avatars'
+import { HELMET_IDS, DEFAULT_HELMET } from '@/lib/profile/avatars'
 
 export type ProfileActionState = { error?: string; success?: boolean }
 
@@ -15,15 +15,19 @@ export async function updateProfile(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  const pseudo    = ((formData.get('pseudo') as string | null) ?? '').trim()
-  const avatarKey = (formData.get('avatar_key') as string | null) || null
+  const pseudo       = ((formData.get('pseudo') as string | null) ?? '').trim()
+  const rawAvatarKey = (formData.get('avatar_key') as string | null) || null
 
   if (pseudo.length < 2 || pseudo.length > 30) {
     return { error: 'Le pseudo doit faire entre 2 et 30 caractères' }
   }
-  if (avatarKey !== null && !HELMET_IDS.includes(avatarKey)) {
-    return { error: 'Avatar invalide' }
-  }
+
+  // `null` = aucun avatar choisi (conservé). Une clé inconnue (ancien emoji, valeur
+  // inattendue) retombe sur le casque par défaut plutôt que de bloquer la sauvegarde.
+  const avatarKey =
+    rawAvatarKey === null || HELMET_IDS.includes(rawAvatarKey)
+      ? rawAvatarKey
+      : DEFAULT_HELMET.id
 
   const { error } = await supabase
     .from('profiles')

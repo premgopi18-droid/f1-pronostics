@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Trophy, ClipboardList, Flag, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isActiveRoute, isHiddenRoute } from "@/lib/nav";
 import { t, type TranslationKey } from "@/lib/i18n";
 
 /** Hauteur de la barre — réutilisée pour réserver l'espace en bas du flux. */
@@ -20,26 +21,22 @@ type Tab = {
 const TABS: readonly Tab[] = [
   { href: "/", labelKey: "nav.home", Icon: Home, exact: true },
   { href: "/leagues", labelKey: "nav.leagues", Icon: Trophy },
-  { href: "/mes-pronos", labelKey: "nav.predictions", Icon: ClipboardList },
-  { href: "/resultats", labelKey: "nav.results", Icon: Flag },
+  { href: "/predictions", labelKey: "nav.predictions", Icon: ClipboardList },
+  { href: "/results", labelKey: "nav.results", Icon: Flag },
   { href: "/profile", labelKey: "nav.profile", Icon: User },
 ];
 
-/** Préfixes de routes pré-authentification : la nav y est masquée (specs §7). */
+/**
+ * Préfixes de routes pré-authentification : la nav y est masquée (specs §7).
+ * `/onboarding` et `/join` sont des routes planifiées (specs §nav, archi `/join/page.tsx`)
+ * pas encore implémentées — listées ici par anticipation.
+ */
 const HIDDEN_PREFIXES = ["/login", "/onboarding", "/join"];
-
-function isActive(pathname: string, tab: Tab): boolean {
-  if (tab.exact) return pathname === tab.href;
-  return pathname === tab.href || pathname.startsWith(`${tab.href}/`);
-}
 
 export function BottomNav() {
   const pathname = usePathname();
 
-  const hidden = HIDDEN_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-  if (hidden) return null;
+  if (isHiddenRoute(pathname, HIDDEN_PREFIXES)) return null;
 
   return (
     <>
@@ -55,7 +52,7 @@ export function BottomNav() {
         )}
       >
         {TABS.map((tab) => {
-          const active = isActive(pathname, tab);
+          const active = isActiveRoute(pathname, tab.href, tab.exact);
           const { Icon } = tab;
           return (
             <Link
@@ -63,7 +60,7 @@ export function BottomNav() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-semibold transition-colors",
+                "flex flex-1 flex-col items-center justify-center gap-1 text-2xs font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                 active ? "text-primary" : "text-text-muted hover:text-text-secondary",
               )}

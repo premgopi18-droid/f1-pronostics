@@ -1,5 +1,10 @@
 import Link from 'next/link'
+import { ChevronLeft } from 'lucide-react'
 import { JoinLeagueForm } from './join-form'
+import { JoinPreview } from './join-preview'
+import { getLeagueByCode } from '@/lib/data/leagues'
+import { getCurrentSeason } from '@/lib/api/cron'
+import { t } from '@/lib/i18n'
 
 export default async function JoinLeaguePage({
   searchParams,
@@ -7,19 +12,34 @@ export default async function JoinLeaguePage({
   searchParams: Promise<{ code?: string }>
 }) {
   const { code } = await searchParams
+  const inviteCode = code?.trim().toUpperCase()
+  const preview = inviteCode
+    ? await getLeagueByCode(inviteCode, getCurrentSeason())
+    : null
 
   return (
-    <main className="min-h-screen bg-zinc-950 flex items-start justify-center pt-16 px-4">
-      <div className="w-full max-w-sm flex flex-col gap-8">
-        <div className="flex flex-col gap-1">
-          <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-            ← Retour
-          </Link>
-          <h1 className="text-2xl font-bold text-white">Rejoindre une ligue</h1>
-        </div>
+    <main className="flex min-h-dvh flex-col px-page pb-6 pt-8">
+      <Link
+        href="/"
+        aria-label={t('common.back')}
+        className="mb-6 inline-flex w-fit items-center gap-1 rounded-md text-sm text-text-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ChevronLeft size={18} aria-hidden />
+        {t('common.back')}
+      </Link>
 
-        <JoinLeagueForm initialCode={code} />
-      </div>
+      {preview && inviteCode ? (
+        <JoinPreview preview={preview} code={inviteCode} />
+      ) : (
+        <>
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            {t('join.manualTitle')}
+          </h1>
+          <div className="mt-6">
+            <JoinLeagueForm initialCode={code} />
+          </div>
+        </>
+      )}
     </main>
   )
 }

@@ -3,6 +3,7 @@
 import { useActionState } from 'react'
 import { joinLeagueAction } from '@/app/actions/leagues'
 import { SubmitButton } from '@/app/ui/submit-button'
+import { t } from '@/lib/i18n'
 
 export function JoinLeagueForm({ initialCode }: { initialCode?: string }) {
   const [state, action] = useActionState(joinLeagueAction, null)
@@ -10,12 +11,12 @@ export function JoinLeagueForm({ initialCode }: { initialCode?: string }) {
   return (
     <form action={action} className="flex flex-col gap-5">
       {state?.error && (
-        <p className="text-red-400 text-sm">{state.error}</p>
+        <p className="text-sm text-destructive" aria-live="polite">{state.error}</p>
       )}
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="inviteCode" className="text-sm text-zinc-400">
-          {"Code d'invitation"}
+        <label htmlFor="inviteCode" className="text-sm text-text-secondary">
+          {t('join.manualLabel')}
         </label>
         <input
           id="inviteCode"
@@ -25,11 +26,11 @@ export function JoinLeagueForm({ initialCode }: { initialCode?: string }) {
           defaultValue={initialCode}
           placeholder="ABCD1234"
           autoCapitalize="characters"
-          className="bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors uppercase tracking-widest font-mono"
+          className="rounded-xl border border-border bg-card px-4 py-2.5 font-mono uppercase tracking-widest text-foreground outline-none transition-colors placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
 
-      <SubmitButton label="Rejoindre la ligue" />
+      <SubmitButton label={t('join.cta')} />
     </form>
   )
 }

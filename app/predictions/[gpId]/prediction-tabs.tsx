@@ -134,8 +134,6 @@ export function PredictionTabs({ sessions, drivers }: Props) {
         role={hasTabs ? 'tabpanel' : undefined}
         id={hasTabs ? 'predict-tabpanel' : undefined}
         aria-labelledby={hasTabs ? `predict-tab-${activeSession.id}` : undefined}
-        tabIndex={hasTabs ? 0 : undefined}
-        className="focus-visible:outline-none"
       >
         <PredictionForm
           key={activeSession.id}

@@ -21,19 +21,29 @@
 
 ## 2. Structure du projet
 
+> **Nommage des routes** : segments d'URL en anglais (comme tout identifiant — cf. `CLAUDE.md`).
+> Les labels affichés restent en français via i18n (`lib/i18n`).
+
 ```
 /app
-  /page.tsx
+  /page.tsx                         ← onglet « Accueil »
   /login/page.tsx
-  /profile/page.tsx
+  /profile/page.tsx                 ← onglet « Profil »
   /season/page.tsx
+  /predictions/page.tsx             ← onglet « Mes Pronos » (agrégat — placeholder, #45/#46)
   /predictions/[gpId]/page.tsx
+  /results/page.tsx                 ← onglet « GP Résultats » (placeholder, #49)
   /leagues/
+    /page.tsx                       ← onglet « Ligues » (placeholder, #47)
     /new/page.tsx
     /join/page.tsx
     /[id]/page.tsx
     /[id]/gp/[gpId]/page.tsx
     /[id]/gp/[gpId]/items/page.tsx
+
+  /components/                      ← composants UI partagés (client + serveur)
+    bottom-nav.tsx                  → BottomNav — barre 5 onglets, masquée pré-auth (logique : lib/nav.ts)
+    tab-placeholder.tsx             → TabPlaceholder — écran d'atterrissage temporaire d'un onglet
 
   /actions/                         ← Server Actions — toutes les mutations utilisateur
     auth.ts                         → signInWithGoogle, signOut
@@ -82,6 +92,8 @@
 
   /profile/
     avatars.ts                 → liste des avatars disponibles
+
+  nav.ts                       → DOMAINE PUR — isActiveRoute, isHiddenRoute (logique BottomNav, + nav.test.ts)
 
   /push/
     send.ts                    → sendPushToAll, sendPushToUser (Web Push API)

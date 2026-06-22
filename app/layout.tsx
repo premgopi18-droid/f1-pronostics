@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Titillium_Web, Rajdhani } from "next/font/google";
 import "./globals.css";
 import { SwRegister } from "@/app/components/sw-register";
+import { BottomNav } from "@/app/components/bottom-nav";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -41,6 +42,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <SwRegister />
         {children}
+        <BottomNav />
       </body>
     </html>
   );

@@ -9,6 +9,15 @@ export const fr = {
   common: {
     loading: "Chargement…",
     next: "Suivant →",
+    comingSoon: "Bientôt disponible.",
+  },
+  nav: {
+    label: "Navigation principale",
+    home: "Accueil",
+    leagues: "Ligues",
+    predictions: "Mes Pronos",
+    results: "GP Résultats",
+    profile: "Profil",
   },
   avatar: {
     helmetAlt: "Avatar casque",

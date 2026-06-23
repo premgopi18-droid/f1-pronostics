@@ -50,7 +50,10 @@ export function useTheme(): [ThemeId, (t: ThemeId) => void] {
     // (`theme-change`), et entre onglets (`storage`). Sur le cross-onglet on
     // réapplique aussi l'attribut `data-theme` car il n'est posé que dans le
     // tab qui a déclenché le changement.
-    const syncFromStorage = () => {
+    const syncFromStorage = (e?: StorageEvent) => {
+      // Event `storage` : ne resync que si c'est notre clé (ou un clear, key=null).
+      // Appel direct au montage (e=undefined) : on resync toujours.
+      if (e && e.key !== null && e.key !== THEME_STORAGE_KEY) return
       const stored = getStoredTheme()
       setThemeState(stored)
       applyTheme(stored)

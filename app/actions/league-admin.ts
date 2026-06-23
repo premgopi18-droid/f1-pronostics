@@ -43,6 +43,50 @@ export async function toggleInvites(leagueId: string): Promise<AdminResult> {
   return { success: true, inviteOpen }
 }
 
+export async function transferAdmin(leagueId: string, targetUserId: string): Promise<AdminResult> {
+  const auth = await assertAdmin(leagueId)
+  if ('error' in auth) return auth
+
+  const { supabase } = auth
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const season = getCurrentSeason()
+
+  // Promouvoir la cible en premier — si ça échoue, le transfert n'a pas eu lieu.
+  const { error: promoteError } = await supabase
+    .from('league_members')
+    .update({ is_admin: true })
+    .eq('league_id', leagueId)
+    .eq('user_id', targetUserId)
+    .eq('season', season)
+
+  if (promoteError) return { error: 'Erreur lors du transfert' }
+
+  // Rétrograder l'admin courant.
+  const { error: demoteError } = await supabase
+    .from('league_members')
+    .update({ is_admin: false })
+    .eq('league_id', leagueId)
+    .eq('user_id', user.id)
+    .eq('season', season)
+
+  if (demoteError) {
+    // Rollback : annuler la promotion
+    await supabase
+      .from('league_members')
+      .update({ is_admin: false })
+      .eq('league_id', leagueId)
+      .eq('user_id', targetUserId)
+      .eq('season', season)
+    return { error: 'Erreur lors du transfert' }
+  }
+
+  revalidatePath(`/leagues/${leagueId}`)
+  revalidatePath(`/leagues/${leagueId}/admin`)
+  return { success: true }
+}
+
 export async function regenerateInviteCode(leagueId: string): Promise<AdminResult> {
   const auth = await assertAdmin(leagueId)
   if ('error' in auth) return auth

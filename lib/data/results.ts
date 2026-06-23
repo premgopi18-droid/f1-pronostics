@@ -84,7 +84,7 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
     sessionMap.set(gpId, entry)
   }
 
-  // Vainqueurs des courses finalisées (1 requête batch)
+  // Vainqueurs des courses confirmées (1 requête batch)
   const raceSessionIds = Array.from(raceSessionToGp.keys())
   const { data: winnerRows } = raceSessionIds.length
     ? await supabase

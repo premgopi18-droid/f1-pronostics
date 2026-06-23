@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { HELMET_IDS, DEFAULT_HELMET } from '@/lib/profile/avatars'
+import type { TranslationKey } from '@/lib/i18n'
 
-export type ProfileActionState = { error?: string; success?: boolean }
+// `error` est une clé i18n (résolue côté form via `t()`), pas un texte en dur.
+export type ProfileActionState = { error?: TranslationKey; success?: boolean }
 
 export async function updateProfile(
   _prev: ProfileActionState,
@@ -13,13 +15,13 @@ export async function updateProfile(
 ): Promise<ProfileActionState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' }
+  if (!user) return { error: 'profile.errorAuth' }
 
   const pseudo       = ((formData.get('pseudo') as string | null) ?? '').trim()
   const rawAvatarKey = (formData.get('avatar_key') as string | null) || null
 
   if (pseudo.length < 2 || pseudo.length > 30) {
-    return { error: 'Le pseudo doit faire entre 2 et 30 caractères' }
+    return { error: 'profile.errorLength' }
   }
 
   // `null` = aucun avatar choisi (conservé). Une clé inconnue (ancien emoji, valeur
@@ -35,8 +37,8 @@ export async function updateProfile(
     .eq('id', user.id)
 
   if (error) {
-    if (error.code === '23505') return { error: 'Ce pseudo est déjà utilisé' }
-    return { error: 'Erreur lors de la mise à jour' }
+    if (error.code === '23505') return { error: 'profile.errorTaken' }
+    return { error: 'profile.errorGeneric' }
   }
 
   revalidatePath('/')
@@ -50,7 +52,7 @@ export async function deleteAccount(
 ): Promise<ProfileActionState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' }
+  if (!user) return { error: 'profile.errorAuth' }
 
   // Tout (transfert d'admin toutes saisons, retrait des ligues, anonymisation du
   // profil, effacement des données d'auth) est encapsulé dans le RPC transactionnel
@@ -59,7 +61,7 @@ export async function deleteAccount(
   const { error } = await supabase.rpc('delete_own_account')
   if (error) {
     console.error('deleteAccount: échec', error)
-    return { error: 'Erreur lors de la suppression du compte' }
+    return { error: 'profile.deleteError' }
   }
 
   await supabase.auth.signOut()

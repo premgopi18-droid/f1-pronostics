@@ -19,13 +19,21 @@ export default async function ProfilePage() {
   ] = await Promise.all([
     supabase.from('profiles').select('pseudo, avatar_key').eq('id', userId).single(),
     supabase.from('league_members').select('league_id').eq('user_id', userId).eq('season', season),
-    supabase.from('scores').select('final_score').eq('user_id', userId).eq('season', season),
+    supabase.from('scores').select('session_id, base_score').eq('user_id', userId).eq('season', season),
   ])
 
   if (!profile) notFound()
 
-  const leagueCount  = leagueMemberships?.length ?? 0
-  const seasonPoints = (scores ?? []).reduce((sum, row) => sum + (row.final_score ?? 0), 0)
+  const leagueCount = leagueMemberships?.length ?? 0
+
+  // Points bruts de la saison, indépendants de la ligue : `base_score` est identique
+  // pour une session donnée quelle que soit la ligue (seul `final_score` varie selon
+  // les items joués, par ligue). On dédoublonne par session pour ne pas multiplier les
+  // points par le nombre de ligues du membre.
+  const pointsBySession = new Map(
+    (scores ?? []).map((row) => [row.session_id as string, (row.base_score as number | null) ?? 0]),
+  )
+  const seasonPoints = [...pointsBySession.values()].reduce((sum, points) => sum + points, 0)
 
   const leagueLabel =
     leagueCount <= 1 ? t('profile.statsLeague') : t('profile.statsLeaguePlural')

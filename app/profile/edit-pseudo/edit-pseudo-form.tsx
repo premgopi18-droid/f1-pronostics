@@ -43,7 +43,7 @@ export function EditPseudoForm({
 
         {state.error && (
           <p className="text-sm text-destructive" role="alert">
-            {state.error}
+            {t(state.error)}
           </p>
         )}
         {state.success && (
@@ -82,7 +82,7 @@ export function EditPseudoForm({
             </p>
             {deleteState.error && (
               <p className="text-sm text-destructive" role="alert">
-                {deleteState.error}
+                {t(deleteState.error)}
               </p>
             )}
             <div className="flex gap-2">

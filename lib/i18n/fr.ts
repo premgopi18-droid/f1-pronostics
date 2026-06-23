@@ -318,6 +318,7 @@ export const fr = {
     save: "Enregistrer",
     saving: "Enregistrement…",
     savedOk: "Profil mis à jour !",
+    errorAuth: "Non authentifié",
     errorLength: "Le pseudo doit faire entre 2 et 30 caractères",
     errorTaken: "Ce pseudo est déjà utilisé",
     errorGeneric: "Erreur lors de la mise à jour",

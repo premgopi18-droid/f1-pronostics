@@ -27,7 +27,7 @@ export function EditAvatarForm({
 
       {state.error && (
         <p className="text-sm text-destructive" role="alert">
-          {state.error}
+          {t(state.error)}
         </p>
       )}
       {state.success && (

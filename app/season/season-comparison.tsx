@@ -93,7 +93,6 @@ export function SeasonComparison({
           entries={wdcEntries}
           predictionCount={WDC_COUNT}
           standingsByCode={wdcByCode}
-          standingsByPosition={wdcByPos}
           getEntryName={(code) => wdcByPos.get(wdcByCode.get(code) ?? 0)?.name ?? code}
           getOfficialName={(pos) => wdcByPos.get(pos)?.name ?? null}
           getTeamColor={(code) => {
@@ -117,7 +116,6 @@ export function SeasonComparison({
           entries={wccEntries}
           predictionCount={WCC_COUNT}
           standingsByCode={wccByCode}
-          standingsByPosition={wccByPos}
           getEntryName={(code) => constructorStandings.find((c) => c.code === code)?.name ?? code}
           getOfficialName={(pos) => wccByPos.get(pos)?.name ?? null}
           getTeamColor={(code) => TEAM_COLORS[code] ?? DEFAULT_TEAM_COLOR}
@@ -142,7 +140,6 @@ function ComparisonPanel({
   entries,
   predictionCount,
   standingsByCode,
-  standingsByPosition,
   getEntryName,
   getOfficialName,
   getTeamColor,
@@ -159,7 +156,6 @@ function ComparisonPanel({
   entries:              string[] | null
   predictionCount:      number
   standingsByCode:      Map<string, number>
-  standingsByPosition:  Map<number, { name: string }>
   getEntryName:         (code: string) => string
   getOfficialName:      (pos: number) => string | null
   getTeamColor:         (code: string) => string

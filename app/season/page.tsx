@@ -55,6 +55,16 @@ export default async function SeasonPage() {
   const isSubmissionOpen = !deadlines.submissionDeadline || now < deadlines.submissionDeadline
   const isItemsOpen      = !deadlines.itemDeadline       || now < deadlines.itemDeadline
 
+  const driverList = driversRaw.map((d) => ({
+    code:      d.code as string,
+    firstName: d.first_name as string,
+    lastName:  d.last_name as string,
+  }))
+  const constructorList = constructorsRaw.map((c) => ({
+    code: c.code as string,
+    name: c.name as string,
+  }))
+
   return (
     <main className="flex flex-1 flex-col pb-6 pt-6">
       {/* Header */}
@@ -66,7 +76,7 @@ export default async function SeasonPage() {
           ← {t('season.back')}
         </Link>
         <h1 className="font-display text-2xl font-bold text-foreground">
-          WDC / WCC — Pronostics saison
+          {t('season.pageTitle')}
         </h1>
         {deadlines.submissionDeadline && (
           <p className={`text-sm ${isSubmissionOpen ? 'text-text-secondary' : 'text-primary font-semibold'}`}>
@@ -80,30 +90,17 @@ export default async function SeasonPage() {
 
       {isSubmissionOpen ? (
         // ── Prédictions ouvertes : formulaire drag-to-rank ──────────────────
-        (() => {
-          const driverList = driversRaw.map((d) => ({
-            code:      d.code as string,
-            firstName: d.first_name as string,
-            lastName:  d.last_name as string,
-          }))
-          const constructorList = constructorsRaw.map((c) => ({
-            code: c.code as string,
-            name: c.name as string,
-          }))
-          return (
-            <div className="px-page">
-              <SeasonFormLoader
-                drivers={driverList}
-                constructors={constructorList}
-                initialWdc={wdcEntries}
-                initialWcc={wccEntries}
-                isSubmissionOpen={isSubmissionOpen}
-                isItemsOpen={isItemsOpen}
-                seasonItems={seasonItems}
-              />
-            </div>
-          )
-        })()
+        <div className="px-page">
+          <SeasonFormLoader
+            drivers={driverList}
+            constructors={constructorList}
+            initialWdc={wdcEntries}
+            initialWcc={wccEntries}
+            isSubmissionOpen={isSubmissionOpen}
+            isItemsOpen={isItemsOpen}
+            seasonItems={seasonItems}
+          />
+        </div>
       ) : (
         // ── Prédictions verrouillées : vue comparaison ───────────────────────
         <SeasonComparison

@@ -7,11 +7,9 @@ import {
   upsertSeasonPrediction,
   type SeasonPredictionType,
 } from '@/lib/data/season-predictions'
+import { WDC_COUNT, WCC_COUNT } from '@/lib/season/constants'
 
 export type SeasonPredictionResult = { error: string } | { ok: true }
-
-const WDC_COUNT = 10
-const WCC_COUNT = 11
 
 export async function submitSeasonPredictionAction(
   type:    SeasonPredictionType,

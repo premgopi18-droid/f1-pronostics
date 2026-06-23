@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { t } from '@/lib/i18n'
 import { TEAM_COLORS, DEFAULT_TEAM_COLOR } from '@/lib/f1/team-colors'
 import { computeProjectedScore } from '@/lib/season/scoring'
+import { WDC_COUNT, WCC_COUNT } from '@/lib/season/constants'
 import { applySeasonItemAction } from '@/app/actions/season-predictions'
 import type { DriverStanding, ConstructorStanding } from '@/lib/data/season'
 
@@ -63,7 +64,7 @@ export function SeasonComparison({
       {/* Tab bar */}
       <div
         role="tablist"
-        aria-label="Champion pilotes ou écuries"
+        aria-label={t('season.tablistLabel')}
         className="mx-page mb-5 flex gap-1 rounded-xl border border-border bg-card p-1"
       >
         {(['wdc', 'wcc'] as Tab[]).map((t_) => (
@@ -80,7 +81,7 @@ export function SeasonComparison({
                 : 'text-text-secondary hover:text-foreground',
             )}
           >
-            {t_ === 'wdc' ? 'Pilotes · WDC' : 'Écuries · WCC'}
+            {t_ === 'wdc' ? t('season.tabWdc') : t('season.tabWcc')}
           </button>
         ))}
       </div>
@@ -90,7 +91,7 @@ export function SeasonComparison({
           type="wdc"
           title={t('season.wdcTitle')}
           entries={wdcEntries}
-          predictionCount={10}
+          predictionCount={WDC_COUNT}
           standingsByCode={wdcByCode}
           standingsByPosition={wdcByPos}
           getEntryName={(code) => wdcByPos.get(wdcByCode.get(code) ?? 0)?.name ?? code}
@@ -114,7 +115,7 @@ export function SeasonComparison({
           type="wcc"
           title={t('season.wccTitle')}
           entries={wccEntries}
-          predictionCount={11}
+          predictionCount={WCC_COUNT}
           standingsByCode={wccByCode}
           standingsByPosition={wccByPos}
           getEntryName={(code) => constructorStandings.find((c) => c.code === code)?.name ?? code}
@@ -203,7 +204,7 @@ function ComparisonPanel({
         onEntriesChange(next)
         onUsesChange(usesLeft - 1)
         setShowItem(false)
-        setMessage({ type: 'ok', text: `${itemName} utilisé !` })
+        setMessage({ type: 'ok', text: `${itemName} ${t('season.itemUsedSuffix')}` })
       }
     })
   }
@@ -310,7 +311,7 @@ function ComparisonPanel({
             <div className="mt-4 flex flex-col gap-3">
               <div className="flex gap-3">
                 <div className="flex flex-1 flex-col gap-1.5">
-                  <label className="text-xs text-text-secondary">Depuis la position</label>
+                  <label className="text-xs text-text-secondary">{t('season.itemFromLabel')}</label>
                   <select
                     value={itemFrom}
                     onChange={(e) => {
@@ -328,7 +329,7 @@ function ComparisonPanel({
                   </select>
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5">
-                  <label className="text-xs text-text-secondary">Vers la position</label>
+                  <label className="text-xs text-text-secondary">{t('season.itemToLabel')}</label>
                   <select
                     value={itemTo}
                     onChange={(e) => setItemTo(Number(e.target.value))}
@@ -354,13 +355,13 @@ function ComparisonPanel({
                   disabled={isPending || itemFrom === itemTo}
                   className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {isPending ? 'Envoi…' : 'Confirmer'}
+                  {isPending ? t('season.sending') : t('season.confirm')}
                 </button>
                 <button
                   onClick={() => setShowItem(false)}
                   className="px-4 py-2 text-sm text-text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                 >
-                  Annuler
+                  {t('season.cancel')}
                 </button>
               </div>
             </div>

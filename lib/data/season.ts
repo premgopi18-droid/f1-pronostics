@@ -2,10 +2,18 @@ import { unstable_cache } from 'next/cache'
 
 const JOLPICA_BASE = 'https://api.jolpi.ca/ergast/f1'
 
-async function jolpikaGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${JOLPICA_BASE}${path}.json`, { next: { revalidate: 300 } })
-  if (!res.ok) throw new Error(`Jolpica ${path} → HTTP ${res.status}`)
-  return res.json() as Promise<T>
+// Retourne `null` sur échec (réseau ou HTTP non-OK) plutôt que de throw : les
+// standings sont une dépendance tierce (Jolpica, rate-limit possible) et ne
+// doivent pas faire tomber les pages qui les consomment. Le cache TTL est géré
+// par `unstable_cache` en aval — pas besoin de `next: { revalidate }` ici.
+async function jolpikaGet<T>(path: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${JOLPICA_BASE}${path}.json`)
+    if (!res.ok) return null
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
 }
 
 function toConstructorCode(constructorId: string): string {
@@ -48,7 +56,7 @@ export const getCachedDriverStandings = unstable_cache(
       }
     }>(`/${season}/driverStandings`)
 
-    const standings = data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? []
+    const standings = data?.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? []
     return standings.map((s) => ({
       code:            s.Driver.code,
       name:            s.Driver.familyName,
@@ -77,7 +85,7 @@ export const getCachedConstructorStandings = unstable_cache(
       }
     }>(`/${season}/constructorStandings`)
 
-    const standings = data.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings ?? []
+    const standings = data?.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings ?? []
     return standings.map((s) => ({
       code:     toConstructorCode(s.Constructor.constructorId),
       name:     s.Constructor.name,

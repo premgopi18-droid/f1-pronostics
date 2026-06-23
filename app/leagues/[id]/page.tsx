@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { t } from '@/lib/i18n'
 import { getCountryCode } from '@/lib/f1/country-codes'
-import { findUpcomingGp, getLastFinalizedGps } from '@/lib/leagues/league-detail'
+import { findUpcomingGp, findCurrentOrLastGp, getLastFinalizedGps } from '@/lib/leagues/league-detail'
 import { LeaderboardRealtime } from './leaderboard-realtime'
 import { buildStandings } from '@/lib/leagues/standings'
 import { getHelmet, DEFAULT_HELMET } from '@/lib/profile/avatars'
@@ -17,8 +17,9 @@ import type { MemberRow, ScoreRow, SeasonScoreRow, Standing } from '@/lib/league
 
 function formatDeadline(startsAt: string): string {
   const date = new Date(startsAt)
-  const day = date.toLocaleDateString('fr-FR', { weekday: 'short' })
-  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  // Fuseau épinglé : rendu côté serveur (UTC sur Vercel) sinon l'heure affichée serait fausse.
+  const day = date.toLocaleDateString('fr-FR', { weekday: 'short', timeZone: 'Europe/Paris' })
+  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
   return `${day}. ${time}`
 }
 
@@ -126,13 +127,16 @@ export default async function LeaguePage({
   const gpList = grandsPrix ?? []
   const myGpScores = new Map<string, number>()
   for (const row of myScoreRows ?? []) {
-    // PostgREST renvoie un tableau pour les relations N→1 — on prend [0].
-    const sessionArr = ((row as unknown) as { final_score: number; sessions: { gp_id: string }[] | null }).sessions
-    const gpId = sessionArr?.[0]?.gp_id
+    // scores → sessions est une relation to-one : PostgREST renvoie un objet, pas un tableau.
+    const session = ((row as unknown) as { final_score: number; sessions: { gp_id: string } | null }).sessions
+    const gpId = session?.gp_id
     if (!gpId) continue
     myGpScores.set(gpId, (myGpScores.get(gpId) ?? 0) + (row.final_score as number))
   }
   const lastFinalized = getLastFinalizedGps(gpList as Parameters<typeof getLastFinalizedGps>[0], 3)
+
+  // GP ciblé par le lien « pronos verrouillés » — le plus récent dont le weekend a commencé.
+  const compareGp = findCurrentOrLastGp(gpList as Parameters<typeof findCurrentOrLastGp>[0], now)
 
   // --- Deadline ---
   const upcomingGp = findUpcomingGp(gpList as Parameters<typeof findUpcomingGp>[0], now)
@@ -269,13 +273,15 @@ export default async function LeaguePage({
           </section>
         )}
 
-        {/* Pronos verrouillés */}
-        <Link
-          href={`/leagues/${id}/compare`}
-          className="flex items-center justify-center rounded-xl border border-border bg-card px-4 py-3 text-sm text-text-secondary transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          {t('leagueDetail.lockedPredictions')}
-        </Link>
+        {/* Pronos verrouillés — compare du GP en cours / dernier GP commencé */}
+        {compareGp && (
+          <Link
+            href={`/leagues/${id}/gp/${compareGp.id}/compare`}
+            className="flex items-center justify-center rounded-xl border border-border bg-card px-4 py-3 text-sm text-text-secondary transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            {t('leagueDetail.lockedPredictions')}
+          </Link>
+        )}
 
         {/* Liste complète des GPs */}
         {gpList.length > 0 && (

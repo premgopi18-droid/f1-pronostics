@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findUpcomingGp, getLastFinalizedGps } from "./league-detail";
+import { findUpcomingGp, findCurrentOrLastGp, getLastFinalizedGps } from "./league-detail";
 import type { GrandPrixSummary } from "./league-detail";
 
 const gp = (
@@ -40,6 +40,36 @@ describe("findUpcomingGp", () => {
   it("n'inclut pas un GP dont le weekend commence exactement à now", () => {
     const gps = [gp(5, "2026-06-01T12:00:00Z")];
     expect(findUpcomingGp(gps, NOW)).toBeNull();
+  });
+});
+
+describe("findCurrentOrLastGp", () => {
+  it("retourne le GP en cours quand un weekend a commencé", () => {
+    const gps = [
+      gp(4, "2026-05-25T10:00:00Z"),
+      gp(5, "2026-06-01T08:00:00Z"), // commencé avant NOW
+      gp(6, "2026-06-15T10:00:00Z"), // futur
+    ];
+    expect(findCurrentOrLastGp(gps, NOW)?.round).toBe(5);
+  });
+
+  it("retourne le dernier GP passé si aucun weekend en cours", () => {
+    const gps = [gp(1, "2026-05-01T10:00:00Z"), gp(2, "2026-05-15T10:00:00Z")];
+    expect(findCurrentOrLastGp(gps, NOW)?.round).toBe(2);
+  });
+
+  it("inclut un GP dont le weekend commence exactement à now", () => {
+    const gps = [gp(5, "2026-06-01T12:00:00Z")];
+    expect(findCurrentOrLastGp(gps, NOW)?.round).toBe(5);
+  });
+
+  it("retourne null si la saison n'a pas démarré", () => {
+    const gps = [gp(1, "2026-07-01T10:00:00Z")];
+    expect(findCurrentOrLastGp(gps, NOW)).toBeNull();
+  });
+
+  it("retourne null pour un tableau vide", () => {
+    expect(findCurrentOrLastGp([], NOW)).toBeNull();
   });
 });
 

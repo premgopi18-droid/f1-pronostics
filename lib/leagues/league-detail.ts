@@ -21,6 +21,22 @@ export function findUpcomingGp(
   );
 }
 
+/**
+ * GP le plus récent dont le weekend a déjà commencé (`weekend_starts_at <= now`).
+ * = le GP en cours si un weekend est en cours, sinon le dernier GP passé.
+ * Sert à cibler la page compare (pronos verrouillés). `null` si la saison n'a pas démarré.
+ */
+export function findCurrentOrLastGp(
+  grandsPrix: GrandPrixSummary[],
+  now: Date,
+): GrandPrixSummary | null {
+  const started = grandsPrix.filter(
+    (gp) => new Date(gp.weekend_starts_at) <= now,
+  );
+  if (started.length === 0) return null;
+  return started.reduce((latest, gp) => (gp.round > latest.round ? gp : latest));
+}
+
 /** Derniers GPs finalisés (scoring_finalized_at non null), triés par round décroissant, limités à `limit`. */
 export function getLastFinalizedGps(
   grandsPrix: GrandPrixSummary[],

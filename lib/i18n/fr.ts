@@ -214,7 +214,6 @@ export const fr = {
     inscriptionsClosed: "Fermées",
     membersSection: "MEMBRES · TRANSFERT D'ADMIN",
     promoteAdmin: "Nommer admin",
-    promoteTitle: "Nommer admin",
     promoteWarning: "Tu perdras tes droits admin. Cette action est irréversible.",
     disclaimer: "L'admin ne peut pas exclure un membre. Suppression de ligue indisponible en cours de saison.",
   },

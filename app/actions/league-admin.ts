@@ -51,17 +51,25 @@ export async function transferAdmin(leagueId: string, targetUserId: string): Pro
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
+  // Garde-fou : se transférer à soi-même rétrograderait le seul admin → ligue sans admin.
+  if (targetUserId === user.id) return { error: 'Transfert vers soi-même impossible' }
+
   const season = getCurrentSeason()
 
   // Promouvoir la cible en premier — si ça échoue, le transfert n'a pas eu lieu.
-  const { error: promoteError } = await supabase
+  // .select() pour vérifier qu'une ligne a bien été affectée : sans ça, une cible qui
+  // n'est pas membre matcherait 0 ligne sans erreur, puis la rétrogradation laisserait
+  // la ligue sans aucun admin.
+  const { data: promoted, error: promoteError } = await supabase
     .from('league_members')
     .update({ is_admin: true })
     .eq('league_id', leagueId)
     .eq('user_id', targetUserId)
     .eq('season', season)
+    .select('user_id')
 
   if (promoteError) return { error: 'Erreur lors du transfert' }
+  if (!promoted || promoted.length === 0) return { error: 'Membre introuvable' }
 
   // Rétrograder l'admin courant.
   const { error: demoteError } = await supabase

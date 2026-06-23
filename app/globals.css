@@ -91,6 +91,14 @@
   --ring:         #FF8000;
   --accent-soft:  #FF80001F;
 }
+/* Livrées claires (teal Petronas, papaya McLaren) : le texte blanc par défaut
+ * passe sous le seuil WCAG AA sur bg-primary. On bascule le foreground en sombre
+ * pour garder les labels de boutons lisibles. */
+[data-theme="mercedes"],
+[data-theme="mclaren"] {
+  --primary-foreground: #15151E;
+  --accent-foreground:  #15151E;
+}
 [data-theme="redbull"] {
   --primary:      #3671C6;
   --accent:       #3671C6;

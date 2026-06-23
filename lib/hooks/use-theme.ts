@@ -7,13 +7,15 @@ const THEME_EVENT = 'theme-change'
 
 export type ThemeId = 'boxbox' | 'ferrari' | 'mercedes' | 'mclaren' | 'redbull' | 'aston'
 
-export const THEMES: { id: ThemeId; label: string; primary: string }[] = [
-  { id: 'boxbox',   label: 'BoxBox',       primary: '#FF1801' },
-  { id: 'ferrari',  label: 'Ferrari',      primary: '#DC0000' },
-  { id: 'mercedes', label: 'Mercedes',     primary: '#00D2BE' },
-  { id: 'mclaren',  label: 'McLaren',      primary: '#FF8000' },
-  { id: 'redbull',  label: 'Red Bull',     primary: '#3671C6' },
-  { id: 'aston',    label: 'Aston Martin', primary: '#006E51' },
+// Les libellés affichés viennent de l'i18n (`theme.themes.<id>`), pas d'ici —
+// `primary` sert à la pastille de couleur (swatch) du sélecteur.
+export const THEMES: { id: ThemeId; primary: string }[] = [
+  { id: 'boxbox',   primary: '#FF1801' },
+  { id: 'ferrari',  primary: '#DC0000' },
+  { id: 'mercedes', primary: '#00D2BE' },
+  { id: 'mclaren',  primary: '#FF8000' },
+  { id: 'redbull',  primary: '#3671C6' },
+  { id: 'aston',    primary: '#006E51' },
 ]
 
 export function getStoredTheme(): ThemeId {
@@ -44,14 +46,28 @@ export function useTheme(): [ThemeId, (t: ThemeId) => void] {
   const [theme, setThemeState] = useState<ThemeId>('boxbox')
 
   useEffect(() => {
-    setThemeState(getStoredTheme())
+    // Resync depuis le storage : au montage, sur changement même onglet
+    // (`theme-change`), et entre onglets (`storage`). Sur le cross-onglet on
+    // réapplique aussi l'attribut `data-theme` car il n'est posé que dans le
+    // tab qui a déclenché le changement.
+    const syncFromStorage = () => {
+      const stored = getStoredTheme()
+      setThemeState(stored)
+      applyTheme(stored)
+    }
+    syncFromStorage()
     const handler = (e: Event) => setThemeState((e as CustomEvent<ThemeId>).detail)
     window.addEventListener(THEME_EVENT, handler)
-    return () => window.removeEventListener(THEME_EVENT, handler)
+    window.addEventListener('storage', syncFromStorage)
+    return () => {
+      window.removeEventListener(THEME_EVENT, handler)
+      window.removeEventListener('storage', syncFromStorage)
+    }
   }, [])
 
+  // `setTheme` dispatch `theme-change` de façon synchrone → le handler ci-dessus
+  // met à jour l'état ; pas besoin d'un `setThemeState` explicite ici.
   function changeTheme(t: ThemeId) {
-    setThemeState(t)
     setTheme(t)
   }
 

@@ -25,6 +25,7 @@ function formatDate(iso: string): string {
 export default async function ResultsPage() {
   const season = getCurrentSeason()
   const calendar = await getSeasonCalendar(season)
+  const nowMs = Date.now()
 
   const gps: CalendarGpView[] = calendar.map((gp) => ({
     id: gp.id,
@@ -33,6 +34,8 @@ export default async function ResultsPage() {
     gpName: gp.gpName,
     status: gp.status,
     winner: gp.winner,
+    // Pronostiquable tant que les qualifications ne sont pas commencées.
+    canPredict: gp.qualifyingStartsAt ? new Date(gp.qualifyingStartsAt).getTime() > nowMs : false,
     formattedQualiTime: gp.qualifyingStartsAt ? formatSessionTime(gp.qualifyingStartsAt) : null,
     formattedRaceTime:  gp.raceStartsAt       ? formatSessionTime(gp.raceStartsAt)       : null,
     formattedDate:      gp.raceStartsAt        ? formatDate(gp.raceStartsAt)              : null,

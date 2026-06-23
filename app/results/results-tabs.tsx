@@ -16,6 +16,7 @@ export type CalendarGpView = {
   gpName: string
   status: GpStatus
   winner: string | null
+  canPredict: boolean
   formattedQualiTime: string | null
   formattedRaceTime: string | null
   formattedDate: string | null
@@ -100,6 +101,15 @@ export function ResultsTabs({ gps }: Props) {
                         <span>{t('results.raceLabel')} {prochain.formattedRaceTime}</span>
                       )}
                     </p>
+                  )}
+                  {prochain.canPredict && (
+                    <Link
+                      href={`/predictions/${prochain.id}`}
+                      className="mt-3 inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      aria-label={`${t('results.linkPredict')} — ${prochain.gpName}`}
+                    >
+                      {t('results.linkPredict')} ›
+                    </Link>
                   )}
                 </div>
               </div>

@@ -149,6 +149,7 @@ export const fr = {
     back: "Scores du GP",
     title: "Pronos",
     visibleAfterLock: "Visible après verrouillage",
+    modeLabel: "Mode de comparaison",
     vueGroupe: "Vue groupe",
     teteATete: "Tête-à-tête",
     officiel: "officiel",

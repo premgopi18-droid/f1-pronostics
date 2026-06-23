@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { t } from '@/lib/i18n'
+import type { TranslationKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
+import { POSITIONS_TO_SCORE, SCORE_TABLES } from '@/lib/scoring/constants'
 import type { SessionType } from '@/lib/scoring/types'
 
 export type SessionInfo = {
@@ -26,25 +27,29 @@ type Props = {
   currentUserId:  string
 }
 
-const SESSION_TAB_LABELS: Record<SessionType, string> = {
-  qualifying:        'Qualifs',
-  race:              'Course',
-  sprint_qualifying: 'Sprint Qualifs',
-  sprint_race:       'Sprint',
+// Réutilise les libellés courts déjà traduits dans `predict.tab.*` (i18n approche A).
+const SESSION_TAB_LABEL_KEYS: Record<SessionType, TranslationKey> = {
+  qualifying:        'predict.tab.qualifying',
+  race:              'predict.tab.race',
+  sprint_qualifying: 'predict.tab.sprint_qualifying',
+  sprint_race:       'predict.tab.sprint_race',
 }
 
 function matchQuality(
-  predicted: string | undefined,
-  official:  string[] | undefined,
-  position:  number,
+  predicted:   string | undefined,
+  official:    string[] | undefined,
+  position:    number,
+  sessionType: SessionType,
 ): 'exact' | 'partial' | 'miss' | 'unknown' {
   if (!official || official.length === 0 || !predicted) return 'unknown'
   const actualPos = official.indexOf(predicted) + 1
   if (actualPos === 0) return 'miss'
   const delta = Math.abs(position - actualPos)
   if (delta === 0) return 'exact'
-  if (delta === 1) return 'partial'
-  return 'miss'
+  // Le barème accorde des points jusqu'à un certain écart (±2 en course/qualifs,
+  // ±1 en sprint) : tout delta qui rapporte des points est un hit partiel.
+  const scoreTable = SCORE_TABLES[sessionType] as Record<number, number>
+  return (scoreTable[delta] ?? 0) > 0 ? 'partial' : 'miss'
 }
 
 const QUALITY_CLASSES: Record<'exact' | 'partial' | 'miss' | 'unknown', string> = {
@@ -78,7 +83,9 @@ function GroupView({
     <div className="flex flex-col gap-3">
       {Array.from({ length: count }, (_, i) => {
         const position     = i + 1
-        const officialCode = official[i]
+        // Pas de résultat officiel tant que la session n'est pas confirmée
+        // (évite d'exposer des résultats provisoires déjà présents en base).
+        const officialCode = session.isConfirmed ? official[i] : undefined
 
         return (
           <div key={position} className="flex flex-col gap-2">
@@ -100,7 +107,7 @@ function GroupView({
               {members.map((member) => {
                 const predicted = member.predictions[session.id]?.[i]
                 const quality   = session.isConfirmed
-                  ? matchQuality(predicted, official, position)
+                  ? matchQuality(predicted, official, position, session.type)
                   : 'unknown'
 
                 return (
@@ -155,10 +162,10 @@ function HeadToHeadView({
         const myPred        = me.predictions[session.id]?.[i]
         const theirPred     = opponent.predictions[session.id]?.[i]
         const myQuality     = session.isConfirmed
-          ? matchQuality(myPred, official, position)
+          ? matchQuality(myPred, official, position, session.type)
           : 'unknown'
         const theirQuality  = session.isConfirmed
-          ? matchQuality(theirPred, official, position)
+          ? matchQuality(theirPred, official, position, session.type)
           : 'unknown'
 
         return (
@@ -240,14 +247,14 @@ export function PredictionCompareClient({
                   : 'text-zinc-500 hover:text-zinc-300',
               )}
             >
-              {SESSION_TAB_LABELS[s.type]}
+              {t(SESSION_TAB_LABEL_KEYS[s.type])}
             </button>
           ))}
         </div>
       )}
 
       {/* Toggle Vue groupe / Tête-à-tête */}
-      <div className="flex gap-0 bg-zinc-900 p-1 rounded-xl" role="tablist" aria-label="Mode de comparaison">
+      <div className="flex gap-0 bg-zinc-900 p-1 rounded-xl" role="tablist" aria-label={t('compare.modeLabel')}>
         <button
           role="tab"
           aria-selected={view === 'group'}

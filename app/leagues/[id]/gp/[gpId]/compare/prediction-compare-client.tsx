@@ -97,7 +97,7 @@ function GroupView({
               ) : (
                 <span className="text-zinc-600 text-xs">{t('compare.predictionNone')}</span>
               )}
-              {session.isConfirmed && officialCode && (
+              {officialCode && (
                 <span className="text-zinc-600 text-xs">{t('compare.officiel')}</span>
               )}
             </div>

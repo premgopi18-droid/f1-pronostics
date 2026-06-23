@@ -4,9 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Pencil, Palette, Bell, Accessibility } from 'lucide-react'
 import {
-  REDUCE_MOTION_STORAGE_KEY,
-  applyReduceMotion,
   resolveReducedMotion,
+  setReduceMotionOverride,
 } from '@/lib/hooks/use-prefers-reduced-motion'
 import { t } from '@/lib/i18n'
 
@@ -22,8 +21,7 @@ export function ProfileSettings() {
   function toggleAccessibility() {
     const next = !reducedMotion
     setReducedMotion(next)
-    localStorage.setItem(REDUCE_MOTION_STORAGE_KEY, String(next))
-    applyReduceMotion(next)
+    setReduceMotionOverride(next)
   }
 
   return (

@@ -301,6 +301,19 @@ export const fr = {
       slate: "Casque gris",
     },
   },
+  theme: {
+    pageTitle: "Thème",
+    subtitle: "Personnalise les couleurs de l'application.",
+    applied: "Appliqué",
+    themes: {
+      boxbox:   "BoxBox",
+      ferrari:  "Ferrari",
+      mercedes: "Mercedes",
+      mclaren:  "McLaren",
+      redbull:  "Red Bull",
+      aston:    "Aston Martin",
+    },
+  },
   profile: {
     pageTitle: "Mon profil",
     statsLeague: "ligue",
@@ -308,6 +321,7 @@ export const fr = {
     statsPts: "pts cette saison",
     editPseudo: "Modifier le pseudo",
     editAvatar: "Changer d'avatar",
+    theme: "Thème",
     notifications: "Notifications",
     accessibility: "Mode accessibilité",
     signOut: "Se déconnecter",

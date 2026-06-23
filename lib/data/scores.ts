@@ -56,8 +56,10 @@ export async function getCurrentScoresForGP(
 }
 
 // Sessions dont les résultats sont confirmés mais pas encore scorées pour cette ligue.
-// Filtrer par ligue permet : (1) de créer des ligues en cours de saison avec catch-up
-// automatique, (2) de rejouer indépendamment par ligue si le cron plante à mi-chemin.
+// On exclut les sessions des GPs déjà finalisés globalement (scoring_finalized_at NOT NULL) :
+// une ligue créée en cours de saison démarre proprement au GP suivant sans hériter de
+// scores 0 pour tous les GPs passés. Le catch-up reste actif pour les sessions du GP
+// en cours (scoring_finalized_at encore null — ex. quali scoré avant la course).
 export async function getPendingSessionScores(
   leagueId: string,
   season:   number,
@@ -68,7 +70,7 @@ export async function getPendingSessionScores(
     await Promise.all([
       supabase
         .from('sessions')
-        .select('id, gp_id, season, type')
+        .select('id, gp_id, season, type, grands_prix!gp_id(scoring_finalized_at)')
         .eq('season', season)
         .not('results_confirmed_at', 'is', null),
       supabase
@@ -83,7 +85,10 @@ export async function getPendingSessionScores(
   const scoredIds = new Set((scored ?? []).map((r) => r.session_id as string))
 
   return (sessions ?? [])
-    .filter((row) => !scoredIds.has(row.id as string))
+    .filter((row) => {
+      const gp = (row.grands_prix as unknown) as { scoring_finalized_at: string | null } | null
+      return gp?.scoring_finalized_at == null && !scoredIds.has(row.id as string)
+    })
     .map((row) => ({
       id:     row.id as string,
       gpId:   row.gp_id as string,

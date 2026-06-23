@@ -11,3 +11,6 @@ export const TEAM_COLORS: Record<string, string> = {
   AUDI:          '#B0B2B5',
   CADILLAC:      '#6CD3BF',
 }
+
+/** Couleur neutre de repli quand l'écurie n'a pas de couleur connue. */
+export const DEFAULT_TEAM_COLOR = '#666666'

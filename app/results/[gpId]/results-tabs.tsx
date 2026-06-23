@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { t } from '@/lib/i18n'
-import { TEAM_COLORS } from '@/lib/f1/team-colors'
+import { TEAM_COLORS, DEFAULT_TEAM_COLOR } from '@/lib/f1/team-colors'
 import type { GpResultRow } from '@/lib/data/results'
 
 type Tab = 'race' | 'qualifying'
@@ -88,7 +88,7 @@ function DriverRow({
   isFirst: boolean
   isLast: boolean
 }) {
-  const teamColor = TEAM_COLORS[row.constructorCode] ?? '#666666'
+  const teamColor = TEAM_COLORS[row.constructorCode] ?? DEFAULT_TEAM_COLOR
   const isDnf = row.dnf || row.position === null
 
   return (

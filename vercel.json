@@ -8,14 +8,5 @@
       "maxDuration": 60
     }
   },
-  "crons": [
-    {
-      "path": "/api/f1/sync",
-      "schedule": "0 23 * * *"
-    },
-    {
-      "path": "/api/scores/trigger",
-      "schedule": "30 23 * * *"
-    }
-  ]
+  "crons": []
 }

@@ -165,11 +165,16 @@ export const fr = {
     title: "Mes ligues",
     adminBadge: "ADMIN",
     members: "membres",
-    rankOf: "de",
     seasonPoints: "pts saison",
     emptyText: "Crée une nouvelle ligue ou rejoins celle d'un ami.",
     create: "+ Créer",
     join: "Rejoindre une ligue",
+    // Libellés pour lecteurs d'écran (aria-label)
+    rankAriaLabel: "rang",
+    rankAriaSeparator: "sur",
+    remaining: "restant",
+    remainingPlural: "restants",
+    itemsAvailable: "Items disponibles",
     items: {
       shield: "Bouclier",
       block_driver: "Bloquer un pilote",

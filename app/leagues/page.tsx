@@ -15,7 +15,7 @@ export default async function LeaguesPage() {
   // Ligues de l'utilisateur, triées par date d'adhésion (la plus ancienne en premier)
   const { data: rawMemberships } = await supabase
     .from("league_members")
-    .select("league_id, is_admin, joined_at, leagues!league_id(name, max_members)")
+    .select("league_id, is_admin, joined_at, leagues!league_id(name)")
     .eq("user_id", userId)
     .eq("season", season)
     .order("joined_at", { ascending: true });
@@ -73,7 +73,7 @@ export default async function LeaguesPage() {
 
     summaries = memberships.map((membership) => {
       const lid = membership.league_id as string;
-      const league = membership.leagues as unknown as { name: string; max_members: number } | null;
+      const league = membership.leagues as unknown as { name: string } | null;
 
       // Scores filtrés sur cette ligue
       const leagueScores = (allScores ?? [])
@@ -95,7 +95,6 @@ export default async function LeaguesPage() {
         isAdmin: membership.is_admin as boolean,
         joinedAt: membership.joined_at as string,
         memberCount: memberCountByLeague.get(lid) ?? 1,
-        maxMembers: league?.max_members ?? 20,
         myRank: computeMyRank(leagueScores, leagueSeasonScores, userId),
         myPoints: computeMyPoints(leagueScores, leagueSeasonScores, userId),
         items: GP_ITEM_TYPES.map((itemType) => ({

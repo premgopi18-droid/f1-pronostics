@@ -18,7 +18,7 @@ function ItemBubble({ itemType, usesRemaining }: { itemType: GpItemType; usesRem
         "flex flex-col items-center gap-0.5",
         exhausted && "opacity-35",
       )}
-      aria-label={`${t(`leagues.items.${itemType}` as Parameters<typeof t>[0])} — ${usesRemaining} restant${usesRemaining > 1 ? "s" : ""}`}
+      aria-label={`${t(`leagues.items.${itemType}` as Parameters<typeof t>[0])} — ${usesRemaining} ${usesRemaining > 1 ? t("leagues.remainingPlural") : t("leagues.remaining")}`}
     >
       <span className="text-xl leading-none" aria-hidden>
         {GP_ITEM_EMOJI[itemType]}
@@ -37,7 +37,7 @@ export function LeagueCard({ league }: { league: LeagueSummary }) {
     <Link
       href={`/leagues/${league.leagueId}`}
       className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-2xl"
-      aria-label={`${league.name}${league.isAdmin ? ` — ${t("leagues.adminBadge")}` : ""}, rang ${league.myRank} sur ${league.memberCount}, ${league.myPoints} ${t("leagues.seasonPoints")}`}
+      aria-label={`${league.name}${league.isAdmin ? ` — ${t("leagues.adminBadge")}` : ""}, ${t("leagues.rankAriaLabel")} ${league.myRank} ${t("leagues.rankAriaSeparator")} ${league.memberCount}, ${league.myPoints} ${t("leagues.seasonPoints")}`}
     >
       <Card className="flex flex-col gap-3">
         {/* Nom + badge admin */}
@@ -79,7 +79,7 @@ export function LeagueCard({ league }: { league: LeagueSummary }) {
         {/* Items GP — scroll horizontal si trop d'items à l'écran */}
         <div
           className="flex gap-3 overflow-x-auto pb-0.5 scrollbar-none"
-          aria-label="Items disponibles"
+          aria-label={t("leagues.itemsAvailable")}
           role="list"
         >
           {GP_ITEM_TYPES.map((itemType) => (

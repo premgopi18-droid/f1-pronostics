@@ -1,3 +1,5 @@
+import { aggregateTotals, type ScoreRow, type SeasonScoreRow } from './standings'
+
 export type GpItemType =
   | 'shield'
   | 'block_driver'
@@ -19,7 +21,6 @@ export type LeagueSummary = {
   isAdmin: boolean
   joinedAt: string
   memberCount: number
-  maxMembers: number
   myRank: number
   myPoints: number
   items: ItemStock[]
@@ -48,29 +49,19 @@ export const GP_ITEM_EMOJI: Record<GpItemType, string> = {
   fia_penalty:     '🚔',
 }
 
-type ScoreEntry = { user_id: string; final_score: number; exact_positions: number }
-type SeasonEntry = { user_id: string; total: number }
-
 /**
  * Calcule le rang de l'utilisateur dans une ligue à partir des scores bruts.
  * Les membres sans aucune ligne de score sont à 0 pt et n'influencent pas le rang
  * tant que leur total est égal au mien (comportement acceptable en début de saison).
+ *
+ * S'appuie sur `aggregateTotals` (même agrégation/départage que `buildStandings`).
  */
 export function computeMyRank(
-  scoreRows: ScoreEntry[],
-  seasonRows: SeasonEntry[],
+  scoreRows: ScoreRow[],
+  seasonRows: SeasonScoreRow[],
   userId: string,
 ): number {
-  const totalByUser = new Map<string, number>()
-  const exactByUser = new Map<string, number>()
-
-  for (const row of scoreRows) {
-    totalByUser.set(row.user_id, (totalByUser.get(row.user_id) ?? 0) + (row.final_score ?? 0))
-    exactByUser.set(row.user_id, (exactByUser.get(row.user_id) ?? 0) + (row.exact_positions ?? 0))
-  }
-  for (const row of seasonRows) {
-    totalByUser.set(row.user_id, (totalByUser.get(row.user_id) ?? 0) + (row.total ?? 0))
-  }
+  const { totalByUser, exactByUser } = aggregateTotals(scoreRows, seasonRows)
 
   const myTotal = totalByUser.get(userId) ?? 0
   const myExact = exactByUser.get(userId) ?? 0
@@ -89,13 +80,10 @@ export function computeMyRank(
 
 /** Somme des points de l'utilisateur (scores GP + bonus saison) dans une ligue. */
 export function computeMyPoints(
-  scoreRows: ScoreEntry[],
-  seasonRows: SeasonEntry[],
+  scoreRows: ScoreRow[],
+  seasonRows: SeasonScoreRow[],
   userId: string,
 ): number {
-  const fromScores = scoreRows
-    .filter((r) => r.user_id === userId)
-    .reduce((sum, r) => sum + (r.final_score ?? 0), 0)
-  const fromSeason = seasonRows.find((r) => r.user_id === userId)?.total ?? 0
-  return fromScores + fromSeason
+  const { totalByUser } = aggregateTotals(scoreRows, seasonRows)
+  return totalByUser.get(userId) ?? 0
 }

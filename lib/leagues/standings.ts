@@ -23,11 +23,15 @@ export type SeasonScoreRow = {
   total:   number
 }
 
-export function buildStandings(
-  members:    MemberRow[],
+/**
+ * Agrège les points par utilisateur : total = SUM(scores.final_score) + season_scores.total,
+ * et somme des positions exactes (départage). Source unique de la formule de classement —
+ * réutilisée par `buildStandings` et par les calculs de rang/points de la liste des ligues.
+ */
+export function aggregateTotals(
   scoreRows:  ScoreRow[],
   seasonRows: SeasonScoreRow[],
-): Standing[] {
+): { totalByUser: Map<string, number>; exactByUser: Map<string, number> } {
   const totalByUser = new Map<string, number>()
   const exactByUser = new Map<string, number>()
 
@@ -38,6 +42,16 @@ export function buildStandings(
   for (const row of seasonRows) {
     totalByUser.set(row.user_id, (totalByUser.get(row.user_id) ?? 0) + (row.total ?? 0))
   }
+
+  return { totalByUser, exactByUser }
+}
+
+export function buildStandings(
+  members:    MemberRow[],
+  scoreRows:  ScoreRow[],
+  seasonRows: SeasonScoreRow[],
+): Standing[] {
+  const { totalByUser, exactByUser } = aggregateTotals(scoreRows, seasonRows)
 
   return members
     .map((m) => ({

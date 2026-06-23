@@ -169,3 +169,27 @@ body {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 0.9; }
 }
+
+/* Réduction des animations/transitions. Deux déclencheurs :
+   - préférence système `prefers-reduced-motion` : appliquée automatiquement (spec §7),
+     même sans JS ;
+   - mode accessibilité manuel : classe `.reduce-motion` posée sur <html> par le toggle
+     profil + le script anti-FOUC du layout (pour les users dont l'OS n'est pas réglé). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

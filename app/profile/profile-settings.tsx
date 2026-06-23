@@ -3,22 +3,27 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Pencil, Palette, Bell, Accessibility } from 'lucide-react'
+import {
+  REDUCE_MOTION_STORAGE_KEY,
+  applyReduceMotion,
+  resolveReducedMotion,
+} from '@/lib/hooks/use-prefers-reduced-motion'
 import { t } from '@/lib/i18n'
-
-const ACCESSIBILITY_STORAGE_KEY = 'reduce-motion-override'
 
 export function ProfileSettings() {
   const [reducedMotion, setReducedMotion] = useState(false)
 
+  // Reflète l'état effectif (override ou préférence système) pour que le switch
+  // corresponde à ce que l'utilisateur voit réellement.
   useEffect(() => {
-    setReducedMotion(localStorage.getItem(ACCESSIBILITY_STORAGE_KEY) === 'true')
+    setReducedMotion(resolveReducedMotion())
   }, [])
 
   function toggleAccessibility() {
     const next = !reducedMotion
     setReducedMotion(next)
-    localStorage.setItem(ACCESSIBILITY_STORAGE_KEY, String(next))
-    document.documentElement.classList.toggle('reduce-motion', next)
+    localStorage.setItem(REDUCE_MOTION_STORAGE_KEY, String(next))
+    applyReduceMotion(next)
   }
 
   return (

@@ -754,9 +754,11 @@ Segmented control en haut (3 vues) :
 ```
 
 **Vue Calendrier** :
-- Prochain GP mis en avant (horaires sessions)
+- Prochain GP mis en avant (horaires sessions) + CTA "Pronostiquer" tant que les qualifications ne sont pas commencées
 - Liste chronologique : GP passés (vainqueur + lien recap) / GP en cours / GP futurs
 - GP futurs cliquables → page de prédiction `/predictions/[gp-id]`
+
+> **Statut "terminé" (lien Résultats officiels)** : un GP est considéré terminé dès que les **résultats officiels de la course sont confirmés** (`sessions.results_confirmed_at` de la session course, dimanche soir) — **pas** quand le scoring de ligue est finalisé (`scoring_finalized_at`, après résolution des items lundi). La page affiche des résultats F1 officiels, indépendants du traitement de ligue : ils doivent être consultables dès leur confirmation.
 
 **Vue Pilotes WDC / Écuries WCC** :
 - Classement officiel complet

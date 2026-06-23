@@ -47,13 +47,13 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
   const [{ data: gps, error: gpsError }, { data: sessionRows }] = await Promise.all([
     supabase
       .from('grands_prix')
-      .select('id, round, country, scoring_finalized_at')
+      .select('id, round, country')
       .eq('season', season)
       .eq('is_cancelled', false)
       .order('round', { ascending: true }),
     supabase
       .from('sessions')
-      .select('id, gp_id, type, starts_at')
+      .select('id, gp_id, type, starts_at, results_confirmed_at')
       .eq('season', season)
       .in('type', ['race', 'qualifying']),
   ])
@@ -63,8 +63,11 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
   const gpList = gps ?? []
   const sessions = sessionRows ?? []
 
-  // Maps gpId → { raceStartsAt, qualifyingStartsAt } et raceSessionId → gpId
-  const sessionMap = new Map<string, { raceStartsAt?: string; qualifyingStartsAt?: string }>()
+  // Maps gpId → { raceStartsAt, qualifyingStartsAt, raceResultsConfirmedAt } et raceSessionId → gpId
+  const sessionMap = new Map<
+    string,
+    { raceStartsAt?: string; qualifyingStartsAt?: string; raceResultsConfirmedAt?: string | null }
+  >()
   const raceSessionToGp = new Map<string, string>()
 
   for (const s of sessions) {
@@ -72,6 +75,7 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
     const entry = sessionMap.get(gpId) ?? {}
     if (s.type === 'race') {
       entry.raceStartsAt = s.starts_at as string
+      entry.raceResultsConfirmedAt = s.results_confirmed_at as string | null
       raceSessionToGp.set(s.id as string, gpId)
     }
     if (s.type === 'qualifying') {
@@ -98,7 +102,7 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
   }
 
   const forStatus = gpList.map((gp) => ({
-    scoringFinalizedAt: gp.scoring_finalized_at as string | null,
+    raceResultsConfirmedAt: sessionMap.get(gp.id as string)?.raceResultsConfirmedAt ?? null,
     qualifyingStartsAt: sessionMap.get(gp.id as string)?.qualifyingStartsAt ?? null,
   }))
 

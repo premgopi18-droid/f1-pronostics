@@ -11,19 +11,19 @@ describe('computeGpStatuses', () => {
     expect(computeGpStatuses([], NOW)).toEqual([])
   })
 
-  it('tout finalisé → tout completed', () => {
+  it('résultats confirmés partout → tout completed', () => {
     const gps = [
-      { scoringFinalizedAt: PAST, qualifyingStartsAt: null },
-      { scoringFinalizedAt: PAST, qualifyingStartsAt: null },
+      { raceResultsConfirmedAt: PAST, qualifyingStartsAt: null },
+      { raceResultsConfirmedAt: PAST, qualifyingStartsAt: null },
     ]
     expect(computeGpStatuses(gps, NOW)).toEqual(['completed', 'completed'])
   })
 
-  it('premier non-finalisé → prochain', () => {
+  it('premier sans résultats → prochain', () => {
     const gps = [
-      { scoringFinalizedAt: PAST, qualifyingStartsAt: null },
-      { scoringFinalizedAt: null, qualifyingStartsAt: FUTURE_NEAR },
-      { scoringFinalizedAt: null, qualifyingStartsAt: FUTURE_FAR },
+      { raceResultsConfirmedAt: PAST, qualifyingStartsAt: null },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: FUTURE_NEAR },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: FUTURE_FAR },
     ]
     const statuses = computeGpStatuses(gps, NOW)
     expect(statuses[0]).toBe('completed')
@@ -33,8 +33,8 @@ describe('computeGpStatuses', () => {
 
   it('predictable si quali dans le futur (non prochain)', () => {
     const gps = [
-      { scoringFinalizedAt: null, qualifyingStartsAt: FUTURE_NEAR },
-      { scoringFinalizedAt: null, qualifyingStartsAt: FUTURE_FAR },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: FUTURE_NEAR },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: FUTURE_FAR },
     ]
     const statuses = computeGpStatuses(gps, NOW)
     expect(statuses[0]).toBe('prochain')
@@ -43,26 +43,26 @@ describe('computeGpStatuses', () => {
 
   it('upcoming si qualifyingStartsAt est null (pas encore en base)', () => {
     const gps = [
-      { scoringFinalizedAt: null, qualifyingStartsAt: FUTURE_NEAR },
-      { scoringFinalizedAt: null, qualifyingStartsAt: null },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: FUTURE_NEAR },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: null },
     ]
     const statuses = computeGpStatuses(gps, NOW)
     expect(statuses[1]).toBe('upcoming')
   })
 
-  it('upcoming si quali déjà passée mais pas encore finalisé (GP en cours)', () => {
+  it('upcoming si quali déjà passée mais résultats pas encore confirmés (GP en cours)', () => {
     const gps = [
-      { scoringFinalizedAt: null, qualifyingStartsAt: PAST },
-      { scoringFinalizedAt: null, qualifyingStartsAt: FUTURE_FAR },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: PAST },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: FUTURE_FAR },
     ]
     const statuses = computeGpStatuses(gps, NOW)
     expect(statuses[0]).toBe('prochain')
     expect(statuses[1]).toBe('predictable')
   })
 
-  it('aucun GP finalisé → premier est prochain', () => {
+  it('aucun résultat confirmé → premier est prochain', () => {
     const gps = [
-      { scoringFinalizedAt: null, qualifyingStartsAt: FUTURE_NEAR },
+      { raceResultsConfirmedAt: null, qualifyingStartsAt: FUTURE_NEAR },
     ]
     expect(computeGpStatuses(gps, NOW)).toEqual(['prochain'])
   })

@@ -495,6 +495,8 @@ Login Google
 - **Validation pseudo** : 3-20 caractères, lettres/chiffres/underscore uniquement
 - L'avatar est affiché : dans la nav, dans les classements de ligue, dans la révélation des items, dans la comparaison des pronostics
 
+**Header Profil — stat "pts cette saison"** (décision 2026-06-23) : affiche le **score brut** de la saison = somme de `base_score` **dédoublonnée par session** (même logique que la Home, cf. *Card GP précédent*). `base_score` est identique quelle que soit la ligue → on ne le compte qu'une fois par session, sinon un membre multi-ligues verrait ses points multipliés. Le score final/les items (spécifiques à chaque ligue) restent dans la page de ligue.
+
 ### Tab Ligues
 
 **Card de ligue** (une par ligue) :

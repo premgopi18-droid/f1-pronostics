@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { HELMET_IDS, DEFAULT_HELMET } from '@/lib/profile/avatars'
+import { validatePseudo } from '@/lib/profile/pseudo'
 import type { TranslationKey } from '@/lib/i18n'
 
 // `error` est une clé i18n (résolue côté form via `t()`), pas un texte en dur.
@@ -20,8 +21,10 @@ export async function updateProfile(
   const pseudo       = ((formData.get('pseudo') as string | null) ?? '').trim()
   const rawAvatarKey = (formData.get('avatar_key') as string | null) || null
 
-  if (pseudo.length < 2 || pseudo.length > 30) {
-    return { error: 'profile.errorLength' }
+  // Source de vérité unique des règles pseudo (spec §7), partagée avec l'onboarding.
+  const formatError = validatePseudo(pseudo)
+  if (formatError) {
+    return { error: formatError === 'chars' ? 'profile.errorChars' : 'profile.errorLength' }
   }
 
   // `null` = aucun avatar choisi (conservé). Une clé inconnue (ancien emoji, valeur

@@ -319,7 +319,8 @@ export const fr = {
     saving: "Enregistrement…",
     savedOk: "Profil mis à jour !",
     errorAuth: "Non authentifié",
-    errorLength: "Le pseudo doit faire entre 2 et 30 caractères",
+    errorLength: "Le pseudo doit faire entre 3 et 20 caractères",
+    errorChars: "Lettres, chiffres et underscore uniquement",
     errorTaken: "Ce pseudo est déjà utilisé",
     errorGeneric: "Erreur lors de la mise à jour",
     // Sous-page edit avatar

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { updateProfile, deleteAccount, type ProfileActionState } from '@/app/actions/profile'
+import { PSEUDO_MIN_LENGTH, PSEUDO_MAX_LENGTH, PSEUDO_PATTERN } from '@/lib/profile/pseudo'
 import { t } from '@/lib/i18n'
 
 const initialState: ProfileActionState = {}
@@ -33,8 +34,10 @@ export function EditPseudoForm({
             name="pseudo"
             type="text"
             defaultValue={pseudo}
-            minLength={2}
-            maxLength={30}
+            minLength={PSEUDO_MIN_LENGTH}
+            maxLength={PSEUDO_MAX_LENGTH}
+            pattern={PSEUDO_PATTERN.source}
+            title={t('profile.errorChars')}
             required
             autoComplete="nickname"
             className="rounded-xl bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"

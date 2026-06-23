@@ -495,6 +495,8 @@ Login Google
 - **Validation pseudo** : 3-20 caractères, lettres/chiffres/underscore uniquement
 - L'avatar est affiché : dans la nav, dans les classements de ligue, dans la révélation des items, dans la comparaison des pronostics
 
+**Header Profil — stat "pts cette saison"** (décision 2026-06-23) : affiche le **score brut** de la saison = somme de `base_score` **dédoublonnée par session** (même logique que la Home, cf. *Card GP précédent*). `base_score` est identique quelle que soit la ligue → on ne le compte qu'une fois par session, sinon un membre multi-ligues verrait ses points multipliés. Le score final/les items (spécifiques à chaque ligue) restent dans la page de ligue.
+
 ### Tab Ligues
 
 **Card de ligue** (une par ligue) :
@@ -782,7 +784,8 @@ Segmented control en haut (3 vues) :
 **Niveau WCAG cible** :
 - Mode normal : WCAG AA
 - Mode accessibilité : WCAG AAA
-- `prefers-reduced-motion` (préférence système) : appliqué automatiquement via CSS — pas de toggle nécessaire
+- `prefers-reduced-motion` (préférence système) : appliqué automatiquement via CSS (`@media`) — pas de toggle nécessaire
+- **Implémentation** (décision 2026-06-23) : le toggle manuel pose une classe `.reduce-motion` sur `<html>` (persistée en `localStorage`, réappliquée avant le 1er paint par un script anti-FOUC dans le layout). L'override est **additif** : il peut activer la réduction quand l'OS ne la demande pas, mais ne peut pas désactiver le `prefers-reduced-motion` système (toujours respecté). Source unique : `lib/hooks/use-prefers-reduced-motion.ts` (`resolveReducedMotion`), partagée par le hook JS, le toggle profil et le script de boot.
 
 **Mode accessibilité** — toggle disponible dans :
 - Page Profil → section "Accessibilité"

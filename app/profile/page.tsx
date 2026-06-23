@@ -1,39 +1,74 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
-import { ProfileForm } from './profile-form'
+import { getCurrentSeason } from '@/lib/api/cron'
+import { t } from '@/lib/i18n'
+import { UserAvatar } from '@/app/components/user-avatar'
+import { ProfileSettings } from './profile-settings'
+import { signOut } from '@/app/actions/auth'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
   const userId   = (await headers()).get('x-user-id')!
+  const season   = getCurrentSeason()
 
-  // getSession() lit depuis le cookie (0 appel réseau) — suffit pour l'email affiché
-  const [{ data: profile }, { data: { session } }] = await Promise.all([
+  const [
+    { data: profile },
+    { data: leagueMemberships },
+    { data: scores },
+  ] = await Promise.all([
     supabase.from('profiles').select('pseudo, avatar_key').eq('id', userId).single(),
-    supabase.auth.getSession(),
+    supabase.from('league_members').select('league_id').eq('user_id', userId).eq('season', season),
+    supabase.from('scores').select('session_id, base_score').eq('user_id', userId).eq('season', season),
   ])
 
   if (!profile) notFound()
 
+  const leagueCount = leagueMemberships?.length ?? 0
+
+  // Points bruts de la saison, indépendants de la ligue : `base_score` est identique
+  // pour une session donnée quelle que soit la ligue (seul `final_score` varie selon
+  // les items joués, par ligue). On dédoublonne par session pour ne pas multiplier les
+  // points par le nombre de ligues du membre.
+  const pointsBySession = new Map(
+    (scores ?? []).map((row) => [row.session_id as string, (row.base_score as number | null) ?? 0]),
+  )
+  const seasonPoints = [...pointsBySession.values()].reduce((sum, points) => sum + points, 0)
+
+  const leagueLabel =
+    leagueCount <= 1 ? t('profile.statsLeague') : t('profile.statsLeaguePlural')
+
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8">
-      <div className="max-w-sm mx-auto flex flex-col gap-8">
-
-        <div className="flex flex-col gap-1">
-          <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-            ← Accueil
-          </Link>
-          <h1 className="text-2xl font-bold text-white">Mon profil</h1>
-        </div>
-
-        <ProfileForm
-          pseudo={profile.pseudo as string}
+    <main className="flex flex-1 flex-col pb-6 px-page pt-8">
+      {/* Header avatar + stats */}
+      <div className="mb-8 flex flex-col items-center gap-3">
+        <UserAvatar
           avatarKey={profile.avatar_key as string | null}
-          email={session?.user?.email ?? ''}
+          size={80}
+          label={profile.pseudo as string}
         />
-
+        <div className="flex flex-col items-center gap-1">
+          <p className="font-display text-2xl font-bold text-foreground">
+            {profile.pseudo as string}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {leagueCount} {leagueLabel} · {seasonPoints} {t('profile.statsPts')}
+          </p>
+        </div>
       </div>
+
+      {/* Settings rows */}
+      <ProfileSettings />
+
+      {/* Déconnexion */}
+      <form action={signOut} className="mt-6">
+        <button
+          type="submit"
+          className="w-full rounded-2xl bg-card py-3.5 text-center text-sm font-semibold text-destructive transition-colors hover:bg-card/80 active:scale-[0.98]"
+        >
+          {t('profile.signOut')}
+        </button>
+      </form>
     </main>
   )
 }

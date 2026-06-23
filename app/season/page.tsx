@@ -9,7 +9,20 @@ import {
   getSeasonDeadlines,
   getSeasonItems,
 } from '@/lib/data/season-predictions'
+import { getCachedDriverStandings, getCachedConstructorStandings } from '@/lib/data/season'
+import { t } from '@/lib/i18n'
 import { SeasonFormLoader } from './season-form-loader'
+import { SeasonComparison } from './season-comparison'
+
+const PARIS_TZ = 'Europe/Paris'
+
+function formatDeadline(d: Date): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: PARIS_TZ,
+  }).format(d)
+}
 
 export default async function SeasonPage() {
   const supabase = await createClient()
@@ -25,6 +38,8 @@ export default async function SeasonPage() {
     wccEntries,
     deadlines,
     seasonItems,
+    driverStandings,
+    constructorStandings,
   ] = await Promise.all([
     getCachedDrivers(season),
     getCachedConstructors(season),
@@ -32,53 +47,74 @@ export default async function SeasonPage() {
     getSeasonPrediction(userId, season, 'wcc'),
     getSeasonDeadlines(season),
     getSeasonItems(userId, season),
+    getCachedDriverStandings(season),
+    getCachedConstructorStandings(season),
   ])
 
   const now = new Date()
   const isSubmissionOpen = !deadlines.submissionDeadline || now < deadlines.submissionDeadline
   const isItemsOpen      = !deadlines.itemDeadline       || now < deadlines.itemDeadline
 
-  const driverList = driversRaw.map((d) => ({
-    code:      d.code as string,
-    firstName: d.first_name as string,
-    lastName:  d.last_name as string,
-  }))
-
-  const constructorList = constructorsRaw.map((c) => ({
-    code: c.code as string,
-    name: c.name as string,
-  }))
-
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8">
-      <div className="max-w-lg mx-auto flex flex-col gap-8">
-
-        <div className="flex flex-col gap-1">
-          <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-            ← Accueil
-          </Link>
-          <h1 className="text-2xl font-bold text-white">Pronostics saison</h1>
-          {deadlines.submissionDeadline && (
-            <p className={`text-sm mt-1 ${isSubmissionOpen ? 'text-zinc-400' : 'text-red-400'}`}>
-              {isSubmissionOpen
-                ? `Deadline : ${deadlines.submissionDeadline.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}`
-                : 'Pronostics verrouillés depuis le 1er GP'
-              }
-            </p>
-          )}
-        </div>
-
-        <SeasonFormLoader
-          drivers={driverList}
-          constructors={constructorList}
-          initialWdc={wdcEntries}
-          initialWcc={wccEntries}
-          isSubmissionOpen={isSubmissionOpen}
-          isItemsOpen={isItemsOpen}
-          seasonItems={seasonItems}
-        />
-
+    <main className="flex flex-1 flex-col pb-6 pt-6">
+      {/* Header */}
+      <div className="px-page mb-5 flex flex-col gap-1">
+        <Link
+          href="/"
+          className="text-sm font-semibold text-text-secondary hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+        >
+          ← {t('season.back')}
+        </Link>
+        <h1 className="font-display text-2xl font-bold text-foreground">
+          WDC / WCC — Pronostics saison
+        </h1>
+        {deadlines.submissionDeadline && (
+          <p className={`text-sm ${isSubmissionOpen ? 'text-text-secondary' : 'text-primary font-semibold'}`}>
+            {isSubmissionOpen
+              ? `${t('season.deadlinePrefix')} ${formatDeadline(deadlines.submissionDeadline)}`
+              : t('season.lockedSince')
+            }
+          </p>
+        )}
       </div>
+
+      {isSubmissionOpen ? (
+        // ── Prédictions ouvertes : formulaire drag-to-rank ──────────────────
+        (() => {
+          const driverList = driversRaw.map((d) => ({
+            code:      d.code as string,
+            firstName: d.first_name as string,
+            lastName:  d.last_name as string,
+          }))
+          const constructorList = constructorsRaw.map((c) => ({
+            code: c.code as string,
+            name: c.name as string,
+          }))
+          return (
+            <div className="px-page">
+              <SeasonFormLoader
+                drivers={driverList}
+                constructors={constructorList}
+                initialWdc={wdcEntries}
+                initialWcc={wccEntries}
+                isSubmissionOpen={isSubmissionOpen}
+                isItemsOpen={isItemsOpen}
+                seasonItems={seasonItems}
+              />
+            </div>
+          )
+        })()
+      ) : (
+        // ── Prédictions verrouillées : vue comparaison ───────────────────────
+        <SeasonComparison
+          userWdc={wdcEntries}
+          userWcc={wccEntries}
+          driverStandings={driverStandings}
+          constructorStandings={constructorStandings}
+          seasonItems={seasonItems}
+          isItemsOpen={isItemsOpen}
+        />
+      )}
     </main>
   )
 }

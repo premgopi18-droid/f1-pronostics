@@ -1,5 +1,6 @@
 import { getCurrentSeason } from '@/lib/api/cron'
 import { getSeasonCalendar } from '@/lib/data/results'
+import { getCachedDriverStandings, getCachedConstructorStandings } from '@/lib/data/season'
 import { t } from '@/lib/i18n'
 import { ResultsTabs, type CalendarGpView } from './results-tabs'
 
@@ -24,7 +25,11 @@ function formatDate(iso: string): string {
 
 export default async function ResultsPage() {
   const season = getCurrentSeason()
-  const calendar = await getSeasonCalendar(season)
+  const [calendar, driverStandings, constructorStandings] = await Promise.all([
+    getSeasonCalendar(season),
+    getCachedDriverStandings(season),
+    getCachedConstructorStandings(season),
+  ])
   const nowMs = Date.now()
 
   const gps: CalendarGpView[] = calendar.map((gp) => ({
@@ -46,7 +51,11 @@ export default async function ResultsPage() {
       <h1 className="px-page pb-4 font-display text-2xl font-bold text-foreground">
         {t('results.seasonTitle')} {season}
       </h1>
-      <ResultsTabs gps={gps} />
+      <ResultsTabs
+        gps={gps}
+        driverStandings={driverStandings}
+        constructorStandings={constructorStandings}
+      />
     </main>
   )
 }

@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Card, CardTitle } from '@/app/ui/card'
 import { t } from '@/lib/i18n'
+import { TEAM_COLORS, DEFAULT_TEAM_COLOR } from '@/lib/f1/team-colors'
+import type { DriverStanding, ConstructorStanding } from '@/lib/data/season'
 
 type Tab = 'calendar' | 'drivers' | 'teams'
 type GpStatus = 'completed' | 'prochain' | 'predictable' | 'upcoming'
@@ -29,10 +31,12 @@ const TABS: { id: Tab; label: () => string }[] = [
 ]
 
 interface Props {
-  gps: CalendarGpView[]
+  gps:                  CalendarGpView[]
+  driverStandings:      DriverStanding[]
+  constructorStandings: ConstructorStanding[]
 }
 
-export function ResultsTabs({ gps }: Props) {
+export function ResultsTabs({ gps, driverStandings, constructorStandings }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('calendar')
 
   const prochain = gps.find((gp) => gp.status === 'prochain') ?? null
@@ -170,27 +174,57 @@ export function ResultsTabs({ gps }: Props) {
         </div>
       )}
 
-      {/* Pilotes placeholder */}
+      {/* WDC Pilotes */}
       {activeTab === 'drivers' && (
         <div
           role="tabpanel"
           id="results-tabpanel-drivers"
           aria-labelledby="results-tab-drivers"
-          className="flex flex-1 items-center justify-center px-page"
+          className="flex flex-1 flex-col gap-3 px-page"
         >
-          <p className="text-sm text-text-secondary">{t('common.comingSoon')}</p>
+          {driverStandings.length === 0 ? (
+            <p className="text-sm text-text-secondary">{t('season.standingsNone')}</p>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              {driverStandings.map((driver, i) => (
+                <StandingRow
+                  key={driver.code}
+                  position={driver.position}
+                  name={driver.name}
+                  points={driver.points}
+                  color={TEAM_COLORS[driver.constructorCode] ?? DEFAULT_TEAM_COLOR}
+                  isLast={i === driverStandings.length - 1}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Écuries placeholder */}
+      {/* WCC Écuries */}
       {activeTab === 'teams' && (
         <div
           role="tabpanel"
           id="results-tabpanel-teams"
           aria-labelledby="results-tab-teams"
-          className="flex flex-1 items-center justify-center px-page"
+          className="flex flex-1 flex-col gap-3 px-page"
         >
-          <p className="text-sm text-text-secondary">{t('common.comingSoon')}</p>
+          {constructorStandings.length === 0 ? (
+            <p className="text-sm text-text-secondary">{t('season.standingsNone')}</p>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              {constructorStandings.map((team, i) => (
+                <StandingRow
+                  key={team.code}
+                  position={team.position}
+                  name={team.name}
+                  points={team.points}
+                  color={TEAM_COLORS[team.code] ?? DEFAULT_TEAM_COLOR}
+                  isLast={i === constructorStandings.length - 1}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -202,5 +236,41 @@ function CountryBadge({ code }: { code: string }) {
     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-2xs font-bold text-text-secondary">
       {code}
     </span>
+  )
+}
+
+function StandingRow({
+  position,
+  name,
+  points,
+  color,
+  isLast,
+}: {
+  position: number
+  name:     string
+  points:   number
+  color:    string
+  isLast:   boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 px-4 py-3.5',
+        !isLast && 'border-b border-border',
+      )}
+    >
+      <span className="w-6 shrink-0 text-center text-sm font-bold tabular-nums text-text-secondary">
+        {position}
+      </span>
+      <span
+        className="h-4 w-0.5 shrink-0 rounded-full"
+        style={{ backgroundColor: color }}
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{name}</span>
+      <span className="shrink-0 text-sm font-bold tabular-nums text-primary">
+        {points} {t('season.standingsPts')}
+      </span>
+    </div>
   )
 }

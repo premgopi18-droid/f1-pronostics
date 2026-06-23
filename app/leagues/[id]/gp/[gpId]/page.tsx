@@ -250,14 +250,23 @@ export default async function GPScoresPage({
           </div>
         </div>
 
-        {/* Lien items */}
-        <Link
-          href={`/leagues/${leagueId}/gp/${gpId}/items`}
-          className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
-        >
-          <span className="text-white text-sm font-medium">🎮 Jouer un item</span>
-          <span className="text-zinc-600 text-xs">→</span>
-        </Link>
+        {/* Liens actions */}
+        <div className="flex flex-col gap-2">
+          <Link
+            href={`/leagues/${leagueId}/gp/${gpId}/items`}
+            className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
+          >
+            <span className="text-white text-sm font-medium">🎮 Jouer un item</span>
+            <span className="text-zinc-600 text-xs">→</span>
+          </Link>
+          <Link
+            href={`/leagues/${leagueId}/gp/${gpId}/compare`}
+            className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
+          >
+            <span className="text-white text-sm font-medium">👀 Pronos comparés</span>
+            <span className="text-zinc-600 text-xs">→</span>
+          </Link>
+        </div>
 
         {/* Aucun score */}
         {!hasScores && (

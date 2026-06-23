@@ -34,13 +34,15 @@ retoucher.
 
 ---
 
-### Étape 2 — Stocker la clé API en local (jamais dans le repo)
+### Étape 2 — Stocker les variables en local (jamais dans le repo)
 
 Le fichier `.env.local` est déjà ignoré par git (`.gitignore` contient `.env*`).
-Ajoute-y la ligne suivante :
+Ajoute-y les trois variables requises (le script échoue si l'une manque) :
 
 ```
 CRONJOB_API_KEY=ta-clé-ici
+CRON_SECRET=ton-cron-secret-vercel
+SITE_URL=https://boxbox-silk.vercel.app
 ```
 
 > **Règle absolue : ne jamais coller la clé API dans un fichier versionné

@@ -6,7 +6,8 @@
  *   CRONJOB_API_KEY=xxx CRON_SECRET=yyy SITE_URL=https://boxbox-silk.vercel.app \
  *   node scripts/setup-cronjobs.mjs
  *
- * Variables d'environnement (ou depuis .env.local si dotenv installé) :
+ * Variables d'environnement (à exporter dans l'environnement avant de lancer —
+ * le script ne charge pas .env.local lui-même ; voir README pour le charger) :
  *   CRONJOB_API_KEY   — API key cron-job.org (Settings → API)
  *   CRON_SECRET       — même valeur que dans Vercel env vars
  *   SITE_URL          — URL de production (sans slash final)
@@ -15,10 +16,11 @@
 const API = 'https://api.cron-job.org'
 const KEY  = process.env.CRONJOB_API_KEY
 const SECRET = process.env.CRON_SECRET
-const SITE = (process.env.SITE_URL ?? 'https://boxbox-silk.vercel.app').replace(/\/$/, '')
+const SITE = (process.env.SITE_URL ?? '').replace(/\/$/, '')
 
 if (!KEY)    { console.error('❌  CRONJOB_API_KEY manquant'); process.exit(1) }
 if (!SECRET) { console.error('❌  CRON_SECRET manquant');     process.exit(1) }
+if (!SITE)   { console.error('❌  SITE_URL manquant');        process.exit(1) }
 
 const headers = {
   'Content-Type': 'application/json',
@@ -75,7 +77,7 @@ async function upsertJob(def, existing) {
     title:          def.title,
     saveResponses:  true,
     requestMethod:  0, // GET
-    requestTimeout: 60,
+    requestTimeout: 30, // plafond du plan gratuit cron-job.org ; scoring idempotent → re-run horaire rattrape un dépassement
     schedule:       schedule(def.minuteMark),
     requestHeaders: [{ name: 'x-cron-secret', value: SECRET }],
     auth:           { enable: false },

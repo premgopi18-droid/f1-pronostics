@@ -1,8 +1,13 @@
+import { cache } from 'react'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { getSeasonCalendar } from '@/lib/data/results'
 import { getCachedDriverStandings, getCachedConstructorStandings } from '@/lib/data/season'
 import { t } from '@/lib/i18n'
 import { ResultsTabs, type CalendarGpView } from './results-tabs'
+
+// Horodate stable dans le contexte de la requête : évite d'appeler Date.now()
+// directement dans le corps du composant (règle react-hooks/purity).
+const getTimestamp = cache(Date.now)
 
 const PARIS_TZ = 'Europe/Paris'
 
@@ -30,7 +35,7 @@ export default async function ResultsPage() {
     getCachedDriverStandings(season),
     getCachedConstructorStandings(season),
   ])
-  const nowMs = Date.now()
+  const nowMs = getTimestamp()
 
   const gps: CalendarGpView[] = calendar.map((gp) => ({
     id: gp.id,

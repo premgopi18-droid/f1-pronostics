@@ -13,14 +13,14 @@ const TICK_MS = 30_000;
  */
 export function Countdown({ targetIso }: { targetIso: string }) {
   const target = new Date(targetIso).getTime();
-  const [, setTick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), TICK_MS);
+    const id = setInterval(() => setNow(Date.now()), TICK_MS);
     return () => clearInterval(id);
   }, []);
 
-  const { days, hours, mins } = remaining(target, Date.now());
+  const { days, hours, mins } = remaining(target, now);
   const cells: ReadonlyArray<readonly [number, string]> = [
     [days, t("home.countdownDays")],
     [hours, t("home.countdownHours")],

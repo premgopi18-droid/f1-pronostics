@@ -325,7 +325,6 @@ export const fr = {
     noCurrentGp:      "Aucun Grand Prix à venir pour le moment.",
     // Section historique
     historyTitle:     "Historique",
-    viewRecap:        "Voir mon récap →",
     rawScore:         "Score brut",
     noHistory:        "Aucun historique pour l'instant — ton premier GP arrive bientôt",
   },

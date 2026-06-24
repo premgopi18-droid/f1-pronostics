@@ -41,23 +41,25 @@ export default async function PredictionsPage() {
   const season = getCurrentSeason()
   const now = new Date()
 
-  const [wdcEntries, wccEntries, seasonItems, deadlines, calendar] = await Promise.all([
-    getSeasonPrediction(userId, season, 'wdc'),
-    getSeasonPrediction(userId, season, 'wcc'),
-    getSeasonItems(userId, season),
-    getSeasonDeadlines(season, userId),
-    getSeasonCalendar(season),
-  ])
+  const [wdcEntries, wccEntries, seasonItems, deadlines, calendar, historyScores] =
+    await Promise.all([
+      getSeasonPrediction(userId, season, 'wdc'),
+      getSeasonPrediction(userId, season, 'wcc'),
+      getSeasonItems(userId, season),
+      getSeasonDeadlines(season, userId),
+      getSeasonCalendar(season),
+      getGpHistoryScores(userId, season),
+    ])
 
   const isSeasonLocked = !!(deadlines.submissionDeadline && now >= deadlines.submissionDeadline)
 
   const currentGp = calendar.find((gp) => gp.status === 'prochain') ?? null
   const completedGps = calendar.filter((gp) => gp.status === 'completed').reverse()
 
-  const [currentGpSessions, historyScores] = await Promise.all([
-    currentGp ? getCurrentGpSessionStatuses(userId, currentGp.id) : Promise.resolve([]),
-    getGpHistoryScores(userId, season),
-  ])
+  // Seule requête dépendante du calendrier (besoin de currentGp.id) → après la phase parallèle.
+  const currentGpSessions = currentGp
+    ? await getCurrentGpSessionStatuses(userId, currentGp.id)
+    : []
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-page pb-6 pt-6">

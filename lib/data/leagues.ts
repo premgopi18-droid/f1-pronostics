@@ -207,8 +207,14 @@ export async function joinLeagueByCode(
     .from('league_members')
     .insert({ league_id: league.id, user_id: userId, season, is_admin: false })
 
-  // Le trigger DB vérifie max_members — on mappe sur le code 'full'
-  if (memberError) throw new LeagueDataError('full')
+  if (memberError) {
+    console.error('joinLeagueByCode — insert league_members échoué', memberError)
+    // 23505 : course avec le check `existing` ci-dessus → déjà membre.
+    if (memberError.code === '23505') throw new LeagueDataError('already_member')
+    // P0001 : le trigger `enforce_max_members` (seul `raise` sur INSERT) → ligue pleine.
+    if (memberError.code === 'P0001') throw new LeagueDataError('full')
+    throw new LeagueDataError('generic')
+  }
 
   await initUserItems(userId, league.id as string, season)
 

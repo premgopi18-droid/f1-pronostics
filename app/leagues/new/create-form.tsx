@@ -2,7 +2,7 @@
 
 import { useState, useActionState } from 'react'
 import { createLeagueAction } from '@/app/actions/leagues'
-import { t, type TranslationKey } from '@/lib/i18n'
+import { t } from '@/lib/i18n'
 import { Button } from '@/app/ui/button'
 
 const MIN_MEMBERS = 2
@@ -17,7 +17,7 @@ export function CreateLeagueForm() {
     <form action={action} className="flex flex-col gap-6">
       {state?.errorCode && (
         <p role="alert" className="rounded-xl bg-destructive-soft px-4 py-3 text-sm text-destructive">
-          {t(`createLeague.error.${state.errorCode}` as TranslationKey)}
+          {t(`createLeague.error.${state.errorCode}`)}
         </p>
       )}
 

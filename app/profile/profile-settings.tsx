@@ -1,27 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Pencil, Palette, Paintbrush, Bell, Accessibility } from 'lucide-react'
 import {
-  resolveReducedMotion,
+  usePrefersReducedMotion,
   setReduceMotionOverride,
 } from '@/lib/hooks/use-prefers-reduced-motion'
 import { t } from '@/lib/i18n'
 
 export function ProfileSettings() {
-  const [reducedMotion, setReducedMotion] = useState(false)
-
-  // Reflète l'état effectif (override ou préférence système) pour que le switch
-  // corresponde à ce que l'utilisateur voit réellement.
-  useEffect(() => {
-    setReducedMotion(resolveReducedMotion())
-  }, [])
+  // usePrefersReducedMotion se souscrit aux changements système et à l'override utilisateur.
+  const reducedMotion = usePrefersReducedMotion()
 
   function toggleAccessibility() {
-    const next = !reducedMotion
-    setReducedMotion(next)
-    setReduceMotionOverride(next)
+    setReduceMotionOverride(!reducedMotion)
   }
 
   return (

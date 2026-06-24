@@ -32,35 +32,41 @@ export function OnboardingWizard() {
   const [step, setStep] = useState<1 | 2>(1);
   const [pseudo, setPseudo] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<Availability>({ status: "idle" });
+  const [rawAvailability, setRawAvailability] = useState<Availability>({ status: "idle" });
   const [state, formAction, isSubmitting] = useActionState(completeOnboarding, {});
+
+  // Quand le pseudo est vide, l'état est idle par dérivation (pas de setState dans l'effet).
+  const availability: Availability = pseudo.trim() === "" ? { status: "idle" } : rawAvailability;
 
   // Disponibilité du pseudo, débouncée. Un compteur ignore les réponses périmées.
   const requestId = useRef(0);
   useEffect(() => {
     const value = pseudo.trim();
     const id = ++requestId.current;
-    if (!value) {
-      setAvailability({ status: "idle" });
-      return;
-    }
-    setAvailability({ status: "checking" });
-    const timer = setTimeout(async () => {
+    if (!value) return;
+    async function run() {
+      setRawAvailability({ status: "checking" });
+      await new Promise<void>((resolve) => setTimeout(resolve, CHECK_DEBOUNCE_MS));
+      if (id !== requestId.current) return; // réponse périmée
       const result = await checkPseudoAvailability(value);
       if (id !== requestId.current) return; // réponse périmée
-      setAvailability(result.ok ? { status: "ok" } : { status: "error", error: result.error! });
-    }, CHECK_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
+      setRawAvailability(result.ok ? { status: "ok" } : { status: "error", error: result.error! });
+    }
+    void run();
+    return () => { requestId.current++; };
   }, [pseudo]);
 
   // Si le pseudo a été pris entre l'étape 1 et la soumission (race tranchée par la
   // contrainte UNIQUE), ramener l'utilisateur au champ pseudo avec l'erreur affichée.
-  useEffect(() => {
+  // Pattern setState-pendant-le-render : React annule le render en cours et redémarre.
+  const [prevState, setPrevState] = useState(state);
+  if (prevState !== state) {
+    setPrevState(state);
     if (state.error === "taken") {
       setStep(1);
-      setAvailability({ status: "error", error: "taken" });
+      setRawAvailability({ status: "error", error: "taken" });
     }
-  }, [state]);
+  }
 
   const canContinue = availability.status === "ok";
 

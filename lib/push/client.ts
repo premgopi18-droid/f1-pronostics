@@ -25,18 +25,20 @@ export function usePushSubscription() {
   const [pending, setPending] = useState(false)
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setStatus('unsupported')
-      return
-    }
-    if (Notification.permission === 'denied') {
-      setStatus('denied')
-      return
-    }
-    navigator.serviceWorker.ready.then(async (reg) => {
+    async function init() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setStatus('unsupported')
+        return
+      }
+      if (Notification.permission === 'denied') {
+        setStatus('denied')
+        return
+      }
+      const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       setStatus(sub ? 'subscribed' : 'idle')
-    })
+    }
+    void init()
   }, [])
 
   async function subscribe() {

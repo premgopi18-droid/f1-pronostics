@@ -20,6 +20,13 @@ export function useTapSelect(
   // (ex. suppression via × dans QualifsForm), on le considère désélectionné.
   const activeCode = selectedCode !== null && items.includes(selectedCode) ? selectedCode : null
 
+  // Normalise le state pendant le render pour ne pas conserver de sélection fantôme :
+  // si l'élément disparaît puis réapparaît (retiré via × puis ré-ajouté), il ne doit
+  // pas redevenir sélectionné tout seul — sinon le tap suivant serait perdu.
+  if (selectedCode !== activeCode) {
+    setSelectedCode(activeCode)
+  }
+
   const onRowTap = (code: string) => {
     if (activeCode === null) {
       setSelectedCode(code)

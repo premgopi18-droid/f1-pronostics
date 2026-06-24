@@ -26,6 +26,7 @@ import { buildRaceOrder } from '@/lib/predictions/helpers'
 import { t } from '@/lib/i18n'
 import { Badge } from '@/app/ui/badge'
 import { Button } from '@/app/ui/button'
+import { BottomSheet } from '@/app/ui/bottom-sheet'
 import { cn } from '@/lib/utils'
 import type { SessionType } from '@/lib/scoring/types'
 
@@ -151,9 +152,10 @@ function RaceForm({
 }) {
   const allCodes = drivers.map((d) => d.code)
 
-  const [selected,   setSelected]   = useState<string[]>(() => buildRaceOrder(existingEntries, allCodes))
-  const [fastestLap, setFastestLap] = useState(existingFastestLap ?? '')
-  const [message,    setMessage]    = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [selected,           setSelected]           = useState<string[]>(() => buildRaceOrder(existingEntries, allCodes))
+  const [fastestLap,         setFastestLap]         = useState(existingFastestLap ?? '')
+  const [fastestLapSheetOpen, setFastestLapSheetOpen] = useState(false)
+  const [message,            setMessage]            = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending,  startTransition] = useTransition()
   const reducedMotion = usePrefersReducedMotion()
 
@@ -243,19 +245,51 @@ function RaceForm({
           <p className="text-sm font-semibold text-foreground">{t('predict.fastestLap')} 🏎</p>
           <span className="text-xs text-text-secondary">{t('predict.fastestLapMeta')}</span>
         </div>
-        <select
-          value={fastestLap}
-          onChange={(e) => setFastestLap(e.target.value)}
-          aria-label={t('predict.fastestLap')}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        <button
+          type="button"
+          onClick={() => setFastestLapSheetOpen(true)}
+          className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5 text-sm transition-colors hover:bg-secondary/40"
         >
-          <option value="">{t('predict.choosePilot')} →</option>
-          {drivers.map((d) => (
-            <option key={d.id} value={d.code}>
-              {d.code} · {d.firstName} {d.lastName}
-            </option>
-          ))}
-        </select>
+          {fastestLap ? (
+            <span className="font-mono font-semibold text-primary">{fastestLap}</span>
+          ) : (
+            <span className="text-text-secondary">{t('predict.choosePilot')} →</span>
+          )}
+          <span className="text-text-secondary">›</span>
+        </button>
+        <BottomSheet
+          open={fastestLapSheetOpen}
+          onClose={() => setFastestLapSheetOpen(false)}
+          title={t('predict.fastestLap')}
+        >
+          <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
+            {fastestLap && (
+              <button
+                type="button"
+                onClick={() => { setFastestLap(''); setFastestLapSheetOpen(false) }}
+                className="rounded-xl px-4 py-3 text-left text-sm text-text-secondary transition-colors hover:bg-secondary/40"
+              >
+                — Aucun
+              </button>
+            )}
+            {drivers.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => { setFastestLap(d.code); setFastestLapSheetOpen(false) }}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm transition-colors',
+                  fastestLap === d.code
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-foreground hover:bg-secondary/40',
+                )}
+              >
+                <span className="w-8 shrink-0 font-mono font-semibold">{d.code}</span>
+                <span>{d.firstName} {d.lastName}</span>
+              </button>
+            ))}
+          </div>
+        </BottomSheet>
       </div>
 
       {/* Feedback */}

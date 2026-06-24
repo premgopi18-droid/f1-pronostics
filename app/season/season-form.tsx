@@ -22,6 +22,7 @@ import {
   submitSeasonPredictionAction,
   applySeasonItemAction,
 } from '@/app/actions/season-predictions'
+import { BottomSheet } from '@/app/ui/bottom-sheet'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -180,9 +181,11 @@ function RankingPanel({
 }) {
   const [message, setMessage]       = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [itemFrom, setItemFrom]     = useState<number>(1)
-  const [itemTo,   setItemTo]       = useState<number>(2)
-  const [showItem, setShowItem]     = useState(false)
+  const [itemFrom,       setItemFrom]       = useState<number>(1)
+  const [itemTo,         setItemTo]         = useState<number>(2)
+  const [fromSheetOpen,  setFromSheetOpen]  = useState(false)
+  const [toSheetOpen,    setToSheetOpen]    = useState(false)
+  const [showItem,       setShowItem]       = useState(false)
   // Suit si une prédiction a été soumise au moins une fois dans cette session
   const [savedOnce, setSavedOnce]   = useState(hasSaved)
   // Stock d'item suivi côté client pour refléter immédiatement une utilisation
@@ -307,34 +310,75 @@ function RankingPanel({
               <div className="flex gap-3">
                 <div className="flex flex-col gap-1 flex-1">
                   <label className="text-xs text-zinc-400">Depuis la position</label>
-                  <select
-                    value={itemFrom}
-                    onChange={(e) => {
-                      const next = Number(e.target.value)
-                      setItemFrom(next)
-                      // Garde `itemTo` valide : il ne doit jamais égaler `itemFrom`
-                      // (sinon valeur orpheline, le select « Vers » filtre `itemFrom`).
-                      if (itemTo === next) setItemTo(next === 1 ? 2 : 1)
-                    }}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-zinc-500"
+                  <button
+                    type="button"
+                    onClick={() => setFromSheetOpen(true)}
+                    className="flex items-center justify-between rounded-xl bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800 cursor-pointer text-white"
                   >
-                    {entries.slice(0, predictionCount).map((code, i) => (
-                      <option key={code} value={i + 1}>P{i + 1} — {labels.get(code) ?? code}</option>
-                    ))}
-                  </select>
+                    <span className="font-mono">P{itemFrom} · {labels.get(entries[itemFrom - 1]) ?? entries[itemFrom - 1]}</span>
+                    <span className="text-zinc-500">›</span>
+                  </button>
+                  <BottomSheet open={fromSheetOpen} onClose={() => setFromSheetOpen(false)} title="Depuis la position">
+                    <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
+                      {entries.slice(0, predictionCount).map((code, i) => {
+                        const pos = i + 1
+                        return (
+                          <button
+                            key={code}
+                            type="button"
+                            onClick={() => {
+                              setItemFrom(pos)
+                              // Garde `itemTo` valide : il ne doit jamais égaler `itemFrom`
+                              if (itemTo === pos) setItemTo(pos === 1 ? 2 : 1)
+                              setFromSheetOpen(false)
+                            }}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-left transition-colors cursor-pointer ${
+                              itemFrom === pos
+                                ? 'bg-red-600 text-white'
+                                : 'bg-zinc-800 hover:bg-zinc-700 text-white'
+                            }`}
+                          >
+                            <span className="font-mono text-xs w-6 shrink-0">P{pos}</span>
+                            <span className="truncate">{labels.get(code) ?? code}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </BottomSheet>
                 </div>
                 <div className="flex flex-col gap-1 flex-1">
                   <label className="text-xs text-zinc-400">Vers la position</label>
-                  <select
-                    value={itemTo}
-                    onChange={(e) => setItemTo(Number(e.target.value))}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-zinc-500"
+                  <button
+                    type="button"
+                    onClick={() => setToSheetOpen(true)}
+                    className="flex items-center justify-between rounded-xl bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800 cursor-pointer text-white"
                   >
-                    {entries.slice(0, predictionCount).filter((_, i) => i + 1 !== itemFrom).map((code, i) => {
-                      const pos = i >= itemFrom - 1 ? i + 2 : i + 1
-                      return <option key={code} value={pos}>P{pos} — {labels.get(code) ?? code}</option>
-                    })}
-                  </select>
+                    <span className="font-mono">P{itemTo} · {labels.get(entries[itemTo - 1]) ?? entries[itemTo - 1]}</span>
+                    <span className="text-zinc-500">›</span>
+                  </button>
+                  <BottomSheet open={toSheetOpen} onClose={() => setToSheetOpen(false)} title="Vers la position">
+                    <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
+                      {entries.slice(0, predictionCount).map((code, i) => {
+                        const pos = i + 1
+                        if (pos === itemFrom) return null
+                        return (
+                          <button
+                            key={code}
+                            type="button"
+                            onClick={() => { setItemTo(pos); setToSheetOpen(false) }}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-left transition-colors cursor-pointer ${
+                              itemTo === pos
+                                ? 'bg-red-600 text-white'
+                                : 'bg-zinc-800 hover:bg-zinc-700 text-white'
+                            }`}
+                          >
+                            <span className="font-mono text-xs w-6 shrink-0">P{pos}</span>
+                            <span className="truncate">{labels.get(code) ?? code}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </BottomSheet>
                 </div>
               </div>
               <div className="flex gap-2">

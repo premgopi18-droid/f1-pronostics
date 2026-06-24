@@ -82,16 +82,11 @@ export default async function PredictionComparePage({
   // Stage 2 — toutes les prédictions + résultats officiels pour les sessions verrouillées
   const [
     { data: allPredictions },
-    { data: _allFastestLap },
     { data: allResults },
   ] = await Promise.all([
     supabase
       .from('predictions')
       .select('user_id, session_id, entries, is_valid')
-      .in('session_id', lockedSessionIds),
-    supabase
-      .from('fastest_lap_predictions')
-      .select('user_id, session_id, drivers!driver_id(code)')
       .in('session_id', lockedSessionIds),
     supabase
       .from('session_results')

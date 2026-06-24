@@ -47,7 +47,7 @@ export function InstallBanner() {
         <button
           onClick={dismissBanner}
           className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
-          aria-label={t('install.dismiss')}
+          aria-label={t('install.close')}
         >
           <X size={16} aria-hidden />
         </button>

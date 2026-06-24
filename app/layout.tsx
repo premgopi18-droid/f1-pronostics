@@ -20,6 +20,11 @@ const reduceMotionBootScript = `try{if(localStorage.getItem('${REDUCE_MOTION_STO
 // pour les thèmes non-défaut.
 const themeBootScript = `try{var _t=localStorage.getItem('${THEME_STORAGE_KEY}');if(_t&&_t!=='boxbox')document.documentElement.setAttribute('data-theme',_t)}catch(e){}`;
 
+// Capte beforeinstallprompt dès le parsing du <body>, avant que React n'attache son
+// listener : l'event peut se déclencher pendant le chargement et serait sinon perdu.
+// useInstallPrompt lit ensuite window.__deferredInstallPrompt au montage.
+const installPromptBootScript = `window.__deferredInstallPrompt=null;addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__deferredInstallPrompt=e})`;
+
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
@@ -43,12 +48,17 @@ const rajdhani = Rajdhani({
 export const metadata: Metadata = {
   title: "BoxBox",
   description: "Pronostics F1 entre amis",
+  // iOS ignore les icônes du manifest pour l'écran d'accueil → apple-touch-icon dédié.
+  icons: { apple: "/icons/icon-192.png" },
+  appleWebApp: { capable: true, title: "BoxBox", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Teinte la barre du navigateur (Android) — généré en <meta name="theme-color">.
+  themeColor: "#e8002d",
 };
 
 export default function RootLayout({
@@ -66,6 +76,7 @@ export default function RootLayout({
         {/* Anti-FOUC : applique le thème et le mode accessibilité avant le premier paint. */}
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: reduceMotionBootScript }} />
+        <script dangerouslySetInnerHTML={{ __html: installPromptBootScript }} />
         <SwRegister />
         <InstallBanner />
         {children}

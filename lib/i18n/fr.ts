@@ -376,7 +376,7 @@ export const fr = {
     bannerTitle:      "Installer BoxBox",
     bannerSubtitle:   "Accès rapide depuis ton écran d'accueil.",
     ctaAndroid:       "Installer",
-    dismiss:          "Plus tard",
+    close:            "Fermer",
     iosInstructions:  "Appuie sur",
     iosThen:          "puis « Sur l'écran d'accueil »",
     profileRow:       "Installer l'app",

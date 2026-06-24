@@ -30,7 +30,7 @@ export function JoinLeagueForm({ initialCode }: { initialCode?: string }) {
         />
       </div>
 
-      <SubmitButton label={t('join.cta')} />
+      <SubmitButton label={t('join.cta')} size="block" />
     </form>
   )
 }

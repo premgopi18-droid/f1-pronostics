@@ -7,8 +7,13 @@ import { cn } from "@/lib/utils";
 import { isActiveRoute, isHiddenRoute } from "@/lib/nav";
 import { t, type TranslationKey } from "@/lib/i18n";
 
-/** Hauteur de la barre — réutilisée pour réserver l'espace en bas du flux. */
-const NAV_HEIGHT = "h-16"; // 64px
+/**
+ * Hauteur de la barre — réutilisée pour réserver l'espace en bas du flux.
+ * 64px de contenu + safe-area (home indicator iOS) : avec `box-sizing: border-box`,
+ * le `pb-[env(safe-area-inset-bottom)]` de la nav est compté dans cette hauteur,
+ * donc on l'ajoute ici pour laisser 64px utiles aux icônes.
+ */
+const NAV_HEIGHT = "h-[calc(4rem+env(safe-area-inset-bottom))]";
 
 type Tab = {
   href: string;
@@ -40,8 +45,8 @@ export function BottomNav() {
 
   return (
     <>
-      {/* réserve l'espace pour que le contenu ne passe pas sous la barre fixe (64px + safe-area) */}
-      <div className="h-[calc(4rem+env(safe-area-inset-bottom))]" aria-hidden />
+      {/* réserve l'espace pour que le contenu ne passe pas sous la barre fixe */}
+      <div className={NAV_HEIGHT} aria-hidden />
       <nav
         aria-label={t("nav.label")}
         className={cn(

@@ -290,16 +290,17 @@ export default async function LeaguePage({
               id="gps-heading"
               className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-muted"
             >
-              Week-ends
+              {t('leagueDetail.weekendsTitle')}
             </h2>
             <div className="flex flex-col gap-1.5">
               {gpList.map((gp) => {
                 const isPast = new Date(gp.weekend_starts_at as string) < now
+                const isNext = gp.id === upcomingGp?.id
                 return (
                   <Link
                     key={gp.id as string}
-                    href={`/leagues/${id}/gp/${gp.id}`}
-                    className={`flex items-center gap-3 rounded-xl bg-card px-4 py-3 transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${!isPast ? 'opacity-40' : ''}`}
+                    href={isPast ? `/leagues/${id}/gp/${gp.id}` : `/predictions/${gp.id}`}
+                    className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <span className="w-6 shrink-0 text-right font-numeric text-xs tabular-nums text-text-muted">
                       R{gp.round}
@@ -308,10 +309,14 @@ export default async function LeaguePage({
                       {gp.name as string}
                     </span>
                     {gp.scoring_finalized_at != null ? (
-                      <span className="text-2xs font-semibold text-success">Définitif</span>
+                      <span className="text-2xs font-semibold text-success">{t('leagueDetail.gpStatusFinal')}</span>
                     ) : isPast ? (
-                      <span className="text-2xs font-semibold text-warning">Provisoire</span>
-                    ) : null}
+                      <span className="text-2xs font-semibold text-warning">{t('leagueDetail.gpStatusProvisional')}</span>
+                    ) : isNext ? (
+                      <span className="text-2xs font-semibold text-primary">{t('leagueDetail.gpStatusNext')}</span>
+                    ) : (
+                      <span className="text-2xs font-semibold text-text-muted">{t('leagueDetail.gpStatusUpcoming')}</span>
+                    )}
                     <span className="text-xs text-text-muted">→</span>
                   </Link>
                 )

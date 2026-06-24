@@ -133,7 +133,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                 >
                   <CountryBadge code={gp.countryCode} />
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-foreground">{gp.displayName}</div>
+                    <div className="font-semibold text-foreground">{gp.gpName}</div>
                     {gp.status === 'completed' && gp.winner && (
                       <div className="text-xs text-text-secondary">
                         {t('results.winner')} · {gp.winner}

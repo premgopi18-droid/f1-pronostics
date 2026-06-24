@@ -1,3 +1,8 @@
+// Handler fetch « pass-through » : sa présence est requise par Chrome pour juger l'app
+// installable et émettre beforeinstallprompt. On ne sert rien hors-ligne pour l'instant,
+// on laisse simplement le navigateur gérer la requête normalement.
+self.addEventListener('fetch', () => {})
+
 self.addEventListener('push', (event) => {
   const data = event.data?.json() ?? {}
   event.waitUntil(

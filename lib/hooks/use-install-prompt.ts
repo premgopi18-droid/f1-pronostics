@@ -19,7 +19,8 @@ const DISMISSED_KEY = 'install-banner-dismissed'
 
 // Safari iOS uniquement : les autres navigateurs iOS (Chrome/Firefox/in-app) n'exposent
 // pas l'option « Sur l'écran d'accueil » → inutile (et trompeur) de leur montrer la consigne.
-function isIOSSafari(): boolean {
+// Exporté pour test unitaire (logique de détection UA pure).
+export function isIOSSafari(): boolean {
   const ua = navigator.userAgent
   const isIOSDevice =
     /iphone|ipad|ipod/i.test(ua) ||
@@ -57,18 +58,37 @@ export function useInstallPrompt() {
       e.preventDefault()
       setAndroidPrompt(e as BeforeInstallPromptEvent)
     }
+    // Installation terminée (bouton natif OU menu du navigateur) → masque banner/CTA sans
+    // attendre un rechargement. Diffusé à toutes les instances du hook. (iOS ne l'émet pas.)
+    function onInstalled() {
+      setIsStandalone(true)
+      window.__deferredInstallPrompt = null
+      setAndroidPrompt(null)
+    }
     window.addEventListener('beforeinstallprompt', onPrompt)
-    return () => window.removeEventListener('beforeinstallprompt', onPrompt)
+    window.addEventListener('appinstalled', onInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt)
+      window.removeEventListener('appinstalled', onInstalled)
+    }
   }, [])
 
-  // Installable = pas standalone ET (prompt Android disponible OU iOS Safari)
+  // Installable « automatiquement » = pas standalone ET (prompt Android dispo OU iOS Safari).
+  // Sert à la bannière, volontairement réservée aux cas réellement actionnables.
   const canInstall = ready && !isStandalone && (androidPrompt !== null || isIOS)
 
   // Bannière = installable ET pas encore fermée par l'utilisateur
   const showBanner = canInstall && !bannerDismissed
 
-  // Entrée dans les réglages = installable, indépendamment du dismiss de la bannière
-  const showInSettings = canInstall
+  // Prompt natif Android effectivement capté → on peut déclencher l'installation.
+  const canPromptInstall = androidPrompt !== null
+
+  // Entrée dans les réglages = visible dès que l'app n'est pas déjà installée, quelle que soit
+  // la plateforme. On ne gate PAS sur la détection du moteur : des navigateurs Chromium comme
+  // Brave neutralisent `beforeinstallprompt`/`onbeforeinstallprompt` mais savent installer via
+  // leur menu — les masquer priverait l'utilisateur du seul point d'entrée. La guidance s'adapte
+  // (bouton natif, instructions iOS, ou renvoi vers le menu du navigateur) — voir ProfileSettings.
+  const showInSettings = ready && !isStandalone
 
   function dismissBanner() {
     localStorage.setItem(DISMISSED_KEY, 'true')
@@ -90,5 +110,5 @@ export function useInstallPrompt() {
     }
   }
 
-  return { isIOS, showBanner, showInSettings, install, dismissBanner }
+  return { isIOS, showBanner, showInSettings, canPromptInstall, install, dismissBanner }
 }

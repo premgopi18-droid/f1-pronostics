@@ -40,6 +40,12 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname
   const isPublicPath =
+    // Ressources PWA : doivent rester publiques. Le navigateur récupère le manifest SANS
+    // cookies (lien non-crédentialé), donc une requête authentifiée le verrait quand même
+    // redirigé vers /login → l'app ne serait jamais installable. Le SW doit aussi être servi
+    // en JS, pas en redirection. (Aussi exclus du matcher ci-dessous — défense en profondeur.)
+    path === '/sw.js' ||
+    path === '/manifest.webmanifest' ||
     path.startsWith('/login') ||
     path.startsWith('/api/auth') ||
     path.startsWith('/api/f1') ||
@@ -111,5 +117,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // sw.js et manifest.webmanifest sont exclus : ressources PWA publiques qui ne doivent jamais
+  // être redirigées vers /login (sinon SW non enregistrable + manifest jamais chargé → app non
+  // installable). Cf. isPublicPath dans proxy() pour la défense en profondeur.
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }

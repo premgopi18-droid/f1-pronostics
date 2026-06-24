@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 
 const FOCUSABLE = [
   'a[href]',
@@ -19,6 +19,7 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ open, onClose, title, children }: BottomSheetProps) {
+  const titleId    = useId()
   const panelRef   = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   // Garde la ref à jour sans en faire une dep d'effet (maj après commit, hors render)
@@ -79,23 +80,21 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
         className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-border bg-card [animation:bx-sheet_280ms_ease]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {title && (
-          <div className="flex items-center justify-between border-b border-border px-4 pb-3 pt-4">
-            <p className="text-sm font-semibold text-foreground">{title}</p>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fermer"
-              className="text-lg leading-none text-text-secondary hover:text-foreground"
-            >
-              ✕
-            </button>
-          </div>
-        )}
+        <div className="flex items-center justify-between border-b border-border px-4 pb-3 pt-4">
+          <h2 id={titleId} className="text-sm font-semibold text-foreground">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer"
+            className="text-lg leading-none text-text-secondary hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
         {children}
       </div>
     </>

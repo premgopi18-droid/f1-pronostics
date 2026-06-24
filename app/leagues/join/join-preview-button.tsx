@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { joinLeagueAction } from "@/app/actions/leagues";
 import { Button } from "@/app/ui/button";
-import { t } from "@/lib/i18n";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 /** Bouton « Rejoindre » de la landing d'invitation — réutilise l'action existante. */
 export function JoinPreviewButton({ code }: { code: string }) {
@@ -11,9 +11,9 @@ export function JoinPreviewButton({ code }: { code: string }) {
   return (
     <form action={action} className="mt-auto">
       <input type="hidden" name="inviteCode" value={code} />
-      {state?.error && (
+      {state?.errorCode && (
         <p className="mb-3 text-center text-xs text-destructive" aria-live="polite">
-          {state.error}
+          {t(`join.error.${state.errorCode}` as TranslationKey)}
         </p>
       )}
       <Button type="submit" size="block" disabled={isPending}>

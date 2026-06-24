@@ -2,10 +2,10 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { createLeague, joinLeagueByCode } from '@/lib/data/leagues'
+import { createLeague, joinLeagueByCode, LeagueDataError } from '@/lib/data/leagues'
 import { getCurrentSeason } from '@/lib/api/cron'
 
-export type LeagueActionState = { error: string } | null
+export type LeagueActionState = { errorCode: string } | null
 
 export async function createLeagueAction(
   _prevState: LeagueActionState,
@@ -13,20 +13,20 @@ export async function createLeagueAction(
 ): Promise<LeagueActionState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' }
+  if (!user) return { errorCode: 'unauthenticated' }
 
   const name       = (formData.get('name') as string | null)?.trim() ?? ''
   const maxMembers = parseInt(formData.get('maxMembers') as string, 10)
 
-  if (name.length < 2 || name.length > 50) return { error: 'Nom invalide (2–50 caractères)' }
-  if (isNaN(maxMembers) || maxMembers < 2 || maxMembers > 20) return { error: 'Taille invalide (2–20 joueurs)' }
+  if (name.length < 2 || name.length > 50) return { errorCode: 'invalid_name' }
+  if (isNaN(maxMembers) || maxMembers < 2 || maxMembers > 20) return { errorCode: 'invalid_size' }
 
   let leagueId: string
   try {
     const result = await createLeague(user.id, name, maxMembers, getCurrentSeason())
     leagueId = result.leagueId
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Erreur inattendue' }
+  } catch {
+    return { errorCode: 'generic' }
   }
 
   // redirect() lance une exception NEXT_REDIRECT → doit rester hors du try/catch
@@ -39,17 +39,17 @@ export async function joinLeagueAction(
 ): Promise<LeagueActionState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' }
+  if (!user) return { errorCode: 'unauthenticated' }
 
   const inviteCode = (formData.get('inviteCode') as string | null)?.trim().toUpperCase() ?? ''
-  if (!inviteCode) return { error: 'Code d\'invitation requis' }
+  if (!inviteCode) return { errorCode: 'invite_code_required' }
 
   let leagueId: string
   try {
     const result = await joinLeagueByCode(user.id, inviteCode, getCurrentSeason())
     leagueId = result.leagueId
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Erreur inattendue' }
+    return { errorCode: error instanceof LeagueDataError ? error.code : 'generic' }
   }
 
   redirect(`/leagues/${leagueId}`)

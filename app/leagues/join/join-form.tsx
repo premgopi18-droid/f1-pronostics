@@ -3,15 +3,17 @@
 import { useActionState } from 'react'
 import { joinLeagueAction } from '@/app/actions/leagues'
 import { SubmitButton } from '@/app/ui/submit-button'
-import { t } from '@/lib/i18n'
+import { t, type TranslationKey } from '@/lib/i18n'
 
 export function JoinLeagueForm({ initialCode }: { initialCode?: string }) {
   const [state, action] = useActionState(joinLeagueAction, null)
 
   return (
     <form action={action} className="flex flex-col gap-5">
-      {state?.error && (
-        <p className="text-sm text-destructive" aria-live="polite">{state.error}</p>
+      {state?.errorCode && (
+        <p className="text-sm text-destructive" aria-live="polite">
+          {t(`join.error.${state.errorCode}` as TranslationKey)}
+        </p>
       )}
 
       <div className="flex flex-col gap-1.5">

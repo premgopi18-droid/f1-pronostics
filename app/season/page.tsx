@@ -45,7 +45,7 @@ export default async function SeasonPage() {
     getCachedConstructors(season),
     getSeasonPrediction(userId, season, 'wdc'),
     getSeasonPrediction(userId, season, 'wcc'),
-    getSeasonDeadlines(season),
+    getSeasonDeadlines(season, userId),
     getSeasonItems(userId, season),
     getCachedDriverStandings(season),
     getCachedConstructorStandings(season),

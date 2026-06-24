@@ -42,47 +42,63 @@ export async function upsertSeasonPrediction(
   if (error) throw error
 }
 
-// Deadline soumission = qualifs du 1er GP · Deadline items saison = qualifs du dernier GP
-export async function getSeasonDeadlines(season: number): Promise<{
+// Deadline soumission = Q1 du premier GP après la date d'inscription de l'user (per-user)
+// Deadline items saison = qualifs du dernier GP (globale)
+export async function getSeasonDeadlines(
+  season: number,
+  userId?: string,
+): Promise<{
   submissionDeadline: Date | null
   itemDeadline:       Date | null
 }> {
   const supabase = createServiceClient()
 
-  const { data: gps, error: gpError } = await supabase
-    .from('grands_prix')
-    .select('id, round')
-    .eq('season', season)
-    .eq('is_cancelled', false)
-    .order('round', { ascending: true })
-
-  if (gpError) throw gpError
-  if (!gps || gps.length === 0) return { submissionDeadline: null, itemDeadline: null }
-
-  const firstGpId = gps[0].id as string
-  const lastGpId  = gps[gps.length - 1].id as string
-
-  const [{ data: firstQual, error: e1 }, { data: lastQual, error: e2 }] = await Promise.all([
+  const [{ data: gps, error: gpError }, userLookup] = await Promise.all([
     supabase
-      .from('sessions')
-      .select('starts_at')
-      .eq('gp_id', firstGpId)
-      .eq('type', 'qualifying')
-      .maybeSingle(),
-    supabase
-      .from('sessions')
-      .select('starts_at')
-      .eq('gp_id', lastGpId)
-      .eq('type', 'qualifying')
-      .maybeSingle(),
+      .from('grands_prix')
+      .select('id, round')
+      .eq('season', season)
+      .eq('is_cancelled', false)
+      .order('round', { ascending: true }),
+    userId ? supabase.auth.admin.getUserById(userId) : Promise.resolve(null),
   ])
 
-  if (e1) throw e1
-  if (e2) throw e2
+  if (gpError) throw gpError
+  if (userLookup?.error) throw userLookup.error
+  if (!gps || gps.length === 0) return { submissionDeadline: null, itemDeadline: null }
+
+  const gpIds = gps.map((gp) => gp.id as string)
+  const { data: sessions, error: sessionError } = await supabase
+    .from('sessions')
+    .select('gp_id, starts_at')
+    .in('gp_id', gpIds)
+    .eq('type', 'qualifying')
+
+  if (sessionError) throw sessionError
+
+  const qualMap = new Map<string, Date>()
+  for (const s of sessions ?? []) {
+    qualMap.set(s.gp_id as string, new Date(s.starts_at as string))
+  }
+
+  // Q1 de chaque GP dans l'ordre du calendrier
+  const orderedQuals = gps
+    .map((gp) => qualMap.get(gp.id as string))
+    .filter((d): d is Date => d !== undefined)
+
+  // Deadline soumission per-user : premier Q1 strictement après la date d'inscription.
+  // Fallback sur Q1 GP1 dans deux cas : (a) user présent avant le début de saison,
+  // (b) user inscrit après le dernier Q1 (find renvoie undefined) → Q1 GP1 dans le passé
+  //     → form verrouillée (saison terminée).
+  let submissionDeadline: Date | null = orderedQuals[0] ?? null
+  if (userId && userLookup?.data) {
+    const userCreatedAt = new Date(userLookup.data.user.created_at)
+    submissionDeadline = orderedQuals.find((d) => d > userCreatedAt) ?? orderedQuals[0] ?? null
+  }
 
   return {
-    submissionDeadline: firstQual ? new Date(firstQual.starts_at as string) : null,
-    itemDeadline:       lastQual  ? new Date(lastQual.starts_at as string)  : null,
+    submissionDeadline,
+    itemDeadline: orderedQuals.at(-1) ?? null,
   }
 }
 

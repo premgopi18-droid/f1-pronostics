@@ -379,6 +379,7 @@ export const fr = {
     close:            "Fermer",
     iosInstructions:  "Appuie sur",
     iosThen:          "puis « Sur l'écran d'accueil »",
+    browserInstructions: "Depuis le menu de ton navigateur, choisis « Installer l'application ».",
     profileRow:       "Installer l'app",
   },
   notifications: {

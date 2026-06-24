@@ -61,14 +61,20 @@ export function useInstallPrompt() {
     return () => window.removeEventListener('beforeinstallprompt', onPrompt)
   }, [])
 
-  // Installable = pas standalone ET (prompt Android disponible OU iOS Safari)
+  // Installable « automatiquement » = pas standalone ET (prompt Android dispo OU iOS Safari).
+  // Sert à la bannière, volontairement réservée aux cas réellement actionnables.
   const canInstall = ready && !isStandalone && (androidPrompt !== null || isIOS)
 
   // Bannière = installable ET pas encore fermée par l'utilisateur
   const showBanner = canInstall && !bannerDismissed
 
-  // Entrée dans les réglages = installable, indépendamment du dismiss de la bannière
-  const showInSettings = canInstall
+  // Prompt natif Android effectivement capté → on peut déclencher l'installation.
+  const canPromptInstall = androidPrompt !== null
+
+  // Entrée dans les réglages = visible dès que l'app n'est pas déjà installée, quelle que
+  // soit la plateforme. La guidance s'adapte (bouton natif, instructions iOS, ou menu du
+  // navigateur) — voir ProfileSettings. Indépendant du dismiss de la bannière.
+  const showInSettings = ready && !isStandalone
 
   function dismissBanner() {
     localStorage.setItem(DISMISSED_KEY, 'true')
@@ -90,5 +96,5 @@ export function useInstallPrompt() {
     }
   }
 
-  return { isIOS, showBanner, showInSettings, install, dismissBanner }
+  return { isIOS, showBanner, showInSettings, canPromptInstall, install, dismissBanner }
 }

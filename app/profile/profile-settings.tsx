@@ -12,7 +12,7 @@ import { t } from '@/lib/i18n'
 export function ProfileSettings() {
   // usePrefersReducedMotion se souscrit aux changements système et à l'override utilisateur.
   const reducedMotion = usePrefersReducedMotion()
-  const { isIOS, showInSettings, install } = useInstallPrompt()
+  const { isIOS, showInSettings, canPromptInstall, install } = useInstallPrompt()
 
   function toggleAccessibility() {
     setReduceMotionOverride(!reducedMotion)
@@ -75,7 +75,21 @@ export function ProfileSettings() {
 
         {showInSettings && (
           <li>
-            {isIOS ? (
+            {canPromptInstall ? (
+              // Android avec prompt natif capté : installation en un tap.
+              <button
+                type="button"
+                onClick={install}
+                className="flex w-full items-center gap-3 px-4 py-4 transition-colors hover:bg-muted/50 active:bg-muted"
+              >
+                <Smartphone size={18} className="shrink-0 text-muted-foreground" aria-hidden />
+                <span className="flex-1 text-left text-sm font-medium text-foreground">
+                  {t('install.profileRow')}
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+              </button>
+            ) : isIOS ? (
+              // iOS Safari : pas de prompt programmatique → consigne Partager.
               <div className="flex items-start gap-3 px-4 py-4">
                 <Smartphone size={18} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="flex flex-col gap-0.5">
@@ -88,17 +102,14 @@ export function ProfileSettings() {
                 </span>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={install}
-                className="flex w-full items-center gap-3 px-4 py-4 transition-colors hover:bg-muted/50 active:bg-muted"
-              >
-                <Smartphone size={18} className="shrink-0 text-muted-foreground" aria-hidden />
-                <span className="flex-1 text-left text-sm font-medium text-foreground">
-                  {t('install.profileRow')}
+              // Desktop ou Android sans prompt encore capté : renvoi vers le menu navigateur.
+              <div className="flex items-start gap-3 px-4 py-4">
+                <Smartphone size={18} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-foreground">{t('install.profileRow')}</span>
+                  <span className="text-xs text-muted-foreground">{t('install.browserInstructions')}</span>
                 </span>
-                <ChevronRight size={16} className="shrink-0 text-muted-foreground" aria-hidden />
-              </button>
+              </div>
             )}
           </li>
         )}

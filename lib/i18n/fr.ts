@@ -116,6 +116,7 @@ export const fr = {
     fastestLap: "Meilleur tour",
     fastestLapMeta: "1 pilote · bonus +7 pts",
     choosePilot: "Choisir un pilote",
+    none: "— Aucun",
     save: "Enregistrer",
     saving: "Enregistrement…",
     savedOk: "Pronostic enregistré !",

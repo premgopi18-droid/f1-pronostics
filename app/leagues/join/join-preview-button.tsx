@@ -11,9 +11,9 @@ export function JoinPreviewButton({ code }: { code: string }) {
   return (
     <form action={action} className="mt-auto">
       <input type="hidden" name="inviteCode" value={code} />
-      {state?.error && (
+      {state?.errorCode && (
         <p className="mb-3 text-center text-xs text-destructive" aria-live="polite">
-          {state.error}
+          {t(`join.error.${state.errorCode}`)}
         </p>
       )}
       <Button type="submit" size="block" disabled={isPending}>

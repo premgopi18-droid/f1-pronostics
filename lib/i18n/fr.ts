@@ -87,6 +87,15 @@ export const fr = {
     alreadyMemberCta: "Voir la ligue",
     manualTitle: "Rejoindre une ligue",
     manualLabel: "Code d'invitation",
+    error: {
+      unauthenticated: "Non authentifié",
+      invite_code_required: "Code d'invitation requis",
+      league_not_found: "Ligue introuvable — vérifie le code",
+      closed: "Les inscriptions sont fermées pour cette ligue",
+      already_member: "Tu es déjà membre de cette ligue",
+      full: "Cette ligue a atteint son nombre maximum de membres",
+      generic: "Une erreur est survenue. Réessaie.",
+    },
   },
   nav: {
     label: "Navigation principale",
@@ -236,6 +245,12 @@ export const fr = {
     infoAdmin: "admin",
     infoTextPost: ". Le lien d'invitation s'affiche juste après la création.",
     submit: "Créer la ligue",
+    error: {
+      unauthenticated: "Non authentifié",
+      invalid_name: "Nom invalide (2–50 caractères)",
+      invalid_size: "Taille invalide (2–20 joueurs)",
+      generic: "Une erreur est survenue. Réessaie.",
+    },
   },
   results: {
     seasonTitle: "Saison",

@@ -10,8 +10,10 @@ export function JoinLeagueForm({ initialCode }: { initialCode?: string }) {
 
   return (
     <form action={action} className="flex flex-col gap-5">
-      {state?.error && (
-        <p className="text-sm text-destructive" aria-live="polite">{state.error}</p>
+      {state?.errorCode && (
+        <p className="text-sm text-destructive" aria-live="polite">
+          {t(`join.error.${state.errorCode}`)}
+        </p>
       )}
 
       <div className="flex flex-col gap-1.5">

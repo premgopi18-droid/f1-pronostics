@@ -15,9 +15,9 @@ export function CreateLeagueForm() {
 
   return (
     <form action={action} className="flex flex-col gap-6">
-      {state?.error && (
+      {state?.errorCode && (
         <p role="alert" className="rounded-xl bg-destructive-soft px-4 py-3 text-sm text-destructive">
-          {state.error}
+          {t(`createLeague.error.${state.errorCode}`)}
         </p>
       )}
 

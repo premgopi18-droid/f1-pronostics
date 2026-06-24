@@ -2,6 +2,15 @@ import { createServiceClient } from '@/lib/supabase'
 import { ITEM_USES_PER_SEASON } from '@/lib/scoring/constants'
 import { leagueJoinStatus, type LeaguePreviewStatus } from '@/lib/leagues/join-status'
 
+export type JoinLeagueErrorCode = 'league_not_found' | 'closed' | 'already_member' | 'full' | 'generic'
+
+export class LeagueDataError extends Error {
+  constructor(public readonly code: JoinLeagueErrorCode) {
+    super(code)
+    this.name = 'LeagueDataError'
+  }
+}
+
 // ── Lecture (cron) ────────────────────────────────────────────────────────
 
 export async function getActiveLeagues(season: number): Promise<string[]> {
@@ -181,8 +190,8 @@ export async function joinLeagueByCode(
     .eq('invite_code', inviteCode)
     .single()
 
-  if (leagueError || !league) throw new Error('Ligue introuvable — vérifie le code')
-  if (!league.invite_open)    throw new Error('Les inscriptions sont fermées pour cette ligue')
+  if (leagueError || !league) throw new LeagueDataError('league_not_found')
+  if (!league.invite_open)    throw new LeagueDataError('closed')
 
   const { data: existing } = await supabase
     .from('league_members')
@@ -192,14 +201,20 @@ export async function joinLeagueByCode(
     .eq('season', season)
     .maybeSingle()
 
-  if (existing) throw new Error('Tu es déjà membre de cette ligue')
+  if (existing) throw new LeagueDataError('already_member')
 
   const { error: memberError } = await supabase
     .from('league_members')
     .insert({ league_id: league.id, user_id: userId, season, is_admin: false })
 
-  // Le trigger DB vérifie max_members — on laisse son erreur remonter telle quelle
-  if (memberError) throw new Error(memberError.message)
+  if (memberError) {
+    console.error('joinLeagueByCode — insert league_members échoué', memberError)
+    // 23505 : course avec le check `existing` ci-dessus → déjà membre.
+    if (memberError.code === '23505') throw new LeagueDataError('already_member')
+    // P0001 : le trigger `enforce_max_members` (seul `raise` sur INSERT) → ligue pleine.
+    if (memberError.code === 'P0001') throw new LeagueDataError('full')
+    throw new LeagueDataError('generic')
+  }
 
   await initUserItems(userId, league.id as string, season)
 

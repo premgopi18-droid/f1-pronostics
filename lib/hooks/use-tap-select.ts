@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { arrayMove } from '@dnd-kit/sortable'
 
 /**
@@ -15,6 +15,15 @@ export function useTapSelect(
   onReorder: (newItems: string[]) => void,
 ) {
   const [selectedCode, setSelectedCode] = useState<string | null>(null)
+
+  // Désélectionne quand l'élément sélectionné disparaît de la liste
+  // (ex. suppression via × dans QualifsForm) pour ne pas garder de sélection
+  // fantôme qui ferait perdre le tap suivant.
+  useEffect(() => {
+    if (selectedCode !== null && !items.includes(selectedCode)) {
+      setSelectedCode(null)
+    }
+  }, [items, selectedCode])
 
   const onRowTap = (code: string) => {
     if (selectedCode === null) {

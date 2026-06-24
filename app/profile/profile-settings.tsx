@@ -1,16 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight, Pencil, Palette, Paintbrush, Bell, Accessibility } from 'lucide-react'
+import { ChevronRight, Pencil, Palette, Paintbrush, Bell, Accessibility, Smartphone, Share } from 'lucide-react'
 import {
   usePrefersReducedMotion,
   setReduceMotionOverride,
 } from '@/lib/hooks/use-prefers-reduced-motion'
+import { useInstallPrompt } from '@/lib/hooks/use-install-prompt'
 import { t } from '@/lib/i18n'
 
 export function ProfileSettings() {
   // usePrefersReducedMotion se souscrit aux changements système et à l'override utilisateur.
   const reducedMotion = usePrefersReducedMotion()
+  const { isIOS, showInSettings, install } = useInstallPrompt()
 
   function toggleAccessibility() {
     setReduceMotionOverride(!reducedMotion)
@@ -70,6 +72,36 @@ export function ProfileSettings() {
             <ChevronRight size={16} className="shrink-0 text-muted-foreground" aria-hidden />
           </Link>
         </li>
+
+        {showInSettings && (
+          <li>
+            {isIOS ? (
+              <div className="flex items-start gap-3 px-4 py-4">
+                <Smartphone size={18} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-foreground">{t('install.profileRow')}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t('install.iosInstructions')}{' '}
+                    <Share size={11} aria-hidden className="inline" />{' '}
+                    {t('install.iosThen')}
+                  </span>
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={install}
+                className="flex w-full items-center gap-3 px-4 py-4 transition-colors hover:bg-muted/50 active:bg-muted"
+              >
+                <Smartphone size={18} className="shrink-0 text-muted-foreground" aria-hidden />
+                <span className="flex-1 text-left text-sm font-medium text-foreground">
+                  {t('install.profileRow')}
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+              </button>
+            )}
+          </li>
+        )}
 
         <li>
           <button

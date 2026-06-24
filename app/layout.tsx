@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Titillium_Web, Rajdhani } from "next/font/google";
 import "./globals.css";
 import { SwRegister } from "@/app/components/sw-register";
+import { InstallBanner } from "@/app/components/install-banner";
 import { BottomNav } from "@/app/components/bottom-nav";
 import {
   REDUCE_MOTION_STORAGE_KEY,
@@ -66,6 +67,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: reduceMotionBootScript }} />
         <SwRegister />
+        <InstallBanner />
         {children}
         <BottomNav />
       </body>

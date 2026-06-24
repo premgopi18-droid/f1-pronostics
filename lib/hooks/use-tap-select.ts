@@ -24,6 +24,9 @@ export function useTapSelect(
     } else {
       const fromIndex = items.indexOf(selectedCode)
       const toIndex   = items.indexOf(code)
+      // La sélection peut être périmée si l'élément a disparu de la liste
+      // entre deux taps (ex. suppression via ×) : on annule sans réordonner.
+      if (fromIndex === -1 || toIndex === -1) { setSelectedCode(null); return }
       onReorder(arrayMove(items, fromIndex, toIndex))
       setSelectedCode(null)
     }

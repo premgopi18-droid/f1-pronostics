@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Titillium_Web, Rajdhani } from "next/font/google";
 import "./globals.css";
 import { SwRegister } from "@/app/components/sw-register";
@@ -42,6 +42,12 @@ const rajdhani = Rajdhani({
 export const metadata: Metadata = {
   title: "BoxBox",
   description: "Pronostics F1 entre amis",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

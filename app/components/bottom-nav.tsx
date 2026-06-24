@@ -40,8 +40,8 @@ export function BottomNav() {
 
   return (
     <>
-      {/* réserve l'espace pour que le contenu ne passe pas sous la barre fixe */}
-      <div className={NAV_HEIGHT} aria-hidden />
+      {/* réserve l'espace pour que le contenu ne passe pas sous la barre fixe (64px + safe-area) */}
+      <div className="h-[calc(4rem+env(safe-area-inset-bottom))]" aria-hidden />
       <nav
         aria-label={t("nav.label")}
         className={cn(

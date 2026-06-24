@@ -50,7 +50,9 @@ export const metadata: Metadata = {
   description: "Pronostics F1 entre amis",
   // iOS ignore les icônes du manifest pour l'écran d'accueil → apple-touch-icon dédié.
   icons: { apple: "/icons/icon-192.png" },
-  appleWebApp: { capable: true, title: "BoxBox", statusBarStyle: "black-translucent" },
+  // statusBarStyle "default" réserve la barre d'état (contenu en dessous) : l'app ne gère
+  // pas encore env(safe-area-inset-top), donc pas de "black-translucent" qui passerait dessous.
+  appleWebApp: { capable: true, title: "BoxBox", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

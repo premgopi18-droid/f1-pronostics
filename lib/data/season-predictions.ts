@@ -87,7 +87,9 @@ export async function getSeasonDeadlines(
     .filter((d): d is Date => d !== undefined)
 
   // Deadline soumission per-user : premier Q1 strictement après la date d'inscription.
-  // Fallback sur Q1 GP1 si l'user était là avant le début de saison.
+  // Fallback sur Q1 GP1 dans deux cas : (a) user présent avant le début de saison,
+  // (b) user inscrit après le dernier Q1 (find renvoie undefined) → Q1 GP1 dans le passé
+  //     → form verrouillée (saison terminée).
   let submissionDeadline: Date | null = orderedQuals[0] ?? null
   if (userId && userLookup?.data) {
     const userCreatedAt = new Date(userLookup.data.user.created_at)

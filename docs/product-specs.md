@@ -112,12 +112,16 @@ Format 2026 : Sprint Qualifying (vendredi) → Sprint Race (samedi matin) → Qu
 
 > Raison : afficher les scores progressifs crée de l'engagement tout le weekend et permet aux joueurs de situer leur position avant la course. La révélation des items reste un moment fort du dimanche.
 
-#### Sur la saison (modifiable jusqu'aux qualifications du premier GP)
+#### Sur la saison (modifiable jusqu'aux qualifications du premier GP suivant l'inscription)
 
 | Pronostic | Description | Verrouillage |
 |---|---|---|
-| Classement pilotes (WDC) | Ordre du top 10 pilotes en fin de saison (sur 22) | Début des qualifications du premier GP de la saison |
-| Classement constructeurs (WCC) | Ordre complet des 11 écuries en fin de saison | Début des qualifications du premier GP de la saison |
+| Classement pilotes (WDC) | Ordre du top 10 pilotes en fin de saison (sur 22) | Début des qualifications du **premier GP suivant la date d'inscription** de l'utilisateur (per-user) |
+| Classement constructeurs (WCC) | Ordre complet des 11 écuries en fin de saison | Début des qualifications du **premier GP suivant la date d'inscription** de l'utilisateur (per-user) |
+
+> **Deadline per-user** (décidé en review PR #88) : la deadline de soumission est calculée par utilisateur — les qualifications du premier GP **strictement postérieur** à sa date d'inscription. Un utilisateur présent avant le début de saison garde la deadline Q1 GP1 (comportement historique). Un utilisateur inscrit mi-saison peut donc soumettre son pronostic WDC/WCC jusqu'aux qualifs du prochain GP.
+>
+> Compromis assumé : un inscrit mi-saison connaît déjà une partie du classement au moment de prédire — c'est acceptable car les pronostics saison sont scorés contre le **classement officiel final** (cf. §3.4), identique pour tous quelle que soit la date de soumission. Cohérent avec la règle « GPs finalisés ignorés pour les nouvelles ligues mi-saison » (PR #74).
 
 ### 3.4 Système de scoring
 

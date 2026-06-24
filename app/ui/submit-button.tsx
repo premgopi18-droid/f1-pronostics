@@ -19,7 +19,12 @@ export function SubmitButton({ label, icon, variant, size }: SubmitButtonProps) 
 
   return (
     <Button type="submit" variant={variant} size={size} disabled={pending} aria-busy={pending}>
-      {pending ? <Spinner /> : icon}
+      {/* Slot de taille fixe (18px) : icône au repos, spinner pendant la soumission.
+          Toujours réservé pour que le label ne se décale pas à l'apparition du spinner,
+          y compris quand aucune icône n'est fournie (ex. join). */}
+      <span className="inline-flex h-[18px] w-[18px] items-center justify-center">
+        {pending ? <Spinner /> : icon}
+      </span>
       {label}
     </Button>
   )

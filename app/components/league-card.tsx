@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { Badge } from "@/app/ui/badge";
 import { Card } from "@/app/ui/card";

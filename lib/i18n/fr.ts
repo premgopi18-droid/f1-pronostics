@@ -307,6 +307,28 @@ export const fr = {
     standingsNone:     "Classement non disponible.",
     standingsPts:      "pts",
   },
+  myPronos: {
+    // Section saison
+    seasonTitle:      "Pronostics saison",
+    wdcTitle:         "Champion pilotes · WDC",
+    wccTitle:         "Champion constructeurs · WCC",
+    submitted:        "Soumis",
+    notSubmitted:     "Non soumis",
+    itemsTitle:       "Items saison",
+    itemAvailable:    "Disponible",
+    itemUsed:         "Utilisé",
+    // Section GP courant
+    gpTitle:          "GP en cours / prochain",
+    sessionSubmitted: "Soumis",
+    sessionMissed:    "Verrouillé",
+    sessionOpen:      "Ouvert",
+    noCurrentGp:      "Aucun Grand Prix à venir pour le moment.",
+    // Section historique
+    historyTitle:     "Historique",
+    viewRecap:        "Voir mon récap →",
+    rawScore:         "Score brut",
+    noHistory:        "Aucun historique pour l'instant — ton premier GP arrive bientôt",
+  },
   avatar: {
     helmetAlt: "Avatar casque",
     pickLegend: "Choisis ton casque",

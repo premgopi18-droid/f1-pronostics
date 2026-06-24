@@ -295,6 +295,8 @@ Les notifications sont envoyées via Web Push (standard ouvert, compatible iOS 1
 
 L'app est installable sur l'écran d'accueil. Prérequis techniques : Web App Manifest (`app/manifest.ts`), `apple-touch-icon` pour iOS (les icônes du manifest sont ignorées par iOS), et un service worker doté d'un handler `fetch` — sa présence est exigée par Chrome pour juger l'app installable et émettre `beforeinstallprompt`.
 
+⚠️ **`/manifest.webmanifest` et `/sw.js` doivent être servis publiquement** (exclus du proxy d'auth, cf. `proxy.ts`). Le navigateur récupère le manifest **sans cookies** (lien non-crédentialé) : si le proxy le redirige vers `/login`, le manifest n'est jamais chargé et l'app n'est **jamais installable**, même connecté. C'était la cause d'un blocage complet de l'installabilité.
+
 Deux surfaces incitent à installer :
 
 | Surface | Visibilité | Comportement par plateforme |

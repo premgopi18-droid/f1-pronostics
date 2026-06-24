@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
 import { ITEM_USES_PER_SEASON } from '@/lib/scoring/constants'
-import { leagueJoinStatus, type LeagueJoinStatus } from '@/lib/leagues/join-status'
+import { leagueJoinStatus, type LeaguePreviewStatus } from '@/lib/leagues/join-status'
 
 // ── Lecture (cron) ────────────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ export async function createLeague(
 export type LeaguePreview =
   | { status: 'not_found' }
   | {
-      status: LeagueJoinStatus
+      status: LeaguePreviewStatus
       id: string
       name: string
       memberCount: number

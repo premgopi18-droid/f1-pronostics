@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { Card } from "@/app/ui/card";
 import { Badge } from "@/app/ui/badge";
@@ -18,7 +19,7 @@ export function JoinPreview({ preview, code }: { preview: LeaguePreview; code: s
     );
   }
 
-  const { name, memberCount, maxMembers, adminPseudo, season, status } = preview;
+  const { id, name, memberCount, maxMembers, adminPseudo, season, status } = preview;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -66,6 +67,18 @@ export function JoinPreview({ preview, code }: { preview: LeaguePreview; code: s
       )}
       {status === "closed" && (
         <StateNote variant="warning" title={t("join.closedTitle")} text={t("join.closedText")} />
+      )}
+      {status === "already_member" && (
+        <div className="mt-5 flex flex-col items-center gap-3 text-center">
+          <Badge variant="neutral">{t("join.alreadyMemberTitle")}</Badge>
+          <p className="max-w-xs text-sm text-text-secondary">{t("join.alreadyMemberText")}</p>
+          <Link
+            href={`/leagues/${id}`}
+            className="mt-1 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          >
+            {t("join.alreadyMemberCta")} →
+          </Link>
+        </div>
       )}
     </div>
   );

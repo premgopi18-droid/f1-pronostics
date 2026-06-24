@@ -90,6 +90,7 @@ export type LeaguePreview =
   | { status: 'not_found' }
   | {
       status: LeagueJoinStatus
+      id: string
       name: string
       memberCount: number
       maxMembers: number
@@ -107,6 +108,7 @@ export type LeaguePreview =
 export async function getLeagueByCode(
   inviteCode: string,
   season: number,
+  userId?: string,
 ): Promise<LeaguePreview> {
   const supabase = createServiceClient()
 
@@ -119,8 +121,8 @@ export async function getLeagueByCode(
   if (leagueError) throw leagueError
   if (!league) return { status: 'not_found' }
 
-  // count et admin sont indépendants une fois la ligue connue → en parallèle.
-  const [memberCountResult, adminResult] = await Promise.all([
+  // count, admin et appartenance (si userId connu) en parallèle.
+  const [memberCountResult, adminResult, membershipResult] = await Promise.all([
     supabase
       .from('league_members')
       .select('id', { count: 'exact', head: true })
@@ -133,17 +135,31 @@ export async function getLeagueByCode(
       .eq('season', season)
       .eq('is_admin', true)
       .maybeSingle(),
+    userId
+      ? supabase
+          .from('league_members')
+          .select('id')
+          .eq('league_id', league.id)
+          .eq('user_id', userId)
+          .eq('season', season)
+          .maybeSingle()
+      : Promise.resolve(null),
   ])
 
   if (memberCountResult.error) throw memberCountResult.error
   if (adminResult.error) throw adminResult.error
+  if (membershipResult?.error) throw membershipResult.error
 
   const memberCount = memberCountResult.count ?? 0
   const adminPseudo =
     (adminResult.data?.profiles as unknown as { pseudo: string } | null)?.pseudo ?? null
+  const isMember = membershipResult !== null && membershipResult.data !== null
 
   return {
-    status: leagueJoinStatus(league.invite_open, memberCount, league.max_members),
+    id: league.id as string,
+    status: isMember
+      ? 'already_member'
+      : leagueJoinStatus(league.invite_open, memberCount, league.max_members),
     name: league.name as string,
     memberCount,
     maxMembers: league.max_members as number,

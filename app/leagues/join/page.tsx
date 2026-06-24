@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { ChevronLeft } from 'lucide-react'
 import { JoinLeagueForm } from './join-form'
 import { JoinPreview } from './join-preview'
@@ -11,10 +12,11 @@ export default async function JoinLeaguePage({
 }: {
   searchParams: Promise<{ code?: string }>
 }) {
-  const { code } = await searchParams
+  const [{ code }, hdrs] = await Promise.all([searchParams, headers()])
+  const userId    = hdrs.get('x-user-id') ?? undefined
   const inviteCode = code?.trim().toUpperCase()
   const preview = inviteCode
-    ? await getLeagueByCode(inviteCode, getCurrentSeason())
+    ? await getLeagueByCode(inviteCode, getCurrentSeason(), userId)
     : null
 
   return (

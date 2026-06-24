@@ -372,6 +372,15 @@ export const fr = {
     deleting: "Suppression…",
     deleteError: "Erreur lors de la suppression du compte",
   },
+  install: {
+    bannerTitle:      "Installer BoxBox",
+    bannerSubtitle:   "Accès rapide depuis ton écran d'accueil.",
+    ctaAndroid:       "Installer",
+    close:            "Fermer",
+    iosInstructions:  "Appuie sur",
+    iosThen:          "puis « Sur l'écran d'accueil »",
+    profileRow:       "Installer l'app",
+  },
   notifications: {
     title: "Notifications",
     subtitle: "Toutes activées par défaut · via Web Push (iOS 16.4+ & Android).",

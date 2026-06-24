@@ -300,9 +300,9 @@ Deux surfaces incitent à installer :
 | Surface | Visibilité | Comportement par plateforme |
 |---|---|---|
 | **Bannière sticky** (haut de page, fermable, persistée en localStorage) | Réservée aux cas **réellement installables** : prompt Android capté ou iOS Safari. Volontairement peu intrusive. | Android : bouton « Installer » (prompt natif). iOS Safari : consigne Partager → « Sur l'écran d'accueil ». |
-| **Entrée « Installer l'app »** (réglages profil) | **Permanente** : visible tant que l'app n'est pas déjà installée (mode standalone), indépendamment du dismiss de la bannière. | Android avec prompt capté : bouton (install en un tap). iOS Safari : consigne Partager. Sinon (desktop, Android avant capture du prompt) : renvoi vers le menu du navigateur. |
+| **Entrée « Installer l'app »** (réglages profil) | **Permanente** tant que l'app n'est pas installée, sur les navigateurs qui savent installer une PWA (iOS Safari, ou moteur Chromium détecté via `onbeforeinstallprompt`). Masquée sur Firefox/Safari desktop (pas d'install PWA). Indépendante du dismiss de la bannière. | Android/desktop Chromium avec prompt capté : bouton (install en un tap). iOS Safari : consigne Partager. Sinon (Chromium avant capture du prompt) : renvoi vers le menu du navigateur. |
 
-iOS n'expose pas de prompt programmatique (`beforeinstallprompt`) : l'installation y est manuelle via Safari. Les autres navigateurs iOS (Chrome/Firefox/Edge) sont exclus de la détection « iOS » car ils ne peuvent pas ajouter à l'écran d'accueil. Sur iOS 16.4+, les push notifications **n'arrivent que si l'app est installée** — l'incitation à l'installation conditionne donc l'activation des notifs.
+iOS n'expose pas de prompt programmatique (`beforeinstallprompt`) : l'installation y est manuelle via Safari. Les autres navigateurs iOS (Chrome/Firefox/Edge) sont exclus de la détection « iOS » car ils ne peuvent pas ajouter à l'écran d'accueil. La fin d'installation (event `appinstalled`) masque immédiatement les deux surfaces, sans attendre un rechargement. Sur iOS 16.4+, les push notifications **n'arrivent que si l'app est installée** — l'incitation à l'installation conditionne donc l'activation des notifs.
 
 ---
 

@@ -19,7 +19,8 @@ const DISMISSED_KEY = 'install-banner-dismissed'
 
 // Safari iOS uniquement : les autres navigateurs iOS (Chrome/Firefox/in-app) n'exposent
 // pas l'option « Sur l'écran d'accueil » → inutile (et trompeur) de leur montrer la consigne.
-function isIOSSafari(): boolean {
+// Exporté pour test unitaire (logique de détection UA pure).
+export function isIOSSafari(): boolean {
   const ua = navigator.userAgent
   const isIOSDevice =
     /iphone|ipad|ipod/i.test(ua) ||
@@ -34,6 +35,7 @@ export function useInstallPrompt() {
   const [isIOS, setIsIOS]               = useState(false)
   const [isStandalone, setIsStandalone]  = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(true)
+  const [supportsPrompt, setSupportsPrompt] = useState(false)
   const [ready, setReady]               = useState(false)
 
   useEffect(() => {
@@ -47,6 +49,9 @@ export function useInstallPrompt() {
       setIsStandalone(standalone)
       setBannerDismissed(localStorage.getItem(DISMISSED_KEY) === 'true')
       setIsIOS(isIOSSafari())
+      // Moteur Chromium (Android/desktop) : seul à exposer l'install PWA via prompt/menu.
+      // Firefox/Safari desktop ne l'ont pas → on n'affichera aucune consigne d'install.
+      setSupportsPrompt('onbeforeinstallprompt' in window)
       setReady(true)
       // Event éventuellement déclenché avant le montage et capté par le boot script.
       if (window.__deferredInstallPrompt) setAndroidPrompt(window.__deferredInstallPrompt)
@@ -57,8 +62,19 @@ export function useInstallPrompt() {
       e.preventDefault()
       setAndroidPrompt(e as BeforeInstallPromptEvent)
     }
+    // Installation terminée (bouton natif OU menu du navigateur) → masque banner/CTA sans
+    // attendre un rechargement. Diffusé à toutes les instances du hook. (iOS ne l'émet pas.)
+    function onInstalled() {
+      setIsStandalone(true)
+      window.__deferredInstallPrompt = null
+      setAndroidPrompt(null)
+    }
     window.addEventListener('beforeinstallprompt', onPrompt)
-    return () => window.removeEventListener('beforeinstallprompt', onPrompt)
+    window.addEventListener('appinstalled', onInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt)
+      window.removeEventListener('appinstalled', onInstalled)
+    }
   }, [])
 
   // Installable « automatiquement » = pas standalone ET (prompt Android dispo OU iOS Safari).
@@ -71,10 +87,11 @@ export function useInstallPrompt() {
   // Prompt natif Android effectivement capté → on peut déclencher l'installation.
   const canPromptInstall = androidPrompt !== null
 
-  // Entrée dans les réglages = visible dès que l'app n'est pas déjà installée, quelle que
-  // soit la plateforme. La guidance s'adapte (bouton natif, instructions iOS, ou menu du
-  // navigateur) — voir ProfileSettings. Indépendant du dismiss de la bannière.
-  const showInSettings = ready && !isStandalone
+  // Entrée dans les réglages = visible tant que l'app n'est pas installée ET que le navigateur
+  // sait installer une PWA (iOS Safari, ou moteur Chromium). Exclut Firefox/Safari desktop, qui
+  // n'ont pas d'install PWA → pas de consigne trompeuse. La guidance s'adapte ensuite (bouton
+  // natif, instructions iOS, ou menu du navigateur) — voir ProfileSettings.
+  const showInSettings = ready && !isStandalone && (isIOS || supportsPrompt)
 
   function dismissBanner() {
     localStorage.setItem(DISMISSED_KEY, 'true')

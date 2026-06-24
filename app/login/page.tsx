@@ -1,6 +1,7 @@
 import { signInWithGoogle } from '@/app/actions/auth'
 import { t } from '@/lib/i18n'
-import { SubmitButton } from './submit-button'
+import { SubmitButton } from '@/app/ui/submit-button'
+import { GoogleIcon } from './google-icon'
 
 export default function LoginPage() {
   return (
@@ -24,7 +25,7 @@ export default function LoginPage() {
       </div>
 
       <form action={signInWithGoogle} className="relative mt-12 w-full max-w-[300px]">
-        <SubmitButton />
+        <SubmitButton label={t('login.cta')} icon={<GoogleIcon />} variant="light" size="block" />
       </form>
 
       <p className="relative mt-5 text-xs text-text-muted">{t('login.footer')}</p>

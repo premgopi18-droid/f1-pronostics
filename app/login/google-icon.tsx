@@ -1,21 +1,5 @@
-'use client'
-
-import { useFormStatus } from 'react-dom'
-import { Button } from '@/app/ui/button'
-import { t } from '@/lib/i18n'
-
-export function SubmitButton() {
-  const { pending } = useFormStatus()
-
-  return (
-    <Button type="submit" variant="light" size="block" disabled={pending}>
-      {pending ? <Spinner /> : <GoogleIcon />}
-      {t('login.cta')}
-    </Button>
-  )
-}
-
-function GoogleIcon() {
+// Logo Google officiel (multicolore) — affiché dans le CTA « Continuer avec Google ».
+export function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
       <path
@@ -33,30 +17,6 @@ function GoogleIcon() {
       <path
         fill="#EA4335"
         d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z"
-      />
-    </svg>
-  )
-}
-
-function Spinner() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 18 18"
-      aria-hidden="true"
-      className="animate-spin"
-    >
-      <circle
-        cx="9"
-        cy="9"
-        r="7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeDasharray="32"
-        strokeDashoffset="12"
       />
     </svg>
   )

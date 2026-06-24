@@ -1,20 +1,26 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useFormStatus } from 'react-dom'
-import { t } from '@/lib/i18n'
+import { Button, type ButtonProps } from '@/app/ui/button'
+import { Spinner } from '@/app/ui/spinner'
 
-export function SubmitButton({ label }: { label: string }) {
+type SubmitButtonProps = Pick<ButtonProps, 'variant' | 'size'> & {
+  label: string
+  /** Icône optionnelle affichée avant le label, remplacée par le spinner pendant la soumission. */
+  icon?: ReactNode
+}
+
+// Bouton de soumission générique pour les <form> à Server Action : désactivé +
+// spinner pendant la soumission (via useFormStatus). `aria-busy` annonce l'état
+// occupé aux lecteurs d'écran, le label restant inchangé.
+export function SubmitButton({ label, icon, variant, size }: SubmitButtonProps) {
   const { pending } = useFormStatus()
 
-  // Couleurs via tokens sémantiques (themeable) — pas de couleur en dur.
-  // NB : migration vers la primitive Button prévue au re-skin de chaque page.
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg px-4 py-2.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {pending ? t('common.loading') : label}
-    </button>
+    <Button type="submit" variant={variant} size={size} disabled={pending} aria-busy={pending}>
+      {pending ? <Spinner /> : icon}
+      {label}
+    </Button>
   )
 }

@@ -200,6 +200,11 @@ export const fr = {
     pts: "pts",
     allGps: "Voir tous les GPs →",
     lockedPredictions: "Voir les pronos verrouillés des membres →",
+    weekendsTitle: "Week-ends",
+    gpStatusFinal: "Définitif",
+    gpStatusProvisional: "Provisoire",
+    gpStatusNext: "Prochain",
+    gpStatusUpcoming: "À venir",
   },
   admin: {
     pageTitle: "Paramètres admin",

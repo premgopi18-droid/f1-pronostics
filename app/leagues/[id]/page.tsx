@@ -290,7 +290,7 @@ export default async function LeaguePage({
               id="gps-heading"
               className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-muted"
             >
-              Week-ends
+              {t('leagueDetail.weekendsTitle')}
             </h2>
             <div className="flex flex-col gap-1.5">
               {gpList.map((gp) => {
@@ -309,13 +309,13 @@ export default async function LeaguePage({
                       {gp.name as string}
                     </span>
                     {gp.scoring_finalized_at != null ? (
-                      <span className="text-2xs font-semibold text-success">Définitif</span>
+                      <span className="text-2xs font-semibold text-success">{t('leagueDetail.gpStatusFinal')}</span>
                     ) : isPast ? (
-                      <span className="text-2xs font-semibold text-warning">Provisoire</span>
+                      <span className="text-2xs font-semibold text-warning">{t('leagueDetail.gpStatusProvisional')}</span>
                     ) : isNext ? (
-                      <span className="text-2xs font-semibold text-primary">Prochain</span>
+                      <span className="text-2xs font-semibold text-primary">{t('leagueDetail.gpStatusNext')}</span>
                     ) : (
-                      <span className="text-2xs font-semibold text-text-muted">À venir</span>
+                      <span className="text-2xs font-semibold text-text-muted">{t('leagueDetail.gpStatusUpcoming')}</span>
                     )}
                     <span className="text-xs text-text-muted">→</span>
                   </Link>

@@ -53,6 +53,7 @@ export function OnboardingWizard() {
       setRawAvailability(result.ok ? { status: "ok" } : { status: "error", error: result.error! });
     }
     void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- requestId est un compteur d'annulation, incrémenter la valeur courante à la destruction est intentionnel
     return () => { requestId.current++; };
   }, [pseudo]);
 

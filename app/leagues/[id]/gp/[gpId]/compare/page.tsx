@@ -82,7 +82,7 @@ export default async function PredictionComparePage({
   // Stage 2 — toutes les prédictions + résultats officiels pour les sessions verrouillées
   const [
     { data: allPredictions },
-    { data: allFastestLap },
+    { data: _allFastestLap },
     { data: allResults },
   ] = await Promise.all([
     supabase

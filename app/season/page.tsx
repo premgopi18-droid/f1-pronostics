@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { headers } from 'next/headers'
-import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import {
@@ -25,8 +24,7 @@ function formatDeadline(d: Date): string {
 }
 
 export default async function SeasonPage() {
-  const supabase = await createClient()
-  const season   = getCurrentSeason()
+  const season = getCurrentSeason()
   const userId   = (await headers()).get('x-user-id')
 
   if (!userId) redirect('/login')

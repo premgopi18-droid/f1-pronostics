@@ -13,7 +13,7 @@ import { t, type TranslationKey } from "@/lib/i18n";
  * le `pb-[env(safe-area-inset-bottom)]` de la nav est compté dans cette hauteur,
  * donc on l'ajoute ici pour laisser 64px utiles aux icônes.
  */
-const NAV_HEIGHT = "h-[calc(4rem+env(safe-area-inset-bottom))]";
+const NAV_HEIGHT = "h-[calc(4rem+env(safe-area-inset-bottom,0px))]";
 
 type Tab = {
   href: string;
@@ -52,7 +52,7 @@ export function BottomNav() {
         className={cn(
           "fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-card",
           // marge de sécurité pour les encoches / barres système (PWA)
-          "pb-[env(safe-area-inset-bottom)]",
+          "pb-[env(safe-area-inset-bottom,0px)]",
           NAV_HEIGHT,
         )}
       >

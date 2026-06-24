@@ -35,7 +35,6 @@ export function useInstallPrompt() {
   const [isIOS, setIsIOS]               = useState(false)
   const [isStandalone, setIsStandalone]  = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(true)
-  const [supportsPrompt, setSupportsPrompt] = useState(false)
   const [ready, setReady]               = useState(false)
 
   useEffect(() => {
@@ -49,9 +48,6 @@ export function useInstallPrompt() {
       setIsStandalone(standalone)
       setBannerDismissed(localStorage.getItem(DISMISSED_KEY) === 'true')
       setIsIOS(isIOSSafari())
-      // Moteur Chromium (Android/desktop) : seul à exposer l'install PWA via prompt/menu.
-      // Firefox/Safari desktop ne l'ont pas → on n'affichera aucune consigne d'install.
-      setSupportsPrompt('onbeforeinstallprompt' in window)
       setReady(true)
       // Event éventuellement déclenché avant le montage et capté par le boot script.
       if (window.__deferredInstallPrompt) setAndroidPrompt(window.__deferredInstallPrompt)
@@ -87,11 +83,12 @@ export function useInstallPrompt() {
   // Prompt natif Android effectivement capté → on peut déclencher l'installation.
   const canPromptInstall = androidPrompt !== null
 
-  // Entrée dans les réglages = visible tant que l'app n'est pas installée ET que le navigateur
-  // sait installer une PWA (iOS Safari, ou moteur Chromium). Exclut Firefox/Safari desktop, qui
-  // n'ont pas d'install PWA → pas de consigne trompeuse. La guidance s'adapte ensuite (bouton
-  // natif, instructions iOS, ou menu du navigateur) — voir ProfileSettings.
-  const showInSettings = ready && !isStandalone && (isIOS || supportsPrompt)
+  // Entrée dans les réglages = visible dès que l'app n'est pas déjà installée, quelle que soit
+  // la plateforme. On ne gate PAS sur la détection du moteur : des navigateurs Chromium comme
+  // Brave neutralisent `beforeinstallprompt`/`onbeforeinstallprompt` mais savent installer via
+  // leur menu — les masquer priverait l'utilisateur du seul point d'entrée. La guidance s'adapte
+  // (bouton natif, instructions iOS, ou renvoi vers le menu du navigateur) — voir ProfileSettings.
+  const showInSettings = ready && !isStandalone
 
   function dismissBanner() {
     localStorage.setItem(DISMISSED_KEY, 'true')

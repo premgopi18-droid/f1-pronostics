@@ -248,6 +248,7 @@ function RaceForm({
         <button
           type="button"
           onClick={() => setFastestLapSheetOpen(true)}
+          aria-label={t('predict.fastestLap')}
           className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5 text-sm transition-colors hover:bg-secondary/40"
         >
           {fastestLap ? (
@@ -269,7 +270,7 @@ function RaceForm({
                 onClick={() => { setFastestLap(''); setFastestLapSheetOpen(false) }}
                 className="rounded-xl px-4 py-3 text-left text-sm text-text-secondary transition-colors hover:bg-secondary/40"
               >
-                — Aucun
+                {t('predict.none')}
               </button>
             )}
             {drivers.map((d) => (

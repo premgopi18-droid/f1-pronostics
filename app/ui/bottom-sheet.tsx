@@ -14,17 +14,20 @@ const FOCUSABLE = [
 interface BottomSheetProps {
   open:     boolean
   onClose:  () => void
-  title?:   string
+  title:    string
   children: React.ReactNode
 }
 
 export function BottomSheet({ open, onClose, title, children }: BottomSheetProps) {
   const panelRef   = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose  // toujours à jour sans être une dep d'effet
+  // Garde la ref à jour sans en faire une dep d'effet (maj après commit, hors render)
+  useEffect(() => { onCloseRef.current = onClose })
 
   useEffect(() => {
     if (!open) return
+
+    const previouslyFocused = document.activeElement as HTMLElement | null
 
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -58,6 +61,8 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
       document.body.style.overflow = prev
       cancelAnimationFrame(frame)
       document.removeEventListener('keydown', onKey)
+      // Restitue le focus au trigger à la fermeture (a11y clavier / lecteur d'écran)
+      previouslyFocused?.focus()
     }
   }, [open])  // onClose lu via ref — pas de re-run parasite
 

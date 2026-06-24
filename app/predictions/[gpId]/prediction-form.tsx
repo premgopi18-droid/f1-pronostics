@@ -22,6 +22,7 @@ import { GripVertical } from 'lucide-react'
 import { submitPredictionAction, submitFastestLapAction } from '@/app/actions/predictions'
 import { TEAM_COLORS } from '@/lib/f1/team-colors'
 import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
+import { useTapSelect } from '@/lib/hooks/use-tap-select'
 import { buildRaceOrder } from '@/lib/predictions/helpers'
 import { t } from '@/lib/i18n'
 import { Badge } from '@/app/ui/badge'
@@ -152,14 +153,19 @@ function RaceForm({
 }) {
   const allCodes = drivers.map((d) => d.code)
 
-  const [selected,           setSelected]           = useState<string[]>(() => buildRaceOrder(existingEntries, allCodes))
-  const [fastestLap,         setFastestLap]         = useState(existingFastestLap ?? '')
+  const [selected,            setSelected]            = useState<string[]>(() => buildRaceOrder(existingEntries, allCodes))
+  const [fastestLap,          setFastestLap]          = useState(existingFastestLap ?? '')
   const [fastestLapSheetOpen, setFastestLapSheetOpen] = useState(false)
-  const [message,            setMessage]            = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [message,             setMessage]             = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending,  startTransition] = useTransition()
   const reducedMotion = usePrefersReducedMotion()
 
   const driverByCode = new Map(drivers.map((d) => [d.code, d]))
+
+  const { selectedCode, onRowTap, onDragStart } = useTapSelect(
+    selected,
+    (newItems) => { setSelected(newItems); setMessage(null) },
+  )
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE } }),
@@ -204,19 +210,22 @@ function RaceForm({
       <p className="text-xs text-text-secondary">{t('predict.courseSubtitle')}</p>
 
       {/* Sortable driver list */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <SortableContext items={selected} strategy={verticalListSortingStrategy}>
           <ol className="flex flex-col gap-1">
             {selected.map((code, i) => {
               const driver = driverByCode.get(code)
               if (!driver) return null
+              const isSelected = selectedCode === code
               return (
                 <SortableRow key={code} id={code} reducedMotion={reducedMotion}>
                   {(dragHandleProps, isDragging) => (
                     <li
+                      onClick={() => onRowTap(code)}
                       className={cn(
-                        'flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 transition-shadow',
+                        'flex cursor-pointer select-none items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 transition-shadow',
                         isDragging && 'shadow-lg opacity-80',
+                        isSelected && 'ring-2 ring-primary bg-primary/5',
                       )}
                     >
                       <span className="w-5 shrink-0 text-right text-sm tabular-nums text-text-secondary" style={positionStyle(i + 1)}>
@@ -336,6 +345,11 @@ function QualifsForm({
   const unranked     = drivers.filter((d) => !selected.includes(d.code))
   const isComplete   = selected.length === expectedCount
 
+  const { selectedCode, onRowTap, onDragStart } = useTapSelect(
+    selected,
+    (newItems) => { setSelected(newItems); setMessage(null) },
+  )
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -391,19 +405,22 @@ function QualifsForm({
         <p className="px-1 text-2xs font-semibold tracking-widest text-text-secondary">
           {t('predict.ranked')}
         </p>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
           <SortableContext items={selected} strategy={verticalListSortingStrategy}>
             <ol className="flex flex-col gap-1">
               {selected.map((code, i) => {
                 const driver = driverByCode.get(code)
                 if (!driver) return null
+                const isSelected = selectedCode === code
                 return (
                   <SortableRow key={code} id={code} reducedMotion={reducedMotion}>
                     {(dragHandleProps, isDragging) => (
                       <li
+                        onClick={() => onRowTap(code)}
                         className={cn(
-                          'flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 transition-shadow',
+                          'flex cursor-pointer select-none items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 transition-shadow',
                           isDragging && 'shadow-lg opacity-80',
+                          isSelected && 'ring-2 ring-primary bg-primary/5',
                         )}
                       >
                         <span className="w-5 shrink-0 text-right text-sm tabular-nums text-text-secondary" style={positionStyle(i + 1)}>
@@ -418,7 +435,7 @@ function QualifsForm({
                           <GripVertical size={14} aria-hidden="true" />
                         </button>
                         <button
-                          onClick={() => remove(i)}
+                          onClick={(e) => { e.stopPropagation(); remove(i) }}
                           aria-label={`${t('predict.remove')} ${driver.firstName} ${driver.lastName}`}
                           className="shrink-0 p-1 text-text-secondary transition-colors hover:text-destructive"
                         >

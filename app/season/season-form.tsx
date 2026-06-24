@@ -23,6 +23,9 @@ import {
   applySeasonItemAction,
 } from '@/app/actions/season-predictions'
 import { BottomSheet } from '@/app/ui/bottom-sheet'
+import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
+import { useTapSelect } from '@/lib/hooks/use-tap-select'
+import { cn } from '@/lib/utils'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -51,6 +54,8 @@ interface Props {
   isItemsOpen:      boolean
   seasonItems:      SeasonItems
 }
+
+const DRAG_ACTIVATION_DISTANCE = 6
 
 type Tab = 'wdc' | 'wcc'
 
@@ -192,8 +197,15 @@ function RankingPanel({
   // (le prop initial vient du serveur ; on décrémente après un usage réussi).
   const [usesLeft, setUsesLeft]     = useState(itemUsesRemaining)
 
+  const reducedMotion = usePrefersReducedMotion()
+
+  const { selectedCode, onRowTap, onDragStart } = useTapSelect(
+    entries,
+    (newItems) => { onEntriesChange(newItems); setMessage(null) },
+  )
+
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -251,7 +263,7 @@ function RankingPanel({
     <div className="flex flex-col gap-4">
       <p className="text-xs text-zinc-500 uppercase tracking-wider">{label}</p>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <SortableContext items={entries} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-1">
             {entries.map((code, index) => (
@@ -261,6 +273,9 @@ function RankingPanel({
                 position={index + 1}
                 label={labels.get(code) ?? code}
                 disabled={!isSubmissionOpen}
+                isSelected={selectedCode === code}
+                onTap={isSubmissionOpen ? () => onRowTap(code) : undefined}
+                reducedMotion={reducedMotion}
                 onMoveUp={index > 0 ? () => move(index, -1) : undefined}
                 onMoveDown={index < entries.length - 1 ? () => move(index, 1) : undefined}
                 predictionCount={predictionCount}
@@ -411,6 +426,9 @@ function SortableRow({
   position,
   label,
   disabled,
+  isSelected,
+  onTap,
+  reducedMotion,
   onMoveUp,
   onMoveDown,
   predictionCount,
@@ -420,6 +438,9 @@ function SortableRow({
   position:            number
   label:               string
   disabled:            boolean
+  isSelected:          boolean
+  onTap?:              () => void
+  reducedMotion:       boolean
   onMoveUp?:           () => void
   onMoveDown?:         () => void
   predictionCount:     number
@@ -436,7 +457,7 @@ function SortableRow({
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: reducedMotion ? undefined : transition,
     opacity: isDragging ? 0.5 : 1,
   }
 
@@ -447,11 +468,14 @@ function SortableRow({
       <div
         ref={setNodeRef}
         style={style}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
-          isInPrediction
-            ? 'bg-zinc-900'
-            : 'bg-zinc-950 opacity-40'
-        } ${isDragging ? 'ring-1 ring-zinc-600' : ''}`}
+        onClick={onTap}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors',
+          isInPrediction ? 'bg-zinc-900' : 'bg-zinc-950 opacity-40',
+          isDragging && 'ring-1 ring-zinc-600',
+          isSelected && 'ring-2 ring-primary bg-primary/5',
+          onTap && 'cursor-pointer select-none',
+        )}
       >
         {!disabled && (
           <button
@@ -475,16 +499,16 @@ function SortableRow({
           {label}
         </span>
 
-        {!disabled && (
+        {!disabled && reducedMotion && (
           <div className="flex gap-1 shrink-0">
             <button
-              onClick={onMoveUp}
+              onClick={(e) => { e.stopPropagation(); onMoveUp?.() }}
               disabled={!onMoveUp}
               className="w-6 h-6 flex items-center justify-center text-zinc-500 hover:text-zinc-200 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
               aria-label="Monter"
             >↑</button>
             <button
-              onClick={onMoveDown}
+              onClick={(e) => { e.stopPropagation(); onMoveDown?.() }}
               disabled={!onMoveDown}
               className="w-6 h-6 flex items-center justify-center text-zinc-500 hover:text-zinc-200 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
               aria-label="Descendre"

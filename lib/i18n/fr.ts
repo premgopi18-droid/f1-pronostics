@@ -125,6 +125,7 @@ export const fr = {
     remove: "Retirer",
     moveUp: "Monter",
     moveDown: "Descendre",
+    close: "Fermer",
     a11yHint: "Difficultés avec le drag & drop ?",
     a11yHintCta: "Activer le mode accessibilité",
     sessionsLabel: "Sessions",

@@ -97,6 +97,25 @@ function SortableRow({ id, reducedMotion, children }: SortableRowProps) {
 
 // ─── A11y hint banner ──────────────────────────────────────────────────────
 
+/** Banner d'onboarding a11y : visible au premier lancement tant que le mode n'est
+ *  pas actif et que l'utilisateur ne l'a pas déjà fermé (flag `localStorage`).
+ *  Partagé tel quel par `RaceForm` et `QualifsForm`. */
+function useA11yHint(reducedMotion: boolean) {
+  const [showHint, setShowHint] = useState(false)
+
+  useEffect(() => {
+    // Wrapper volontaire : `react-hooks/set-state-in-effect` interdit un setState
+    // synchrone direct dans le corps de l'effet, mais l'accepte via un appel de fonction.
+    const syncHint = () => { if (!reducedMotion && !localStorage.getItem(A11Y_HINT_KEY)) setShowHint(true) }
+    syncHint()
+  }, [reducedMotion])
+
+  const dismissHint = () => { localStorage.setItem(A11Y_HINT_KEY, '1'); setShowHint(false) }
+  const activateA11y = () => { setReduceMotionOverride(true); setShowHint(false) }
+
+  return { showHint, dismissHint, activateA11y }
+}
+
 function A11yHintBanner({ onActivate, onDismiss }: { onActivate: () => void; onDismiss: () => void }) {
   return (
     <div className="flex items-start justify-between gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-2.5">
@@ -108,7 +127,7 @@ function A11yHintBanner({ onActivate, onDismiss }: { onActivate: () => void; onD
       </p>
       <button
         onClick={onDismiss}
-        aria-label="Fermer"
+        aria-label={t('predict.close')}
         className="shrink-0 text-lg leading-none text-text-secondary transition-colors hover:text-foreground"
       >
         <span aria-hidden="true">×</span>
@@ -184,17 +203,9 @@ function RaceForm({
   const [fastestLap,          setFastestLap]          = useState(existingFastestLap ?? '')
   const [fastestLapSheetOpen, setFastestLapSheetOpen] = useState(false)
   const [message,             setMessage]             = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
-  const [showHint,            setShowHint]            = useState(false)
   const [isPending,  startTransition] = useTransition()
   const reducedMotion = usePrefersReducedMotion()
-
-  useEffect(() => {
-    const syncHint = () => { if (!reducedMotion && !localStorage.getItem(A11Y_HINT_KEY)) setShowHint(true) }
-    syncHint()
-  }, [reducedMotion])
-
-  const dismissHint = () => { localStorage.setItem(A11Y_HINT_KEY, '1'); setShowHint(false) }
-  const activateA11y = () => { setReduceMotionOverride(true); setShowHint(false) }
+  const { showHint, dismissHint, activateA11y } = useA11yHint(reducedMotion)
 
   const moveDriverUp = (index: number) => {
     if (index === 0) return
@@ -414,17 +425,9 @@ function QualifsForm({
 }) {
   const [selected,  setSelected]   = useState<string[]>(existingEntries)
   const [message,   setMessage]    = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
-  const [showHint,  setShowHint]   = useState(false)
   const [isPending, startTransition] = useTransition()
   const reducedMotion = usePrefersReducedMotion()
-
-  useEffect(() => {
-    const syncHint = () => { if (!reducedMotion && !localStorage.getItem(A11Y_HINT_KEY)) setShowHint(true) }
-    syncHint()
-  }, [reducedMotion])
-
-  const dismissHint = () => { localStorage.setItem(A11Y_HINT_KEY, '1'); setShowHint(false) }
-  const activateA11y = () => { setReduceMotionOverride(true); setShowHint(false) }
+  const { showHint, dismissHint, activateA11y } = useA11yHint(reducedMotion)
 
   const moveDriverUp = (index: number) => {
     if (index === 0) return

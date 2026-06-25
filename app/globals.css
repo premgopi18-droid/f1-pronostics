@@ -238,10 +238,19 @@ body {
   scroll-behavior: auto !important;
 }
 
-/* Mode accessibilité — tokens contraste WCAG AAA sur fonds sombres de l'app.
-   text-secondary : #A0A0B0 → #C8C8D8 (~10.9:1 sur #15151E)
-   text-muted     : #606070 → #A0A0B0 (~7.2:1  sur #15151E) */
+/* Mode accessibilité — tokens contraste WCAG AAA. Calculé sur les deux fonds réels
+   de l'app (page #15151E ET carte #1E1E2A) pour tenir le seuil AAA (7:1) partout.
+   text-secondary : #A0A0B0 → #C8C8D8 (~10.9:1 page · ~10.0:1 carte)
+   text-muted     : #606070 → #AEAEBE (~8.3:1  page · ~7.5:1  carte)
+   Double déclencheur, comme la réduction d'animations ci-dessus : préférence système
+   (auto, sans JS) ET classe `.reduce-motion` (override manuel posé par le toggle profil). */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --text-secondary: #C8C8D8;
+    --text-muted:     #AEAEBE;
+  }
+}
 .reduce-motion {
   --text-secondary: #C8C8D8;
-  --text-muted:     #A0A0B0;
+  --text-muted:     #AEAEBE;
 }

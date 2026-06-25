@@ -111,10 +111,10 @@ describe('fetchCalendar', () => {
       expect(bahrain.sprintQualStartsAt).toBeNull()
     })
 
-    it('weekendStartsAt = date+heure FP1', async () => {
+    it('weekendStartsAt = début des qualifs (hors essais) en week-end normal', async () => {
       mockFetch(JOLPIKA_RACES_RESPONSE)
       const [bahrain] = await fetchCalendar(2025)
-      expect(bahrain.weekendStartsAt).toBe('2025-03-14T11:30:00Z')
+      expect(bahrain.weekendStartsAt).toBe('2025-03-15T15:00:00Z')
     })
 
     it('qualifyingStartsAt depuis Qualifying Jolpika', async () => {
@@ -143,10 +143,16 @@ describe('fetchCalendar', () => {
       expect(china.sprintRaceStartsAt).toBe('2025-03-22T07:00:00Z')
       expect(china.sprintQualStartsAt).toBe('2025-03-22T03:00:00Z')
     })
+
+    it('weekendStartsAt = début de la sprint qualif en week-end sprint', async () => {
+      mockFetch(JOLPIKA_RACES_RESPONSE)
+      const [, china] = await fetchCalendar(2025)
+      expect(china.weekendStartsAt).toBe('2025-03-22T03:00:00Z')
+    })
   })
 
   describe('Fallbacks sans horaires Jolpica', () => {
-    it('weekendStartsAt = date+time course si pas de FP1', async () => {
+    it('weekendStartsAt = date+time course si pas de qualif (fallback)', async () => {
       mockFetch(JOLPIKA_NO_SCHEDULE)
       const [entry] = await fetchCalendar(2025)
       expect(entry.weekendStartsAt).toBe('2025-12-01T14:00:00Z')

@@ -187,6 +187,64 @@ export async function markGPNotifiedOpen(gpId: string): Promise<void> {
   if (error) throw error
 }
 
+// GPs dont la PREMIÈRE session (= celle qui verrouille pronos + items : Sprint
+// Qualifying en week-end sprint, Qualifications sinon) commence dans les
+// prochaines 24h et qui n'ont pas encore reçu le rappel "pronos J-1".
+// L'ancre = la session la plus tôt du GP : la table `sessions` ne contient que
+// les sessions scorées (qualif/course/sprint), pas les essais libres — donc
+// min(starts_at) tombe bien sur la session-deadline.
+export async function getGPsNeedingQualReminder(
+  season: number,
+): Promise<{ id: string; name: string }[]> {
+  const supabase = createServiceClient()
+  const now   = new Date()
+  const limit = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('starts_at, gp_id, grands_prix!gp_id(id, name, is_cancelled, notified_reminder_24h_at)')
+    .eq('season', season)
+
+  if (error) throw error
+
+  type GPMeta = {
+    id: string
+    name: string
+    is_cancelled: boolean
+    notified_reminder_24h_at: string | null
+  }
+
+  // Première session (min starts_at) de chaque GP, calculée côté JS.
+  const earliestByGP = new Map<string, { startsAt: Date; gp: GPMeta }>()
+  for (const row of data ?? []) {
+    const gp = row.grands_prix as unknown as GPMeta | null
+    if (!gp) continue
+    const startsAt = new Date(row.starts_at as string)
+    const current  = earliestByGP.get(gp.id)
+    if (!current || startsAt < current.startsAt) {
+      earliestByGP.set(gp.id, { startsAt, gp })
+    }
+  }
+
+  const result: { id: string; name: string }[] = []
+  for (const { startsAt, gp } of earliestByGP.values()) {
+    if (gp.is_cancelled || gp.notified_reminder_24h_at) continue
+    if (startsAt >= now && startsAt <= limit) {
+      result.push({ id: gp.id, name: gp.name })
+    }
+  }
+  return result
+}
+
+export async function markGPNotifiedQualReminder(gpId: string): Promise<void> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('grands_prix')
+    .update({ notified_reminder_24h_at: new Date().toISOString() })
+    .eq('id', gpId)
+  if (error) throw error
+}
+
 // GPs dont le scoring est finalisé et la notification résultats pas encore envoyée
 export async function getGPsNeedingScoreNotification(
   season: number,
@@ -266,6 +324,87 @@ export async function claimSessionProvisionalNotification(sessionId: string): Pr
     .update({ notified_provisional_at: new Date().toISOString() })
     .eq('id', sessionId)
     .is('notified_provisional_at', null)
+    .select('id')
+  if (error) throw error
+  return (data ?? []).length > 0
+}
+
+const POST_SESSION_NUDGE_DELAY_MS = 2 * 60 * 60 * 1000 // 2h après le début de la session
+
+// Sessions terminées depuis ≥ 2h qui ont une session SUIVANTE encore ouverte dans
+// le même GP, et pas encore nudgées. Sert le rappel "tu peux encore ajuster tes
+// pronos de la session suivante" (ex. après la qualif → ajuster la course).
+// La session suivante = la plus proche par starts_at ; on n'envoie que si elle
+// n'a pas encore démarré (un prono se verrouille au début de sa session).
+export async function getSessionsNeedingPostNudge(
+  season: number,
+): Promise<{ id: string; nextType: SessionType; gpId: string; gpName: string }[]> {
+  const supabase = createServiceClient()
+  const now = new Date()
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('id, type, gp_id, starts_at, notified_post_session_at, grands_prix!gp_id(name, is_cancelled)')
+    .eq('season', season)
+    .order('starts_at', { ascending: true })
+
+  if (error) throw error
+
+  type GPMeta = { name: string; is_cancelled: boolean }
+  type Row = {
+    id: string
+    type: SessionType
+    gpId: string
+    gpName: string
+    isCancelled: boolean
+    startsAt: Date
+    notified: boolean
+  }
+
+  // Regroupe les sessions par GP, déjà triées par starts_at croissant.
+  const byGP = new Map<string, Row[]>()
+  for (const raw of data ?? []) {
+    const gp = raw.grands_prix as unknown as GPMeta | null
+    if (!gp) continue
+    const row: Row = {
+      id:          raw.id as string,
+      type:        raw.type as SessionType,
+      gpId:        raw.gp_id as string,
+      gpName:      gp.name,
+      isCancelled: gp.is_cancelled,
+      startsAt:    new Date(raw.starts_at as string),
+      notified:    raw.notified_post_session_at != null,
+    }
+    const list = byGP.get(row.gpId) ?? []
+    list.push(row)
+    byGP.set(row.gpId, list)
+  }
+
+  const result: { id: string; nextType: SessionType; gpId: string; gpName: string }[] = []
+  for (const sessions of byGP.values()) {
+    // Chaque session sauf la dernière : nudge vers la session suivante.
+    for (let i = 0; i < sessions.length - 1; i++) {
+      const current = sessions[i]
+      const next    = sessions[i + 1]
+      if (current.isCancelled || current.notified) continue
+      const elapsed = now.getTime() - current.startsAt.getTime()
+      // ≥ 2h après le début de la session courante ET la suivante pas encore démarrée.
+      if (elapsed >= POST_SESSION_NUDGE_DELAY_MS && now < next.startsAt) {
+        result.push({ id: current.id, nextType: next.type, gpId: current.gpId, gpName: current.gpName })
+      }
+    }
+  }
+  return result
+}
+
+// Claim atomique du nudge post-session — voir claimSessionDeadlineNotification.
+export async function claimSessionPostNudge(sessionId: string): Promise<boolean> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('sessions')
+    .update({ notified_post_session_at: new Date().toISOString() })
+    .eq('id', sessionId)
+    .is('notified_post_session_at', null)
     .select('id')
   if (error) throw error
   return (data ?? []).length > 0

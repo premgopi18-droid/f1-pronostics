@@ -21,7 +21,7 @@ export async function submitSeasonPredictionAction(
 
   const season = getCurrentSeason()
 
-  const { submissionDeadline } = await getSeasonDeadlines(season)
+  const { submissionDeadline } = await getSeasonDeadlines(season, user.id)
   if (submissionDeadline && new Date() >= submissionDeadline) {
     return { error: 'Deadline passée — pronostics saison verrouillés' }
   }

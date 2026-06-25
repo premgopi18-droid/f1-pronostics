@@ -43,28 +43,46 @@ async function handler(request: Request): Promise<Response> {
   const title  = url.searchParams.get('title') ?? '🔔 Test BoxBox'
   const body   = url.searchParams.get('body')
     ?? 'Notification de test — si tu la vois, le push fonctionne !'
-  const target = url.searchParams.get('url') ?? '/'
 
-  // Compte les abonnements ciblés (diagnostic : 0 ⇒ personne d'abonné côté base).
-  const supabase = createServiceClient()
-  let countQuery = supabase
-    .from('push_subscriptions')
-    .select('endpoint', { count: 'exact', head: true })
-  if (userId) countQuery = countQuery.eq('user_id', userId)
-  const { count } = await countQuery
+  // Le SW fait `clients.openWindow(data.url)` au clic : on n'accepte qu'un chemin
+  // interne pour qu'un appelant (même muni du secret) ne puisse pas ouvrir un
+  // domaine externe (phishing). On refuse l'absolu et le protocol-relative (`//`).
+  const rawUrl = url.searchParams.get('url') ?? '/'
+  const target = rawUrl.startsWith('/') && !rawUrl.startsWith('//') ? rawUrl : '/'
 
-  const payload = { title, body, url: target }
-  if (userId) {
-    await sendPushToUser(userId, payload)
-  } else {
-    await sendPushToAll(payload)
+  try {
+    // Compte les abonnements ciblés (diagnostic : 0 ⇒ personne d'abonné côté base).
+    const supabase = createServiceClient()
+    let countQuery = supabase
+      .from('push_subscriptions')
+      .select('endpoint', { count: 'exact', head: true })
+    if (userId) countQuery = countQuery.eq('user_id', userId)
+    const { count, error } = await countQuery
+    if (error) {
+      return Response.json(
+        { error: 'Comptage des abonnements échoué', detail: error.message },
+        { status: 500 },
+      )
+    }
+
+    const payload = { title, body, url: target }
+    if (userId) {
+      await sendPushToUser(userId, payload)
+    } else {
+      await sendPushToAll(payload)
+    }
+
+    return Response.json({
+      sent: userId ? `user:${userId}` : 'all',
+      subscriptionsTargeted: count ?? 0,
+      payload,
+    })
+  } catch (err: unknown) {
+    // Filet : sendPush* avalent déjà leurs erreurs (allSettled), mais un throw
+    // inattendu (ex. createServiceClient) doit rester un 500 lisible.
+    const detail = err instanceof Error ? err.message : String(err)
+    return Response.json({ error: 'Envoi du push de test échoué', detail }, { status: 500 })
   }
-
-  return Response.json({
-    sent: userId ? `user:${userId}` : 'all',
-    subscriptionsTargeted: count ?? 0,
-    payload,
-  })
 }
 
 export const GET  = handler

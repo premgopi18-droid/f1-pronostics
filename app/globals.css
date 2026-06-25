@@ -237,3 +237,11 @@ body {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* Mode accessibilité — tokens contraste WCAG AAA sur fonds sombres de l'app.
+   text-secondary : #A0A0B0 → #C8C8D8 (~10.9:1 sur #15151E)
+   text-muted     : #606070 → #A0A0B0 (~7.2:1  sur #15151E) */
+.reduce-motion {
+  --text-secondary: #C8C8D8;
+  --text-muted:     #A0A0B0;
+}

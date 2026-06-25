@@ -283,9 +283,11 @@ Les notifications sont envoyées via Web Push (standard ouvert, compatible iOS 1
 
 | Notification | Déclencheur |
 |---|---|
-| Week-end de GP approche | J-2 avant `grands_prix.weekend_starts_at` (heure FP1, fournie par Jolpica) |
+| Week-end de GP approche | J-2 avant `grands_prix.weekend_starts_at` (= **début du GP** = 1ère session de compétition : sprint qualif en week-end sprint, sinon qualif — **hors essais libres**) |
+| Rappel pronos J-1 | 24h avant le début de la **première session qui verrouille pronos + items** du week-end (Sprint Qualifying sur week-end sprint, Qualifications sinon) — une seule notif par GP. Calé sur la session-deadline, pas sur la qualif principale, pour rester pertinent en week-end sprint où la deadline tombe le vendredi. |
 | Deadline pronostic qualifications | 1h avant le début des qualifications |
 | Deadline pronostic course | 1h avant le départ |
+| Rappel « tu peux encore ajuster » | 2h après le début de **chaque session non-finale** du week-end (SQ, SR, Qualif), pour rappeler que le prono de la **session suivante** est toujours modifiable (ex. ajuster sa course avec la grille de qualif). Une seule notif par session via claim atomique ; envoyée uniquement si la session suivante n'a pas encore démarré. Un prono se verrouille au *début* de sa session (`sessionLockState`), donc la fenêtre d'ajustement reste ouverte. |
 | Scores provisoires disponibles | Après chaque session (qualif, sprint) — scores de base sans items |
 | Résultats définitifs publiés | Après la course du dimanche — scores finaux avec items résolus |
 | Item joué contre vous | Après la course, en même temps que les résultats définitifs — surprise révélée avec les scores |

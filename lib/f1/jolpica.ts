@@ -59,7 +59,7 @@ export interface CalendarEntry {
   country:             string
   circuitShortName:    string        // locality Jolpica — best-effort pour OpenF1
   isSprintWeekend:     boolean
-  weekendStartsAt:     string        // FP1 ou date course — ISO 8601
+  weekendStartsAt:     string        // Début du GP = 1ère session de compétition (sprint qualif ?? qualif), hors essais — ISO 8601
   qualifyingStartsAt:  string
   raceStartsAt:        string
   sprintRaceStartsAt:  string | null
@@ -176,11 +176,18 @@ export async function fetchCalendar(year: number): Promise<CalendarEntry[]> {
     `/${year}/races`,
   )
   return data.MRData.RaceTable.Races.map((race) => {
-    const fp1  = race.FirstPractice
-    const qual = race.Qualifying
-    const weekendStartsAt = fp1
-      ? `${fp1.date}T${fp1.time}`
-      : `${race.date}T${race.time ?? '00:00:00Z'}`
+    const qual          = race.Qualifying
+    const raceStartsAt  = `${race.date}T${race.time ?? '00:00:00Z'}`
+    const qualifyingStartsAt = qual
+      ? `${qual.date}T${qual.time}`
+      : raceStartsAt  // fallback : date course
+    const sprintQualStartsAt = race.SprintQualifying
+      ? `${race.SprintQualifying.date}T${race.SprintQualifying.time}`
+      : null
+    // Début du GP = 1ère session de compétition (sprint qualif en week-end sprint,
+    // sinon qualif). On exclut volontairement les essais libres (FP1) : pour les
+    // pronostics, le GP « commence » au premier verrouillage, pas aux essais.
+    const weekendStartsAt = sprintQualStartsAt ?? qualifyingStartsAt
 
     return {
       season:             parseInt(race.season, 10),
@@ -191,16 +198,12 @@ export async function fetchCalendar(year: number): Promise<CalendarEntry[]> {
       circuitShortName:   race.Circuit.Location.locality,
       isSprintWeekend:    !!race.Sprint,
       weekendStartsAt,
-      qualifyingStartsAt: qual
-        ? `${qual.date}T${qual.time}`
-        : `${race.date}T${race.time ?? '00:00:00Z'}`,  // fallback : date course
-      raceStartsAt:       `${race.date}T${race.time ?? '00:00:00Z'}`,
+      qualifyingStartsAt,
+      raceStartsAt,
       sprintRaceStartsAt: race.Sprint
         ? `${race.Sprint.date}T${race.Sprint.time}`
         : null,
-      sprintQualStartsAt: race.SprintQualifying
-        ? `${race.SprintQualifying.date}T${race.SprintQualifying.time}`
-        : null,
+      sprintQualStartsAt,
     }
   })
 }

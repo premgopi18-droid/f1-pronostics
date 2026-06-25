@@ -13,10 +13,12 @@ import { getConstructorDriversMap, getResultsForSession } from '@/lib/data/sessi
 import { getItemsForGP, markItemsResolved } from '@/lib/data/items'
 import {
   claimSessionDeadlineNotification,
+  claimSessionPostNudge,
   claimSessionProvisionalNotification,
   getGPsNeedingScoreNotification,
   getSessionsForGP,
   getSessionsNeedingDeadlineNotification,
+  getSessionsNeedingPostNudge,
   markGPNotifiedScores,
 } from '@/lib/data/f1-sync'
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
@@ -46,6 +48,7 @@ async function handler(request: Request): Promise<Response> {
     let deadlineNotified  = 0
     let provisionalNotified = 0
     let itemNotified      = 0
+    let postNudgeNotified = 0
 
     // ── Notifications "deadline dans 1h" ──────────────────────────────────
     // Guard VAPID : ne rien claim si aucun push ne peut partir, sinon on brûlerait
@@ -63,6 +66,20 @@ async function handler(request: Request): Promise<Response> {
           url:   `/predictions/${session.gpId}`,
         })
         deadlineNotified++
+      }
+
+      // ── Rappel "tu peux encore ajuster" (2h après chaque session non-finale) ──
+      // Invite à ajuster le prono de la session suivante (ex. course avec la grille de qualif).
+      const postNudgeSessions = await getSessionsNeedingPostNudge(season)
+      for (const session of postNudgeSessions) {
+        if (!(await claimSessionPostNudge(session.id))) continue
+        const nextLabel = SESSION_TYPE_LABELS[session.nextType] ?? session.nextType
+        await sendPushToAll({
+          title: `✏️ ${session.gpName} — pronos ${nextLabel} encore ouverts`,
+          body:  `Pense à ajuster ton pronostic ${nextLabel} tant que la session n'a pas démarré !`,
+          url:   `/predictions/${session.gpId}`,
+        })
+        postNudgeNotified++
       }
     }
 
@@ -212,6 +229,7 @@ async function handler(request: Request): Promise<Response> {
       deadlineNotified,
       provisionalNotified,
       itemNotified,
+      postNudgeNotified,
     })
   } catch (error) {
     console.error('[api/scores/trigger]', error)

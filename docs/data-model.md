@@ -62,10 +62,11 @@
 | country | TEXT | |
 | is_sprint_weekend | BOOLEAN | |
 | is_cancelled | BOOLEAN | défaut false |
-| weekend_starts_at | TIMESTAMPTZ | UTC — heure de début du weekend (FP1). Fourni par Jolpica. Sert au calcul de la notification "J-2 avant le GP". |
+| weekend_starts_at | TIMESTAMPTZ | UTC — **début du GP** = 1ère session de compétition (sprint qualif en week-end sprint, sinon qualif), **hors essais libres**. Fourni par Jolpica. Ancre commune : countdown Home, phase week-end, « prochain GP » des ligues, notif "J-2 avant le GP". |
 | scoring_finalized_at | TIMESTAMPTZ | null jusqu'à la résolution des items après la course du dimanche. L'UI utilise ce champ pour distinguer scores provisoires (null) et définitifs (non null). |
 | notified_open_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif push "pronostics ouverts" (J-2). Garantit une seule notif par GP. |
 | notified_scores_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif push "résultats disponibles". Garantit une seule notif par GP. |
+| notified_reminder_24h_at | TIMESTAMPTZ | null jusqu'à l'envoi du rappel push "pronos J-1" (24h avant la 1ʳᵉ session-deadline du week-end). Garantit une seule notif par GP. |
 | created_at | TIMESTAMPTZ | |
 
 **RLS :** lecture publique
@@ -87,6 +88,7 @@ Seuls les résultats officiels Jolpica sont stockés — pas de flag `is_officia
 | results_confirmed_at | TIMESTAMPTZ | null jusqu'aux résultats officiels Jolpica |
 | notified_deadline_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif "deadline dans 1h" |
 | notified_provisional_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif "scores provisoires" |
+| notified_post_session_at | TIMESTAMPTZ | null jusqu'à l'envoi du rappel "tu peux encore ajuster" (2h après le début de cette session, invite à ajuster le prono de la session suivante) |
 | created_at | TIMESTAMPTZ | |
 
 **RLS :** lecture publique

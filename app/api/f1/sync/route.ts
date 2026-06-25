@@ -21,7 +21,12 @@ import {
 import { upsertSessionResults } from '@/lib/data/session-results'
 import { createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
-import { getGPsNeedingOpenNotification, markGPNotifiedOpen } from '@/lib/data/f1-sync'
+import {
+  getGPsNeedingOpenNotification,
+  markGPNotifiedOpen,
+  getGPsNeedingQualReminder,
+  markGPNotifiedQualReminder,
+} from '@/lib/data/f1-sync'
 import { isPushConfigured, sendPushToAll } from '@/lib/push/send'
 import type { DriverResult, SessionType } from '@/lib/scoring/types'
 
@@ -128,11 +133,28 @@ async function handler(request: Request): Promise<Response> {
       await markGPNotifiedOpen(gp.id)
     }
 
+    // ── Rappel "pronos J-1" (24 h avant la 1ʳᵉ session-deadline du week-end) ──
+    // Même guard VAPID : markGPNotifiedQualReminder brûlerait le flag sans push réel.
+    const qualReminderGPs = pushReady ? await getGPsNeedingQualReminder(season) : []
+    for (const gp of qualReminderGPs) {
+      await sendPushToAll({
+        title: `⏰ ${gp.name} — c'est demain`,
+        body:  'Plus que 24h avant la deadline : dépose tes pronostics et joue tes items !',
+        url:   `/predictions/${gp.id}`,
+      })
+      await markGPNotifiedQualReminder(gp.id)
+    }
+
     // Next 16 : revalidateTag exige un profil de cache (stale-while-revalidate).
     revalidateTag('drivers', 'max')
     revalidateTag('constructors', 'max')
 
-    return Response.json({ gps: calendar.length, sessionsConfirmed, notified: gpsToNotify.length })
+    return Response.json({
+      gps: calendar.length,
+      sessionsConfirmed,
+      notified: gpsToNotify.length,
+      qualReminders: qualReminderGPs.length,
+    })
   } catch (error) {
     console.error('[api/f1/sync]', error)
     return Response.json({ error: 'Internal error' }, { status: 500 })

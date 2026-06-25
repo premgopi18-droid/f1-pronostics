@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -18,10 +18,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical } from 'lucide-react'
+import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react'
 import { submitPredictionAction, submitFastestLapAction } from '@/app/actions/predictions'
 import { TEAM_COLORS } from '@/lib/f1/team-colors'
-import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
+import { usePrefersReducedMotion, setReduceMotionOverride } from '@/lib/hooks/use-prefers-reduced-motion'
 import { useTapSelect } from '@/lib/hooks/use-tap-select'
 import { buildRaceOrder } from '@/lib/predictions/helpers'
 import { t } from '@/lib/i18n'
@@ -30,6 +30,8 @@ import { Button } from '@/app/ui/button'
 import { BottomSheet } from '@/app/ui/bottom-sheet'
 import { cn } from '@/lib/utils'
 import type { SessionType } from '@/lib/scoring/types'
+
+const A11Y_HINT_KEY = 'a11y-hint-dismissed'
 
 export interface Driver {
   id:        string
@@ -93,13 +95,57 @@ function SortableRow({ id, reducedMotion, children }: SortableRowProps) {
   )
 }
 
+// ─── A11y hint banner ──────────────────────────────────────────────────────
+
+/** Banner d'onboarding a11y : visible au premier lancement tant que le mode n'est
+ *  pas actif et que l'utilisateur ne l'a pas déjà fermé (flag `localStorage`).
+ *  Partagé tel quel par `RaceForm` et `QualifsForm`. */
+function useA11yHint(reducedMotion: boolean) {
+  const [showHint, setShowHint] = useState(false)
+
+  useEffect(() => {
+    // Wrapper volontaire : `react-hooks/set-state-in-effect` interdit un setState
+    // synchrone direct dans le corps de l'effet, mais l'accepte via un appel de fonction.
+    const syncHint = () => { if (!reducedMotion && !localStorage.getItem(A11Y_HINT_KEY)) setShowHint(true) }
+    syncHint()
+  }, [reducedMotion])
+
+  const dismissHint = () => { localStorage.setItem(A11Y_HINT_KEY, '1'); setShowHint(false) }
+  const activateA11y = () => { setReduceMotionOverride(true); setShowHint(false) }
+
+  return { showHint, dismissHint, activateA11y }
+}
+
+function A11yHintBanner({ onActivate, onDismiss }: { onActivate: () => void; onDismiss: () => void }) {
+  return (
+    <div className="flex items-start justify-between gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-2.5">
+      <p className="text-sm text-text-secondary">
+        {t('predict.a11yHint')}{' '}
+        <button onClick={onActivate} className="text-primary underline underline-offset-2 transition-opacity hover:opacity-80">
+          {t('predict.a11yHintCta')}
+        </button>
+      </p>
+      <button
+        onClick={onDismiss}
+        aria-label={t('predict.close')}
+        className="shrink-0 text-lg leading-none text-text-secondary transition-colors hover:text-foreground"
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+  )
+}
+
 // ─── Driver row (shared visual, different variants) ────────────────────────
 
-function DriverInfo({ driver, position }: { driver: Driver; position?: number }) {
+function DriverInfo({ driver, position, large }: { driver: Driver; position?: number; large?: boolean }) {
   const teamColor = TEAM_COLORS[driver.teamCode] ?? '#888'
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <span className="truncate text-sm font-semibold text-foreground" style={position ? positionStyle(position) : undefined}>
+      <span
+        className={cn('truncate font-semibold text-foreground', large ? 'text-base' : 'text-sm')}
+        style={position ? positionStyle(position) : undefined}
+      >
         {driver.firstName} {driver.lastName}
       </span>
       <span className="text-2xs font-medium" style={{ color: teamColor }}>
@@ -159,6 +205,19 @@ function RaceForm({
   const [message,             setMessage]             = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending,  startTransition] = useTransition()
   const reducedMotion = usePrefersReducedMotion()
+  const { showHint, dismissHint, activateA11y } = useA11yHint(reducedMotion)
+
+  const moveDriverUp = (index: number) => {
+    if (index === 0) return
+    setSelected((prev) => arrayMove(prev, index, index - 1))
+    setMessage(null)
+  }
+
+  const moveDriverDown = (index: number) => {
+    if (index === selected.length - 1) return
+    setSelected((prev) => arrayMove(prev, index, index + 1))
+    setMessage(null)
+  }
 
   const driverByCode = new Map(drivers.map((d) => [d.code, d]))
 
@@ -207,7 +266,12 @@ function RaceForm({
   return (
     <div className="flex flex-col gap-4">
       {/* Subtitle */}
-      <p className="text-xs text-text-secondary">{t('predict.courseSubtitle')}</p>
+      <p className="text-xs text-text-secondary">
+        {reducedMotion ? t('predict.courseSubtitleA11y') : t('predict.courseSubtitle')}
+      </p>
+
+      {/* A11y hint — premier lancement, mode drag actif */}
+      {showHint && <A11yHintBanner onActivate={activateA11y} onDismiss={dismissHint} />}
 
       {/* Sortable driver list */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -228,10 +292,33 @@ function RaceForm({
                         isSelected && 'ring-2 ring-primary bg-primary/5',
                       )}
                     >
-                      <span className="w-5 shrink-0 text-right text-sm tabular-nums text-text-secondary" style={positionStyle(i + 1)}>
+                      <span
+                        className={cn('w-5 shrink-0 text-right tabular-nums text-text-secondary', reducedMotion ? 'text-base' : 'text-sm')}
+                        style={positionStyle(i + 1)}
+                      >
                         {i + 1}
                       </span>
-                      <DriverInfo driver={driver} position={i + 1} />
+                      <DriverInfo driver={driver} position={i + 1} large={reducedMotion} />
+                      {reducedMotion && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); moveDriverUp(i) }}
+                            aria-label={`${t('predict.moveUp')} ${driver.firstName} ${driver.lastName}`}
+                            disabled={i === 0}
+                            className="shrink-0 p-1 text-text-secondary transition-colors hover:text-foreground disabled:opacity-30"
+                          >
+                            <ChevronUp size={16} aria-hidden="true" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); moveDriverDown(i) }}
+                            aria-label={`${t('predict.moveDown')} ${driver.firstName} ${driver.lastName}`}
+                            disabled={i === selected.length - 1}
+                            className="shrink-0 p-1 text-text-secondary transition-colors hover:text-foreground disabled:opacity-30"
+                          >
+                            <ChevronDown size={16} aria-hidden="true" />
+                          </button>
+                        </>
+                      )}
                       <button
                         {...dragHandleProps}
                         aria-label={t('predict.reorder')}
@@ -340,6 +427,19 @@ function QualifsForm({
   const [message,   setMessage]    = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const reducedMotion = usePrefersReducedMotion()
+  const { showHint, dismissHint, activateA11y } = useA11yHint(reducedMotion)
+
+  const moveDriverUp = (index: number) => {
+    if (index === 0) return
+    setSelected((prev) => arrayMove(prev, index, index - 1))
+    setMessage(null)
+  }
+
+  const moveDriverDown = (index: number) => {
+    if (index === selected.length - 1) return
+    setSelected((prev) => arrayMove(prev, index, index + 1))
+    setMessage(null)
+  }
 
   const driverByCode = new Map(drivers.map((d) => [d.code, d]))
   const unranked     = drivers.filter((d) => !selected.includes(d.code))
@@ -393,12 +493,16 @@ function QualifsForm({
       {/* Subtitle + counter */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-text-secondary">
-          {t('predict.qualifsSubtitlePre')} {expectedCount} {t('predict.qualifsSubtitlePost')}
+          {t('predict.qualifsSubtitlePre')} {expectedCount}{' '}
+          {reducedMotion ? t('predict.qualifsSubtitleA11yPost') : t('predict.qualifsSubtitlePost')}
         </p>
         <span className={cn('text-xs font-semibold tabular-nums', isComplete ? 'text-success' : 'text-text-secondary')}>
           {selected.length}/{expectedCount}
         </span>
       </div>
+
+      {/* A11y hint — premier lancement, mode drag actif */}
+      {showHint && <A11yHintBanner onActivate={activateA11y} onDismiss={dismissHint} />}
 
       {/* Classés */}
       <div className="flex flex-col gap-1">
@@ -423,10 +527,33 @@ function QualifsForm({
                           isSelected && 'ring-2 ring-primary bg-primary/5',
                         )}
                       >
-                        <span className="w-5 shrink-0 text-right text-sm tabular-nums text-text-secondary" style={positionStyle(i + 1)}>
+                        <span
+                          className={cn('w-5 shrink-0 text-right tabular-nums text-text-secondary', reducedMotion ? 'text-base' : 'text-sm')}
+                          style={positionStyle(i + 1)}
+                        >
                           {i + 1}
                         </span>
-                        <DriverInfo driver={driver} />
+                        <DriverInfo driver={driver} large={reducedMotion} />
+                        {reducedMotion && (
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); moveDriverUp(i) }}
+                              aria-label={`${t('predict.moveUp')} ${driver.firstName} ${driver.lastName}`}
+                              disabled={i === 0}
+                              className="shrink-0 p-1 text-text-secondary transition-colors hover:text-foreground disabled:opacity-30"
+                            >
+                              <ChevronUp size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); moveDriverDown(i) }}
+                              aria-label={`${t('predict.moveDown')} ${driver.firstName} ${driver.lastName}`}
+                              disabled={i === selected.length - 1}
+                              className="shrink-0 p-1 text-text-secondary transition-colors hover:text-foreground disabled:opacity-30"
+                            >
+                              <ChevronDown size={16} aria-hidden="true" />
+                            </button>
+                          </>
+                        )}
                         <button
                           {...dragHandleProps}
                           aria-label={t('predict.reorder')}

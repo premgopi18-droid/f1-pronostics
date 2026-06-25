@@ -140,7 +140,7 @@ async function handler(request: Request): Promise<Response> {
       await sendPushToAll({
         title: `⏰ ${gp.name} — c'est demain`,
         body:  'Plus que 24h avant la deadline : dépose tes pronostics et joue tes items !',
-        url:   '/',
+        url:   `/predictions/${gp.id}`,
       })
       await markGPNotifiedQualReminder(gp.id)
     }

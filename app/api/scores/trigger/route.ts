@@ -76,7 +76,7 @@ async function handler(request: Request): Promise<Response> {
         const nextLabel = SESSION_TYPE_LABELS[session.nextType] ?? session.nextType
         await sendPushToAll({
           title: `✏️ ${session.gpName} — pronos ${nextLabel} encore ouverts`,
-          body:  `Les résultats sont tombés — ajuste ton pronostic ${nextLabel} tant que c'est ouvert !`,
+          body:  `Pense à ajuster ton pronostic ${nextLabel} tant que la session n'a pas démarré !`,
           url:   `/predictions/${session.gpId}`,
         })
         postNudgeNotified++

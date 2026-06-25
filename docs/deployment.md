@@ -87,6 +87,21 @@ curl -X POST https://votre-domaine.vercel.app/api/f1/sync \
 
 Vérifier les colonnes `notified_open_at` / `notified_scores_at` dans Supabase pour confirmer l'envoi.
 
+#### Envoi de test à la demande (`/api/dev/test-push`)
+
+Pour vérifier la livraison Web Push **immédiatement**, sans dépendre des crons ni de la dédup (ces déclencheurs ne repartent pas une fois leur flag posé) :
+
+```bash
+# Push de test à TOUS les abonnements
+curl -H "x-cron-secret: <CRON_SECRET>" https://votre-domaine.vercel.app/api/dev/test-push
+
+# Cibler un seul utilisateur (éviter de notifier les autres)
+curl -H "x-cron-secret: <CRON_SECRET>" \
+  "https://votre-domaine.vercel.app/api/dev/test-push?userId=<uuid>"
+```
+
+La réponse JSON renvoie `subscriptionsTargeted` (0 ⇒ personne d'abonné) et le `payload` envoyé. Contrairement aux autres routes `/api/dev/*`, celle-ci **fonctionne en production** (c'est là que VAPID et les abonnements existent) ; elle reste protégée par `CRON_SECRET`. Sans clés VAPID, elle renvoie un `503` explicite plutôt qu'un no-op silencieux.
+
 ### Comportement si les clés VAPID ne sont pas configurées
 
 `sendPushToAll()` détecte l'absence de clés et **skip silencieusement** sans crasher. Les crons continuent de fonctionner normalement — les notifications sont juste désactivées. Pas de 500, pas d'alerte.

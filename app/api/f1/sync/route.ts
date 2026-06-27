@@ -28,7 +28,7 @@ import {
   markGPNotifiedQualReminder,
 } from '@/lib/data/f1-sync'
 import { isPushConfigured, sendPushToAll } from '@/lib/push/send'
-import type { DriverResult, DbSessionType, SessionType } from '@/lib/scoring/types'
+import type { DriverResult, DbSessionType } from '@/lib/scoring/types'
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
 async function handler(request: Request): Promise<Response> {
@@ -57,9 +57,6 @@ async function handler(request: Request): Promise<Response> {
 
     const gpRoundToId = await upsertGrandsPrix(calendar)
 
-    // Map round → circuitShortName pour le fetch OpenF1 sprint qualifying plus bas
-    const roundToCircuit = new Map(calendar.map((e) => [e.round, e.circuitShortName]))
-
     for (const entry of calendar) {
       const gpId = gpRoundToId.get(entry.round)
       if (!gpId) continue
@@ -83,7 +80,7 @@ async function handler(request: Request): Promise<Response> {
     const supabase = createServiceClient()
     const { data: pending, error: pendingError } = await supabase
       .from('sessions')
-      .select('id, type, season, grands_prix!gp_id(round)')
+      .select('id, type, season, starts_at, grands_prix!gp_id(round)')
       .is('results_confirmed_at', null)
       .lt('starts_at', now)
 
@@ -98,6 +95,7 @@ async function handler(request: Request): Promise<Response> {
       const sessionType = row.type as DbSessionType
       const rowSeason   = row.season as number
       const round       = gp.round
+      const startsAt    = row.starts_at as string
 
       let results: Map<string, DriverResult>
 
@@ -108,14 +106,10 @@ async function handler(request: Request): Promise<Response> {
       } else if (sessionType === 'sprint_race') {
         results = await fetchSprintRaceResults(rowSeason, round)
       } else if (sessionType === 'sprint_qualifying') {
-        const circuitShortName = roundToCircuit.get(round)
-        if (!circuitShortName) continue
-        results = await fetchSprintQualifyingResults(rowSeason, circuitShortName)
+        results = await fetchSprintQualifyingResults(rowSeason, startsAt)
       } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
-        const circuitShortName = roundToCircuit.get(round)
-        if (!circuitShortName) continue
         const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
-        const raw = await fetchPracticeResults(rowSeason, circuitShortName, sessionName)
+        const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt)
         results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
       } else {
         continue

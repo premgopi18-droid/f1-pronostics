@@ -278,6 +278,8 @@ export const fr = {
     gpResultsOfficial: "Résultats officiels",
     tabRace: "Course",
     tabQualifying: "Qualifications",
+    tabSprint: "Sprint",
+    tabSprintQualifying: "Quali sprint",
     tabPractice1: "EL 1",
     tabPractice2: "EL 2",
     tabPractice3: "EL 3",

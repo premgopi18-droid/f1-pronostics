@@ -71,9 +71,10 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
       .from('sessions')
       .select('id, gp_id, type, starts_at, results_confirmed_at')
       .eq('season', season)
-      // EL incluses ici uniquement pour calculer `hasResults` (lien « Résultats »
-      // de la card prochain) — le reste du mapping ne lit que race/qualifying.
-      .in('type', ['race', 'qualifying', ...PRACTICE_SESSION_TYPES]),
+      // Types élargis (sprint + EL) uniquement pour calculer `hasResults` (lien
+      // « Résultats » de la card prochain), aligné sur `deriveCurrentGpView` qui
+      // regarde toutes les sessions — le reste du mapping ne lit que race/qualifying.
+      .in('type', ['race', 'qualifying', 'sprint_qualifying', 'sprint_race', ...PRACTICE_SESSION_TYPES]),
   ])
 
   if (gpsError) throw gpsError

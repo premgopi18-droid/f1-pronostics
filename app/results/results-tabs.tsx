@@ -170,16 +170,8 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                         {t('results.linkResults')} ›
                       </Link>
                     )}
-                    {gp.status === 'predictable' && (
-                      <Link
-                        href={`/predictions/${gp.id}`}
-                        className="text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                        aria-label={`${t('results.linkPredict')} — ${gp.displayName}`}
-                      >
-                        {t('results.linkPredict')} ›
-                      </Link>
-                    )}
-                    {gp.status === 'prochain' && gp.canPredict && (
+                    {(gp.status === 'predictable' ||
+                      (gp.status === 'prochain' && gp.canPredict)) && (
                       <Link
                         href={`/predictions/${gp.id}`}
                         className="text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"

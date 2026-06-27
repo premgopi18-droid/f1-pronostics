@@ -106,15 +106,26 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                       )}
                     </p>
                   )}
-                  {prochain.canPredict && (
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    {/* Lien résultats : permet de consulter les EL du week-end en
+                        cours (puis quali/course) pour ajuster ses pronostics. */}
                     <Link
-                      href={`/predictions/${prochain.id}`}
-                      className="mt-3 inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                      aria-label={`${t('results.linkPredict')} — ${prochain.gpName}`}
+                      href={`/results/${prochain.id}`}
+                      className="inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      aria-label={`${t('results.linkResults')} — ${prochain.gpName}`}
                     >
-                      {t('results.linkPredict')} ›
+                      {t('results.linkResults')} ›
                     </Link>
-                  )}
+                    {prochain.canPredict && (
+                      <Link
+                        href={`/predictions/${prochain.id}`}
+                        className="inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        aria-label={`${t('results.linkPredict')} — ${prochain.gpName}`}
+                      >
+                        {t('results.linkPredict')} ›
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             </Card>

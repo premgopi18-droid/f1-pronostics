@@ -45,7 +45,6 @@ export function SplashScreen() {
   useEffect(() => {
     if (resolveReducedMotion()) return
     if (sessionStorage.getItem(SPLASH_SESSION_KEY)) return
-    sessionStorage.setItem(SPLASH_SESSION_KEY, '1')
 
     if (getSplashSoundEnabled()) {
       // Best-effort : muet si le navigateur garde l'AudioContext suspendu
@@ -61,6 +60,9 @@ export function SplashScreen() {
       .then((response) => response.json())
       .then((data) => {
         if (cancelled) return
+        // On ne marque la session « vue » qu'au moment où le splash s'affiche
+        // vraiment : un échec de fetch laissera donc un retry au prochain reload.
+        sessionStorage.setItem(SPLASH_SESSION_KEY, '1')
         setAnimationData(data)
         setPhase('playing')
       })
@@ -90,7 +92,13 @@ export function SplashScreen() {
         phase === 'fading' ? 'opacity-0' : 'opacity-100',
       ].join(' ')}
       style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
-      onTransitionEnd={() => setPhase((current) => (current === 'fading' ? 'gone' : current))}
+      // Garde anti-bubbling : ne réagir qu'au fondu de l'overlay lui-même, pas à
+      // une éventuelle transition d'un descendant (qui couperait le fondu court).
+      onTransitionEnd={(event) => {
+        if (event.target === event.currentTarget) {
+          setPhase((current) => (current === 'fading' ? 'gone' : current))
+        }
+      }}
       role="presentation"
       aria-hidden
     >

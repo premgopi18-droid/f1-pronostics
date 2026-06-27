@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import { getUserGPItems, getPlayedGPItemForUser } from '@/lib/data/items'
-import type { SessionType } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 import { PlayItemForm } from './play-item-form'
 
 const ITEM_LABELS: Record<string, { name: string; description: string; emoji: string }> = {
@@ -50,6 +50,8 @@ export default async function ItemsPage({
       .from('sessions')
       .select('id, type, starts_at')
       .eq('gp_id', gpId)
+      // Essais libres exclus : la deadline items = 1ère session scorée (cf. §211).
+      .in('type', SCOREABLE_SESSION_TYPES)
       .order('starts_at', { ascending: true }),
     supabase
       .from('leagues')

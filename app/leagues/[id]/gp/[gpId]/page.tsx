@@ -4,7 +4,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { FASTEST_LAP_BONUS, POSITIONS_TO_SCORE, SCORE_TABLES } from '@/lib/scoring/constants'
-import type { SessionType } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 
 const SESSION_ORDER: SessionType[] = ['sprint_qualifying', 'qualifying', 'sprint_race', 'race']
 
@@ -74,7 +74,9 @@ export default async function GPScoresPage({
     supabase
       .from('sessions')
       .select('id, type, results_confirmed_at')
-      .eq('gp_id', gpId),
+      .eq('gp_id', gpId)
+      // Essais libres exclus : la vue ligue ne porte que sur les sessions scorées.
+      .in('type', SCOREABLE_SESSION_TYPES),
     supabase
       .from('league_members')
       .select('user_id, profiles!user_id(pseudo)')

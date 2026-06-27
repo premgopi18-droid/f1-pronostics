@@ -7,7 +7,7 @@ import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import { TEAM_COLORS } from '@/lib/f1/team-colors'
 import { t } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
-import type { SessionType, BreakdownEntry } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES, type SessionType, type BreakdownEntry } from '@/lib/scoring/types'
 
 const SESSION_ORDER: SessionType[] = ['sprint_qualifying', 'qualifying', 'sprint_race', 'race']
 
@@ -48,7 +48,9 @@ export default async function RecapGPPage({
     supabase
       .from('sessions')
       .select('id, type, results_confirmed_at')
-      .eq('gp_id', gpId),
+      .eq('gp_id', gpId)
+      // Essais libres exclus : le récap ne porte que sur les sessions scorées.
+      .in('type', SCOREABLE_SESSION_TYPES),
     supabase
       .from('league_members')
       .select('league_id, leagues!league_id(id, name)')

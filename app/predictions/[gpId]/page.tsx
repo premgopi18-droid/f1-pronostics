@@ -9,7 +9,7 @@ import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import { t } from '@/lib/i18n'
 import { PredictionTabs, type SessionData } from './prediction-tabs'
 import type { Driver } from './prediction-form'
-import type { SessionType } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 
 export default async function PredictPage({
   params,
@@ -32,6 +32,8 @@ export default async function PredictPage({
       .select('id, type, starts_at')
       .eq('gp_id', gpId)
       .eq('season', season)
+      // Essais libres exclus : seules les sessions scorées sont pronosticables.
+      .in('type', SCOREABLE_SESSION_TYPES)
       .order('starts_at'),
     getCachedDrivers(season),
     getCachedConstructors(season),

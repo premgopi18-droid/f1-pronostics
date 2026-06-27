@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { insertPlayedItem } from '@/lib/data/items'
+import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
 import {
   OFFENSIVE_ITEMS,
   toDBPayload,
@@ -49,14 +50,15 @@ export async function playItemAction(
   if (gp.season !== season)      return { error: 'GP hors saison courante' }
   if (gp.is_cancelled)           return { error: 'GP annulé' }
 
-  // Deadline : avant la première session de ce GP. La table `sessions` ne contient que
-  // les 4 sessions scorées (cf. `SessionType` / `upsertSessions`) — jamais d'essais (FP1-3) —
-  // donc « première session par starts_at » = qualifs (ou Sprint Qualifying en week-end sprint),
-  // conforme à la deadline items de product-specs §211.
+  // Deadline : avant la première session SCORÉE de ce GP (qualifs, ou Sprint
+  // Qualifying en week-end sprint), conforme à la deadline items de product-specs §211.
+  // On exclut explicitement les essais libres (FP1-3) : depuis #117/#122 la table
+  // `sessions` les contient aussi, et sans ce filtre la deadline tomberait sur l'EL1.
   const { data: sessions } = await supabase
     .from('sessions')
     .select('starts_at')
     .eq('gp_id', gpId)
+    .in('type', SCOREABLE_SESSION_TYPES)
     .order('starts_at', { ascending: true })
     .limit(1)
 

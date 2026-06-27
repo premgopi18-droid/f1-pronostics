@@ -11,7 +11,15 @@ import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 const RACE_SESSION_TYPE = 'race'
 const PODIUM_SIZE = 3
 
-export type CurrentGpView = { phase: HomeGpPhase; sessions: WeekendSession[] }
+export type CurrentGpView = {
+  phase: HomeGpPhase
+  sessions: WeekendSession[]
+  /** Au moins une session du GP (EL comprises) a des résultats confirmés → on peut
+   *  proposer un lien « Résultats » sur la card du prochain GP. */
+  hasResults: boolean
+}
+
+const SCOREABLE_TYPES = new Set<string>(SCOREABLE_SESSION_TYPES)
 
 /**
  * Phase du GP courant (countdown / week-end / live / calcul) + ses sessions pour la
@@ -24,32 +32,37 @@ export async function getCurrentGpView(
   const supabase = createServiceClient()
   const nowMs = Date.now()
 
+  // On récupère TOUTES les sessions (EL comprises) pour `hasResults`, mais la
+  // phase et la card week-end ne portent que sur les sessions scorées : inclure
+  // les essais fausserait la phase (une EL en cours passerait la Home en « live »)
+  // et planterait le rendu (pas de label pour les types EL).
   const { data: rows, error } = await supabase
     .from('sessions')
     .select('type, starts_at, results_confirmed_at')
     .eq('gp_id', gpId)
-    // Essais libres exclus : la card week-end et le calcul de phase ne portent
-    // que sur les sessions scorées (le « début du GP » est hors essais).
-    .in('type', SCOREABLE_SESSION_TYPES)
     .order('starts_at', { ascending: true })
 
   if (error) console.error('[data/home] sessions (view)', error)
 
-  const sessions = (rows ?? []) as Array<{
+  const allSessions = (rows ?? []) as Array<{
     type: string
     starts_at: string
     results_confirmed_at: string | null
   }>
 
+  const hasResults = allSessions.some((s) => s.results_confirmed_at !== null)
+  const scoreable = allSessions.filter((s) => SCOREABLE_TYPES.has(s.type))
+
   const phase = homeGpPhase(
     nowMs,
     weekendStartsAt,
-    sessions.map((s) => ({ startsAt: s.starts_at, resultsConfirmedAt: s.results_confirmed_at })),
+    scoreable.map((s) => ({ startsAt: s.starts_at, resultsConfirmedAt: s.results_confirmed_at })),
   )
 
   return {
     phase,
-    sessions: sessions.map((s) => ({
+    hasResults,
+    sessions: scoreable.map((s) => ({
       type: s.type as SessionType,
       lockState: sessionLockState(nowMs, s.starts_at),
     })),

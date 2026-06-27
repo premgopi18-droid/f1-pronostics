@@ -17,6 +17,10 @@ export type CalendarGp = {
   winner: string | null
   qualifyingStartsAt: string | null
   raceStartsAt: string | null
+  /** Au moins une session du GP a des résultats confirmés (EL incluses) → la page
+   *  résultats a quelque chose à montrer. Sert à n'afficher le lien « Résultats »
+   *  sur la card « prochain » que quand le week-end a commencé à produire des données. */
+  hasResults: boolean
 }
 
 export type GpResultRow = {
@@ -67,7 +71,9 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
       .from('sessions')
       .select('id, gp_id, type, starts_at, results_confirmed_at')
       .eq('season', season)
-      .in('type', ['race', 'qualifying']),
+      // EL incluses ici uniquement pour calculer `hasResults` (lien « Résultats »
+      // de la card prochain) — le reste du mapping ne lit que race/qualifying.
+      .in('type', ['race', 'qualifying', ...PRACTICE_SESSION_TYPES]),
   ])
 
   if (gpsError) throw gpsError
@@ -81,9 +87,12 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
     { raceStartsAt?: string; qualifyingStartsAt?: string; raceResultsConfirmedAt?: string | null }
   >()
   const raceSessionToGp = new Map<string, string>()
+  // GP ayant au moins une session (toutes types, EL comprises) aux résultats confirmés.
+  const gpsWithResults = new Set<string>()
 
   for (const s of sessions) {
     const gpId = s.gp_id as string
+    if (s.results_confirmed_at != null) gpsWithResults.add(gpId)
     const entry = sessionMap.get(gpId) ?? {}
     if (s.type === 'race') {
       entry.raceStartsAt = s.starts_at as string
@@ -134,6 +143,7 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
       winner: winnerMap.get(gpId) ?? null,
       qualifyingStartsAt: gpSessions.qualifyingStartsAt ?? null,
       raceStartsAt: gpSessions.raceStartsAt ?? null,
+      hasResults: gpsWithResults.has(gpId),
     }
   })
 }

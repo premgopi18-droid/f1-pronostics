@@ -51,6 +51,7 @@ export const fr = {
     processing: "Calcul des scores — résolution des items…",
     weekendInProgress: "Week-end en cours",
     modifyPredictions: "Modifier mes pronos",
+    viewResults: "Voir les résultats",
     sessionLocked: "Verrouillé",
     sessionOpen: "Ouvert",
     session: {

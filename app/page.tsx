@@ -109,6 +109,16 @@ export default async function HomePage() {
               >
                 {t('home.predict')} <span aria-hidden="true">→</span>
               </Link>
+              {/* Lien résultats : dispo dès que le week-end produit des données
+                  (EL confirmées) → consulter les EL avant le verrou Q1. */}
+              {gpView?.hasResults && (
+                <Link
+                  href={`/results/${nextGP.id as string}`}
+                  className="mt-3 inline-flex w-full justify-center text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                >
+                  {t('home.viewResults')} <span aria-hidden="true">›</span>
+                </Link>
+              )}
             </Card>
           ) : phase === 'weekend' || phase === 'live' ? (
             // En week-end/live, des sessions restent ouvertes → card sessions (CTA pertinent).
@@ -117,6 +127,7 @@ export default async function HomePage() {
               name={nextGP.name as string}
               gpId={nextGP.id as string}
               sessions={gpView?.sessions ?? []}
+              hasResults={gpView?.hasResults ?? false}
             />
           ) : null}
         </>

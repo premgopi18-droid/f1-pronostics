@@ -19,6 +19,7 @@ export type CalendarGpView = {
   status: GpStatus
   winner: string | null
   canPredict: boolean
+  hasResults: boolean
   formattedQualiTime: string | null
   formattedRaceTime: string | null
   formattedDate: string | null
@@ -106,26 +107,30 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                       )}
                     </p>
                   )}
-                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                    {/* Lien résultats : permet de consulter les EL du week-end en
-                        cours (puis quali/course) pour ajuster ses pronostics. */}
-                    <Link
-                      href={`/results/${prochain.id}`}
-                      className="inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                      aria-label={`${t('results.linkResults')} — ${prochain.gpName}`}
-                    >
-                      {t('results.linkResults')} ›
-                    </Link>
-                    {prochain.canPredict && (
-                      <Link
-                        href={`/predictions/${prochain.id}`}
-                        className="inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                        aria-label={`${t('results.linkPredict')} — ${prochain.gpName}`}
-                      >
-                        {t('results.linkPredict')} ›
-                      </Link>
-                    )}
-                  </div>
+                  {(prochain.hasResults || prochain.canPredict) && (
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                      {/* Lien résultats affiché uniquement si le week-end a commencé à
+                          produire des données (EL confirmées) — sinon page vide. */}
+                      {prochain.hasResults && (
+                        <Link
+                          href={`/results/${prochain.id}`}
+                          className="inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                          aria-label={`${t('results.linkResults')} — ${prochain.gpName}`}
+                        >
+                          {t('results.linkResults')} ›
+                        </Link>
+                      )}
+                      {prochain.canPredict && (
+                        <Link
+                          href={`/predictions/${prochain.id}`}
+                          className="inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                          aria-label={`${t('results.linkPredict')} — ${prochain.gpName}`}
+                        >
+                          {t('results.linkPredict')} ›
+                        </Link>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>

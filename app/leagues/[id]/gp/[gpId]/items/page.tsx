@@ -14,9 +14,9 @@ const ITEM_LABELS: Record<string, { name: string; description: string; emoji: st
   wild_card:      { name: 'Wild Card',                  description: 'Vole la moitié des points d\'un adversaire sur une session',                                  emoji: '🃏' },
   double_points:  { name: 'Dernier tour de magie',      description: '×2 sur tes points de course ou de qualifications',                                            emoji: '✨' },
   dnf_prediction: { name: 'On va trancher dans le vif !', description: 'Choisir un pilote qui ne finira pas la course — +8 pts s\'il abandonne',                   emoji: '💥' },
-  underdog_top5:  { name: 'Il est de retour !',         description: 'Un pilote qualifié hors top 10 finit dans le top 5 de la course — +8 pts',                   emoji: '🚀' },
+  underdog_top5:  { name: 'Il est de retour !',         description: 'Un pilote qualifié hors top 10 finit dans le top 5 de la course — +8 pts',                   emoji: '🔥' },
   no_points_team: { name: '"It must be the water !"',   description: 'Aucun des 2 pilotes d\'une écurie ne marque de point en course — +12 pts',                   emoji: '💧' },
-  fia_penalty:    { name: 'Move de la FIA',             description: 'Bientôt disponible — source de données en cours d\'intégration',                              emoji: '🚩' },
+  fia_penalty:    { name: 'Move de la FIA',             description: 'Bientôt disponible — source de données en cours d\'intégration',                              emoji: '🚔' },
 }
 
 export default async function ItemsPage({

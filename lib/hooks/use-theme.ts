@@ -18,6 +18,10 @@ export const THEMES: { id: ThemeId; primary: string }[] = [
   { id: 'aston',    primary: '#006E51' },
 ]
 
+export const THEME_PRIMARY_COLORS: Record<ThemeId, string> = Object.fromEntries(
+  THEMES.map((t) => [t.id, t.primary]),
+) as Record<ThemeId, string>
+
 export function getStoredTheme(): ThemeId {
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY)
@@ -32,6 +36,9 @@ export function applyTheme(theme: ThemeId): void {
   } else {
     document.documentElement.setAttribute('data-theme', theme)
   }
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', THEME_PRIMARY_COLORS[theme])
 }
 
 export function setTheme(theme: ThemeId): void {

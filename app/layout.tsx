@@ -8,17 +8,18 @@ import {
   REDUCE_MOTION_STORAGE_KEY,
   REDUCE_MOTION_CLASS,
 } from "@/lib/hooks/use-prefers-reduced-motion";
-import { THEME_STORAGE_KEY } from "@/lib/hooks/use-theme";
+import { THEME_STORAGE_KEY, THEME_PRIMARY_COLORS } from "@/lib/hooks/use-theme";
 
 // Applique le mode accessibilité manuel avant le premier paint (anti-FOUC). La
 // préférence système, elle, est gérée en pur CSS (`@media prefers-reduced-motion`),
 // donc le script n'a à traiter que l'override explicite.
 const reduceMotionBootScript = `try{if(localStorage.getItem('${REDUCE_MOTION_STORAGE_KEY}')==='true')document.documentElement.classList.add('${REDUCE_MOTION_CLASS}')}catch(e){}`;
 
-// Pose data-theme sur <html> avant l'hydration pour éviter le flash de thème.
+// Pose data-theme sur <html> et met à jour theme-color avant le premier paint.
 // Le thème 'boxbox' est le défaut (pas d'attribut) — on ne pose l'attribut que
 // pour les thèmes non-défaut.
-const themeBootScript = `try{var _t=localStorage.getItem('${THEME_STORAGE_KEY}');if(_t&&_t!=='boxbox')document.documentElement.setAttribute('data-theme',_t)}catch(e){}`;
+const themeColorMap = JSON.stringify(THEME_PRIMARY_COLORS)
+const themeBootScript = `try{var _t=localStorage.getItem('${THEME_STORAGE_KEY}');if(_t&&_t!=='boxbox'){document.documentElement.setAttribute('data-theme',_t);var _c=${themeColorMap};var _m=document.querySelector('meta[name="theme-color"]');if(_m&&_c[_t])_m.setAttribute('content',_c[_t])}}catch(e){}`;
 
 // Capte beforeinstallprompt dès le parsing du <body>, avant que React n'attache son
 // listener : l'event peut se déclencher pendant le chargement et serait sinon perdu.
@@ -60,7 +61,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   // Teinte la barre du navigateur (Android) — généré en <meta name="theme-color">.
-  themeColor: "#e8002d",
+  // Valeur initiale (boxbox) ; mise à jour côté client par applyTheme() et le boot script.
+  themeColor: THEME_PRIMARY_COLORS.boxbox,
 };
 
 export default function RootLayout({
@@ -74,11 +76,13 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${titilliumWeb.variable} ${rajdhani.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        {/* Anti-FOUC : applique le thème et le mode accessibilité avant le premier paint. */}
+      {/* Scripts dans <head> pour garantir l'exécution avant le premier paint (anti-FOUC). */}
+      <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: reduceMotionBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: installPromptBootScript }} />
+      </head>
+      <body className="min-h-full flex flex-col">
         <SwRegister />
         <InstallBanner />
         {children}

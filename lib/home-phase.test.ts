@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { homeGpPhase, sessionLockState, type SessionTiming } from "./home-phase";
+import {
+  homeGpPhase,
+  sessionLockState,
+  deriveCurrentGpView,
+  type SessionTiming,
+} from "./home-phase";
 
 const T0 = Date.parse("2026-06-01T00:00:00Z");
 const h = (n: number) => T0 + n * 3_600_000;
@@ -51,5 +56,52 @@ describe("sessionLockState", () => {
   });
   it("open tant que la session n'a pas démarré", () => {
     expect(sessionLockState(h(3), iso(h(4)))).toBe("open");
+  });
+});
+
+describe("deriveCurrentGpView", () => {
+  const weekend = iso(h(10));
+
+  it("hasResults true dès qu'une session (même EL) a des résultats confirmés", () => {
+    const view = deriveCurrentGpView(h(5), weekend, [
+      { type: "practice_1", startsAt: iso(h(2)), resultsConfirmedAt: iso(h(3)) },
+      { type: "qualifying", startsAt: iso(h(10)), resultsConfirmedAt: null },
+    ]);
+    expect(view.hasResults).toBe(true);
+  });
+
+  it("hasResults false si aucune session n'est confirmée", () => {
+    const view = deriveCurrentGpView(h(5), weekend, [
+      { type: "practice_1", startsAt: iso(h(2)), resultsConfirmedAt: null },
+      { type: "qualifying", startsAt: iso(h(10)), resultsConfirmedAt: null },
+    ]);
+    expect(view.hasResults).toBe(false);
+  });
+
+  it("exclut les EL des sessions rendues (pas de label EL → évite le crash)", () => {
+    const view = deriveCurrentGpView(h(5), weekend, [
+      { type: "practice_1", startsAt: iso(h(2)), resultsConfirmedAt: iso(h(3)) },
+      { type: "practice_2", startsAt: iso(h(4)), resultsConfirmedAt: iso(h(5)) },
+      { type: "qualifying", startsAt: iso(h(10)), resultsConfirmedAt: null },
+    ]);
+    expect(view.sessions.map((s) => s.type)).toEqual(["qualifying"]);
+  });
+
+  it("une EL en cours ne bascule PAS la phase en live (EL hors phase)", () => {
+    // weekendStartsAt null + EL démarrée non confirmée : sans le filtre scoré,
+    // la phase serait « live ». Seule la quali (à venir) doit compter → « weekend ».
+    const view = deriveCurrentGpView(h(5), null, [
+      { type: "practice_1", startsAt: iso(h(4)), resultsConfirmedAt: null },
+      { type: "qualifying", startsAt: iso(h(20)), resultsConfirmedAt: null },
+    ]);
+    expect(view.phase).toBe("weekend");
+  });
+
+  it("phase pilotée par les sessions scorées (upcoming avant la quali)", () => {
+    const view = deriveCurrentGpView(h(5), weekend, [
+      { type: "practice_1", startsAt: iso(h(4)), resultsConfirmedAt: null },
+      { type: "qualifying", startsAt: iso(h(10)), resultsConfirmedAt: null },
+    ]);
+    expect(view.phase).toBe("upcoming");
   });
 });

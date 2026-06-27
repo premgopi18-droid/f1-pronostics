@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase'
 import { getCountryCode } from '@/lib/f1/country-codes'
 import { getCountryNameFr, getGpNameFr } from '@/lib/f1/country-names-fr'
 import { computeGpStatuses, type GpStatus } from '@/lib/results/calendar'
+import { PRACTICE_SESSION_TYPES } from '@/lib/scoring/types'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -152,7 +153,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
       .from('sessions')
       .select('id, type')
       .eq('gp_id', gpId)
-      .in('type', ['race', 'qualifying', 'practice_1', 'practice_2', 'practice_3']),
+      .in('type', ['race', 'qualifying', ...PRACTICE_SESSION_TYPES]),
   ])
 
   if (!gp) return null

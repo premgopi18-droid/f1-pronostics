@@ -110,7 +110,6 @@ export async function upsertGrandsPrix(
         country:             gp.country,
         is_sprint_weekend:   gp.isSprintWeekend,
         weekend_starts_at:   gp.weekendStartsAt,
-        openf1_circuit:      gp.circuitShortName,
       })),
       { onConflict: 'season,round' },
     )
@@ -199,9 +198,10 @@ export async function markGPNotifiedOpen(gpId: string): Promise<void> {
 // GPs dont la PREMIÈRE session (= celle qui verrouille pronos + items : Sprint
 // Qualifying en week-end sprint, Qualifications sinon) commence dans les
 // prochaines 24h et qui n'ont pas encore reçu le rappel "pronos J-1".
-// L'ancre = la session la plus tôt du GP : la table `sessions` ne contient que
-// les sessions scorées (qualif/course/sprint), pas les essais libres — donc
-// min(starts_at) tombe bien sur la session-deadline.
+// L'ancre = la session scorée la plus tôt du GP. On filtre sur
+// SCOREABLE_SESSION_TYPES : la table `sessions` contient aussi les essais libres
+// (informatifs), qui commencent avant la qualif — sans ce filtre, min(starts_at)
+// tomberait sur l'EL1 au lieu de la vraie session-deadline.
 export async function getGPsNeedingQualReminder(
   season: number,
 ): Promise<{ id: string; name: string }[]> {
@@ -211,6 +211,7 @@ export async function getGPsNeedingQualReminder(
     .from('sessions')
     .select('starts_at, gp_id, grands_prix!gp_id(id, name, is_cancelled, notified_reminder_24h_at)')
     .eq('season', season)
+    .in('type', SCOREABLE_SESSION_TYPES)
 
   if (error) throw error
 

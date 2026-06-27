@@ -11,6 +11,12 @@ interface OpenF1Session {
   session_name: string   // "Sprint Qualifying", "Race", etc.
   year:         number
   circuit_short_name: string
+  date_end:     string   // ISO — fin officielle de la session
+}
+
+interface OpenF1Lap {
+  driver_number: number
+  lap_duration:  number | null  // secondes ; null sur les tours in/out
 }
 
 interface OpenF1Driver {
@@ -51,6 +57,13 @@ async function openf1Get<T>(path: string): Promise<T | null> {
   return response.json() as Promise<T>
 }
 
+// OpenF1 publie les positions/tours EN DIRECT pendant la session : on n'exploite
+// le classement qu'une fois la session terminée, sinon on figerait un ordre
+// intermédiaire (le cron confirme dès qu'il obtient un résultat non vide).
+function isSessionFinished(session: OpenF1Session): boolean {
+  return new Date(session.date_end).getTime() <= Date.now()
+}
+
 // ============================================================
 // Sprint Qualifying (Shootout) — non disponible dans Jolpica
 // Retourne la classification finale : code → position
@@ -66,6 +79,7 @@ export async function fetchSprintQualifyingResults(
   )
   if (!sessions?.length) return new Map()
   const session = sessions[0]
+  if (!isSessionFinished(session)) return new Map()
 
   // 2. Pilotes de la session → code acronyme
   const [drivers, positions] = await Promise.all([
@@ -93,7 +107,9 @@ export async function fetchSprintQualifyingResults(
 
 // ============================================================
 // Essais libres (EL1/EL2/EL3) — non disponible dans Jolpica
-// Retourne le classement final : position → code pilote
+// Le classement d'une séance d'essais est trié par MEILLEUR TOUR (feuille de
+// temps), pas par position sur la piste — on dérive donc le classement depuis
+// /laps (min lap_duration par pilote), et non depuis /position.
 // ============================================================
 
 export async function fetchPracticeResults(
@@ -106,24 +122,34 @@ export async function fetchPracticeResults(
   )
   if (!sessions?.length) return []
   const session = sessions[0]
+  if (!isSessionFinished(session)) return []
 
-  const [drivers, positions] = await Promise.all([
+  const [drivers, laps] = await Promise.all([
     openf1Get<OpenF1Driver[]>(`/drivers?session_key=${session.session_key}`),
-    openf1Get<OpenF1Position[]>(`/position?session_key=${session.session_key}`),
+    openf1Get<OpenF1Lap[]>(`/laps?session_key=${session.session_key}`),
   ])
 
   const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
 
-  const finalPositions = new Map<number, number>()
-  for (const entry of positions ?? []) {
-    finalPositions.set(entry.driver_number, entry.position)
+  // Meilleur tour par pilote (les tours in/out ont lap_duration null → ignorés).
+  const bestLapByDriver = new Map<number, number>()
+  for (const lap of laps ?? []) {
+    if (lap.lap_duration == null) continue
+    const current = bestLapByDriver.get(lap.driver_number)
+    if (current === undefined || lap.lap_duration < current) {
+      bestLapByDriver.set(lap.driver_number, lap.lap_duration)
+    }
   }
 
+  // Classement = meilleurs tours croissants ; positions denses 1..N.
+  const ranked = [...bestLapByDriver.entries()].sort((a, b) => a[1] - b[1])
   const results: PracticeDriverResult[] = []
-  for (const [number, position] of finalPositions) {
+  let position = 1
+  for (const [number] of ranked) {
     const code = numberToCode.get(number)
-    if (code) results.push({ position, driverCode: code })
+    if (!code) continue
+    results.push({ position: position++, driverCode: code })
   }
 
-  return results.sort((a, b) => a.position - b.position)
+  return results
 }

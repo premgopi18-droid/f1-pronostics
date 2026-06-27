@@ -70,9 +70,9 @@ describe('openf1 — sélection de session par date', () => {
       const results = await fetchPracticeResults(2025, 'Practice 1', '2025-05-30T11:30:00Z')
 
       expect(results).toEqual([
-        { position: 1, driverCode: 'NOR' },
-        { position: 2, driverCode: 'VER' },
-        { position: 3, driverCode: 'LEC' },
+        { position: 1, driverCode: 'NOR', bestLapTime: '1:18.200' },
+        { position: 2, driverCode: 'VER', bestLapTime: '1:18.500' },
+        { position: 3, driverCode: 'LEC', bestLapTime: '1:18.900' },
       ])
     })
 
@@ -119,8 +119,33 @@ describe('openf1 — sélection de session par date', () => {
 
       const results = await fetchPracticeResults(2025, 'Practice 2', '2025-05-30T15:00:00Z')
       expect(results).toEqual([
-        { position: 1, driverCode: 'NOR' },
-        { position: 2, driverCode: 'VER' },
+        { position: 1, driverCode: 'NOR', bestLapTime: '1:20.000' },
+        { position: 2, driverCode: 'VER', bestLapTime: '1:20.000' },
+      ])
+    })
+
+    it('formate le meilleur tour en m:ss.mmm (padding secondes et millisecondes)', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 100, session_name: 'Practice 3', year: 2025,
+            circuit_short_name: 'Catalunya', date_start: '2025-05-31T10:30:00+00:00', date_end: '2025-05-31T11:30:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 1, name_acronym: 'VER', session_key: 100 },
+          { driver_number: 4, name_acronym: 'NOR', session_key: 100 },
+        ],
+        laps: [
+          // 65.04s → 1:05.040 : secondes < 10 et millisecondes < 100 → padding requis.
+          { driver_number: 4, lap_duration: 65.04,  date_start: '2025-05-31T10:40:00+00:00' },
+          // 123.4s → 2:03.400 : passage à 2 minutes.
+          { driver_number: 1, lap_duration: 123.4,  date_start: '2025-05-31T10:42:00+00:00' },
+        ],
+      })
+
+      const results = await fetchPracticeResults(2025, 'Practice 3', '2025-05-31T10:30:00Z')
+      expect(results).toEqual([
+        { position: 1, driverCode: 'NOR', bestLapTime: '1:05.040' },
+        { position: 2, driverCode: 'VER', bestLapTime: '2:03.400' },
       ])
     })
   })

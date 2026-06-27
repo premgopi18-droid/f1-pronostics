@@ -40,8 +40,17 @@ interface OpenF1Position {
 export type PracticeSessionName = 'Practice 1' | 'Practice 2' | 'Practice 3'
 
 export type PracticeDriverResult = {
-  position:   number
-  driverCode: string
+  position:    number
+  driverCode:  string
+  bestLapTime: string | null
+}
+
+function formatLapTime(durationSeconds: number): string {
+  const totalMs = Math.round(durationSeconds * 1000)
+  const mins = Math.floor(totalMs / 60000)
+  const secs = Math.floor((totalMs % 60000) / 1000)
+  const ms = totalMs % 1000
+  return `${mins}:${String(secs).padStart(2, '0')}.${String(ms).padStart(3, '0')}`
 }
 
 // ============================================================
@@ -182,10 +191,10 @@ export async function fetchPracticeResults(
   )
   const results: PracticeDriverResult[] = []
   let position = 1
-  for (const [number] of ranked) {
+  for (const [number, lap] of ranked) {
     const code = numberToCode.get(number)
     if (!code) continue
-    results.push({ position: position++, driverCode: code })
+    results.push({ position: position++, driverCode: code, bestLapTime: formatLapTime(lap.duration) })
   }
 
   return results

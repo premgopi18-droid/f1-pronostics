@@ -40,6 +40,7 @@ export type PracticeResultRow = {
   lastName: string
   constructorCode: string
   constructorName: string
+  bestLapTime: string | null
 }
 
 export type GpDetailData = {
@@ -179,7 +180,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
     ? (await supabase
         .from('session_results')
         .select(
-          'session_id, position, dnf, fastest_lap, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
+          'session_id, position, dnf, fastest_lap, best_lap_time, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
         )
         .in('session_id', sessionIds)).data
     : []
@@ -232,6 +233,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
         lastName: driver.last_name,
         constructorCode: driver.constructors?.code ?? '',
         constructorName: driver.constructors?.name ?? '',
+        bestLapTime: (row.best_lap_time as string | null) ?? null,
       }
       if (sessionType === 'practice_1') practice1.push(result)
       else if (sessionType === 'practice_2') practice2.push(result)

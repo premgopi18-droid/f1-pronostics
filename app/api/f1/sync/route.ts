@@ -97,13 +97,14 @@ async function handler(request: Request): Promise<Response> {
       const round       = gp.round
       const startsAt    = row.starts_at as string
 
-      // Isolation par session : l'échec d'une source (OpenF1 bloqué pendant un
-      // live → 403, réseau, etc.) ne doit PAS avorter toute la sync ni les
-      // notifs qui suivent (même famille de bug que #121). On logue et on passe
-      // à la session suivante ; le cron retentera au prochain passage.
+      // On isole UNIQUEMENT la récupération de la source (Jolpica/OpenF1) : un
+      // échec y est attendu/transitoire (OpenF1 bloqué pendant un live → 403,
+      // réseau…) et ne doit PAS avorter la sync ni les notifs qui suivent (même
+      // famille de bug que #121) → on logue et on passe à la session suivante,
+      // le cron retentera. Les écritures DB restent HORS du catch : une erreur
+      // d'écriture est anormale et doit remonter (handler → 500), pas être avalée.
+      let results: Map<string, DriverResult> | null = null
       try {
-        let results: Map<string, DriverResult>
-
         if (sessionType === 'race') {
           results = await fetchRaceResults(rowSeason, round)
         } else if (sessionType === 'qualifying') {
@@ -116,19 +117,18 @@ async function handler(request: Request): Promise<Response> {
           const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
           const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt)
           results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
-        } else {
-          continue
         }
-
-        // Résultats pas encore disponibles (course non terminée)
-        if (results.size === 0) continue
-
-        await upsertSessionResults(row.id as string, rowSeason, results)
-        await confirmSessionResults(row.id as string)
-        sessionsConfirmed++
       } catch (error) {
-        console.error('[api/f1/sync] confirmation session', row.id, error)
+        console.error('[api/f1/sync] fetch résultats session', row.id, error)
+        continue
       }
+
+      // Type inconnu, ou résultats pas encore disponibles (course non terminée).
+      if (!results || results.size === 0) continue
+
+      await upsertSessionResults(row.id as string, rowSeason, results)
+      await confirmSessionResults(row.id as string)
+      sessionsConfirmed++
     }
 
     // ── Notifications "pronostics ouverts" (48 h avant le week-end) ──────────

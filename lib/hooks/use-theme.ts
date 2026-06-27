@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+// Constantes dans un module non-`'use client'` (cf. lib/theme/themes.ts) pour rester
+// lisibles depuis le layout serveur. Importer les constantes directement de là, pas via
+// ce hook : passer par un module `'use client'` côté serveur les transforme en
+// références client (sérialisées en `undefined`).
 import { THEME_STORAGE_KEY, THEMES, THEME_PRIMARY_COLORS, type ThemeId } from '@/lib/theme/themes'
-
-// Constantes définies dans un module non-`'use client'` (cf. lib/theme/themes.ts) pour
-// rester lisibles depuis le layout serveur ; ré-exportées ici pour la compat des imports.
-export { THEME_STORAGE_KEY, THEMES, THEME_PRIMARY_COLORS, type ThemeId }
 
 const THEME_EVENT = 'theme-change'
 

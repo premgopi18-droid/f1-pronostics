@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+// Constantes dans un module non-`'use client'` (cf. lib/a11y/reduce-motion.ts) pour
+// rester lisibles depuis le layout serveur. Importer les constantes directement de là,
+// pas via ce hook : passer par un module `'use client'` côté serveur les transforme en
+// références client (sérialisées en `undefined`).
 import { REDUCE_MOTION_STORAGE_KEY, REDUCE_MOTION_CLASS } from '@/lib/a11y/reduce-motion'
-
-// Constantes définies dans un module non-`'use client'` (cf. lib/a11y/reduce-motion.ts)
-// pour rester lisibles depuis le layout serveur ; ré-exportées ici pour la compat.
-export { REDUCE_MOTION_STORAGE_KEY, REDUCE_MOTION_CLASS }
 
 /** Event interne pour notifier les composants du même onglet (l'event `storage`
  *  natif ne se déclenche qu'entre onglets). */

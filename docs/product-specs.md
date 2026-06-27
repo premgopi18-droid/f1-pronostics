@@ -854,8 +854,10 @@ Segmented control en haut (3 vues) :
 Animation de lancement **in-app** (le splash système du manifest PWA reste statique — limite du standard).
 
 - **Format** : Lottie JSON (`public/animations/splash.json`, portrait 1080×1920, 3.2 s à 30 fps, sans dépendance de font). Lecture via `lottie-react`, fetché au runtime (hors bundle). Composant `app/ui/splash-screen.tsx`, monté dans le layout.
-- **Fréquence** : joué **une seule fois par session** d'onglet (`sessionStorage`) — pas rejoué lors des navigations client.
-- **`prefers-reduced-motion`** : splash **skippé** (système ou override manuel), via `resolveReducedMotion()` — mutualisé avec le mode accessibilité.
+- **Anti-flash** : l'overlay est rendu en SSR mais masqué par défaut ; un **boot script** dans le layout pose `.splash-play` sur `<html>` **avant le 1er paint** quand le splash doit jouer (même pattern anti-FOUC que le thème / mode réduit). L'écran est couvert **immédiatement**, sans flash de la Home avant l'animation. Constantes partagées dans `lib/splash/splash.ts` (module **non**-`'use client'`, sinon le boot script serveur recevrait `undefined`). Filet de sécurité : le boot script retire la classe après `SPLASH_FAILSAFE_MS` si React ne tourne pas.
+- **Splash système (PWA installée)** : l'icône sur fond, rendue par l'OS **avant** notre code, reste incontournable (limite du standard). Atténuée en **fondu** : le `background_color` du manifest et le fond de l'overlay partagent la même couleur (`SPLASH_BACKGROUND_COLOR`), donc icône système → animation in-app s'enchaînent sans cassure de couleur.
+- **Fréquence** : joué **une seule fois par session** d'onglet (`sessionStorage`, posé par le boot script) — pas rejoué lors des navigations client.
+- **`prefers-reduced-motion`** : splash **skippé** (système ou override manuel) — décidé dans le boot script (mutualise la clé d'override du mode accessibilité).
 - **Son** : moteur F1 synthétisé en Web Audio API (Doppler + panning L→R), porté du proto `docs/design/boxbox-splash.html` vers `lib/audio/engine-flyby.ts`. **Activé par défaut, désactivable** depuis le profil (toggle « Son au lancement », opt-out). Contrainte navigateur assumée : au **lancement à froid** l'`AudioContext` est suspendu faute de geste utilisateur → son **muet à ce moment-là** quelle que soit la préférence (dégradation silencieuse) ; il devient effectif une fois l'audio débloqué par un geste (ex. activation du toggle).
 
 ---

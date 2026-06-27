@@ -254,3 +254,11 @@ body {
   --text-secondary: #C8C8D8;
   --text-muted:     #AEAEBE;
 }
+
+/* Splash de lancement : l'overlay est rendu en SSR (présent dans le HTML) mais
+   masqué par défaut. Le boot script du layout pose `.splash-play` sur <html>
+   AVANT le 1er paint quand le splash doit jouer → l'overlay couvre la Home
+   immédiatement, sans flash. Masqué pour tout le monde sinon (mode réduit, déjà
+   vu, ou JS absent). */
+.splash-overlay { display: none; }
+.splash-play .splash-overlay { display: flex; }

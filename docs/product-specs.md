@@ -108,6 +108,10 @@ Format 2026 : Sprint Qualifying (vendredi) → Sprint Race (samedi matin) → Qu
 
 **Résultats F1 pendant le weekend** : les résultats officiels des sessions (qualifications, sprints) sont affichés dans l'app dès leur confirmation par Jolpica — les utilisateurs s'en servent pour ajuster leurs pronostics de course jusqu'au dimanche.
 
+**Résultats des essais libres (informatifs, non scorés)** : les classements des trois séances d'essais libres (EL1, EL2, EL3) sont affichés dans la page résultats du GP. Objectif : aider l'utilisateur à ajuster son pronostic **Top 10 Qualifications**, qui reste modifiable jusqu'au début de la Q1 — les EL3 (samedi matin) se terminent avant ce verrou. Ces résultats sont **purement informatifs** : aucun pronostic ni score ne porte dessus.
+
+> **Source de données** : Jolpica **n'expose pas** les résultats d'essais libres (seulement leurs horaires via `FirstPractice`/`SecondPractice`/`ThirdPractice`) — vérifié, l'endpoint résultats renvoie 404. La donnée provient donc du **fallback OpenF1**, qui fournit les sessions de practice et les temps au tour. Sur les week-ends sprint, seule l'EL1 précède la Sprint Qualifying (format 2026) : le bénéfice y est plus marginal.
+
 **Visibilité des scores pendant le weekend (Option B)** : les scores de prédiction sont affichés session par session au fil du weekend, mais marqués **"provisoire"** jusqu'à la fin de la course. Les items sont résolus uniquement après la course du dimanche — le score définitif (avec items) est révélé à ce moment-là. Un indicateur visuel clair distingue "score provisoire" et "score définitif". Exemple : un joueur voit "22 pts en qualif (provisoire)" le samedi — un Wild Card peut réduire ce score dimanche.
 
 > Raison : afficher les scores progressifs crée de l'engagement tout le weekend et permet aux joueurs de situer leur position avant la course. La révélation des items reste un moment fort du dimanche.

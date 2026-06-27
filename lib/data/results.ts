@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase'
 import { getCountryCode } from '@/lib/f1/country-codes'
 import { getCountryNameFr, getGpNameFr } from '@/lib/f1/country-names-fr'
 import { computeGpStatuses, type GpStatus } from '@/lib/results/calendar'
+import { fetchPracticeResults } from '@/lib/f1/openf1'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,14 @@ export type GpResultRow = {
   constructorCode: string
 }
 
+export type PracticeResultRow = {
+  position: number
+  driverCode: string
+  lastName: string
+  constructorCode: string
+  constructorName: string
+}
+
 export type GpDetailData = {
   id: string
   gpName: string
@@ -36,6 +45,9 @@ export type GpDetailData = {
   round: number
   race: GpResultRow[]
   qualifying: GpResultRow[]
+  practice1: PracticeResultRow[]
+  practice2: PracticeResultRow[]
+  practice3: PracticeResultRow[]
 }
 
 // ── Calendrier saison ────────────────────────────────────────────────────────
@@ -134,7 +146,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
   const [{ data: gp }, { data: sessionRows }] = await Promise.all([
     supabase
       .from('grands_prix')
-      .select('id, round, country')
+      .select('id, round, country, season, openf1_circuit')
       .eq('id', gpId)
       .maybeSingle(),
     supabase
@@ -150,29 +162,47 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
   const sessionIds = sessions.map((s) => s.id as string)
   const sessionTypeMap = new Map(sessions.map((s) => [s.id as string, s.type as string]))
 
-  if (sessionIds.length === 0) {
-    return {
-      id: gpId,
-      gpName: getGpNameFr(gp.country as string),
-      countryCode: getCountryCode(gp.country as string),
-      round: gp.round as number,
-      race: [],
-      qualifying: [],
-    }
-  }
+  const openf1Circuit = gp.openf1_circuit as string | null
+  const season = gp.season as number
 
-  const { data: resultRows } = await supabase
-    .from('session_results')
-    .select(
-      'session_id, position, dnf, fastest_lap, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
-    )
-    .in('session_id', sessionIds)
+  // Fetches en parallèle : résultats DB + essais libres OpenF1 (si circuit connu)
+  const [resultRows, driverRows, practiceRaw1, practiceRaw2, practiceRaw3] = await Promise.all([
+    sessionIds.length > 0
+      ? supabase
+          .from('session_results')
+          .select(
+            'session_id, position, dnf, fastest_lap, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
+          )
+          .in('session_id', sessionIds)
+          .then((r) => r.data)
+      : Promise.resolve([]),
+    supabase
+      .from('drivers')
+      .select('code, last_name, constructors!constructor_id(name, code)')
+      .eq('season', season)
+      .then((r) => r.data),
+    openf1Circuit ? fetchPracticeResults(season, openf1Circuit, 'Practice 1') : Promise.resolve([]),
+    openf1Circuit ? fetchPracticeResults(season, openf1Circuit, 'Practice 2') : Promise.resolve([]),
+    openf1Circuit ? fetchPracticeResults(season, openf1Circuit, 'Practice 3') : Promise.resolve([]),
+  ])
 
   type DriverEmbed = {
     code: string
     first_name: string
     last_name: string
     constructors: { name: string; code: string } | null
+  }
+
+  type DriverRow = {
+    code: string
+    last_name: string
+    constructors: { name: string; code: string } | null
+  }
+
+  // Index code → info pilote pour enrichissement des résultats practice
+  const driverMap = new Map<string, DriverRow>()
+  for (const d of driverRows ?? []) {
+    driverMap.set(d.code as string, d as unknown as DriverRow)
   }
 
   const race: GpResultRow[] = []
@@ -206,6 +236,18 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
       return a.position - b.position
     })
 
+  const enrichPractice = (raw: Awaited<ReturnType<typeof fetchPracticeResults>>): PracticeResultRow[] =>
+    raw.map(({ position, driverCode }) => {
+      const info = driverMap.get(driverCode)
+      return {
+        position,
+        driverCode,
+        lastName: info?.last_name ?? driverCode,
+        constructorCode: info?.constructors?.code ?? '',
+        constructorName: info?.constructors?.name ?? '',
+      }
+    })
+
   return {
     id: gpId,
     gpName: getGpNameFr(gp.country as string),
@@ -213,5 +255,8 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
     round: gp.round as number,
     race: sortByPosition(race),
     qualifying: sortByPosition(qualifying),
+    practice1: enrichPractice(practiceRaw1),
+    practice2: enrichPractice(practiceRaw2),
+    practice3: enrichPractice(practiceRaw3),
   }
 }

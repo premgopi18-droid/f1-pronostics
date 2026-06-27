@@ -34,7 +34,13 @@ export default async function GpResultsPage({ params }: Props) {
       </div>
 
       <div className="px-page">
-        <GpResultsTabs race={gp.race} qualifying={gp.qualifying} />
+        <GpResultsTabs
+          race={gp.race}
+          qualifying={gp.qualifying}
+          practice1={gp.practice1}
+          practice2={gp.practice2}
+          practice3={gp.practice3}
+        />
       </div>
     </main>
   )

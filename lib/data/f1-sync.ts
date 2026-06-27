@@ -109,6 +109,7 @@ export async function upsertGrandsPrix(
         country:             gp.country,
         is_sprint_weekend:   gp.isSprintWeekend,
         weekend_starts_at:   gp.weekendStartsAt,
+        openf1_circuit:      gp.circuitShortName,
       })),
       { onConflict: 'season,round' },
     )

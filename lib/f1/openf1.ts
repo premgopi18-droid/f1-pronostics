@@ -26,6 +26,17 @@ interface OpenF1Position {
 }
 
 // ============================================================
+// Types publics — essais libres
+// ============================================================
+
+export type PracticeSessionName = 'Practice 1' | 'Practice 2' | 'Practice 3'
+
+export type PracticeDriverResult = {
+  position:   number
+  driverCode: string
+}
+
+// ============================================================
 // Helper HTTP
 // ============================================================
 
@@ -78,4 +89,41 @@ export async function fetchSprintQualifyingResults(
     }
   }
   return result
+}
+
+// ============================================================
+// Essais libres (EL1/EL2/EL3) — non disponible dans Jolpica
+// Retourne le classement final : position → code pilote
+// ============================================================
+
+export async function fetchPracticeResults(
+  year: number,
+  circuitShortName: string,
+  sessionName: PracticeSessionName,
+): Promise<PracticeDriverResult[]> {
+  const sessions = await openf1Get<OpenF1Session[]>(
+    `/sessions?year=${year}&session_name=${encodeURIComponent(sessionName)}&circuit_short_name=${encodeURIComponent(circuitShortName)}`,
+  )
+  if (!sessions?.length) return []
+  const session = sessions[0]
+
+  const [drivers, positions] = await Promise.all([
+    openf1Get<OpenF1Driver[]>(`/drivers?session_key=${session.session_key}`),
+    openf1Get<OpenF1Position[]>(`/position?session_key=${session.session_key}`),
+  ])
+
+  const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
+
+  const finalPositions = new Map<number, number>()
+  for (const entry of positions ?? []) {
+    finalPositions.set(entry.driver_number, entry.position)
+  }
+
+  const results: PracticeDriverResult[] = []
+  for (const [number, position] of finalPositions) {
+    const code = numberToCode.get(number)
+    if (code) results.push({ position, driverCode: code })
+  }
+
+  return results.sort((a, b) => a.position - b.position)
 }

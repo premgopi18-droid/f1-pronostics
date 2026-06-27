@@ -6,6 +6,7 @@ import { t } from '@/lib/i18n'
 import { UserAvatar } from '@/app/components/user-avatar'
 import { ProfileSettings } from './profile-settings'
 import { signOut } from '@/app/actions/auth'
+import { DeleteAccountSection } from './delete-account-section'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -69,6 +70,8 @@ export default async function ProfilePage() {
           {t('profile.signOut')}
         </button>
       </form>
+
+      <DeleteAccountSection />
     </main>
   )
 }

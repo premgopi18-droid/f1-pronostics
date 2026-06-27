@@ -41,7 +41,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
   const [activeTab, setActiveTab] = useState<Tab>('calendar')
 
   const prochain = gps.find((gp) => gp.status === 'prochain') ?? null
-  const rest = gps.filter((gp) => gp.status !== 'prochain')
+  const rest = gps
 
   return (
     <div className="flex flex-1 flex-col">
@@ -155,7 +155,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                         {t('results.winner')} · {gp.winner}
                       </div>
                     )}
-                    {(gp.status === 'predictable' || gp.status === 'upcoming') &&
+                    {(gp.status === 'predictable' || gp.status === 'upcoming' || gp.status === 'prochain') &&
                       gp.formattedDate && (
                         <div className="text-xs text-text-secondary">{gp.formattedDate}</div>
                       )}
@@ -170,13 +170,23 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                         {t('results.linkResults')} ›
                       </Link>
                     )}
-                    {gp.status === 'predictable' && (
+                    {(gp.status === 'predictable' ||
+                      (gp.status === 'prochain' && gp.canPredict)) && (
                       <Link
                         href={`/predictions/${gp.id}`}
                         className="text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                         aria-label={`${t('results.linkPredict')} — ${gp.displayName}`}
                       >
                         {t('results.linkPredict')} ›
+                      </Link>
+                    )}
+                    {gp.status === 'prochain' && !gp.canPredict && gp.hasResults && (
+                      <Link
+                        href={`/results/${gp.id}`}
+                        className="text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        aria-label={`${t('results.linkResults')} — ${gp.displayName}`}
+                      >
+                        {t('results.linkResults')} ›
                       </Link>
                     )}
                     {gp.status === 'upcoming' && (

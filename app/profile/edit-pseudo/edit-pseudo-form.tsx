@@ -1,7 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
-import { updateProfile, deleteAccount, type ProfileActionState } from '@/app/actions/profile'
+import { useActionState } from 'react'
+import { updateProfile, type ProfileActionState } from '@/app/actions/profile'
 import { PSEUDO_MIN_LENGTH, PSEUDO_MAX_LENGTH, PSEUDO_PATTERN } from '@/lib/profile/pseudo'
 import { t } from '@/lib/i18n'
 
@@ -14,9 +14,7 @@ export function EditPseudoForm({
   pseudo:    string
   avatarKey: string | null
 }) {
-  const [state, action, isPending]              = useActionState(updateProfile, initialState)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteState, deleteAction, isDeleting] = useActionState(deleteAccount, initialState)
+  const [state, action, isPending] = useActionState(updateProfile, initialState)
 
   return (
     <div className="flex flex-1 flex-col gap-8">
@@ -64,49 +62,6 @@ export function EditPseudoForm({
         </button>
       </form>
 
-      {/* Zone dangereuse */}
-      <div className="mt-auto flex flex-col gap-3 border-t border-border pt-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {t('profile.dangerZone')}
-        </p>
-
-        {!showDeleteConfirm ? (
-          <button
-            type="button"
-            onClick={() => setShowDeleteConfirm(true)}
-            className="text-left text-sm text-muted-foreground/60 transition-colors hover:text-destructive"
-          >
-            {t('profile.deleteAccount')}
-          </button>
-        ) : (
-          <form action={deleteAction} className="flex flex-col gap-3">
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {t('profile.deleteWarning')}
-            </p>
-            {deleteState.error && (
-              <p className="text-sm text-destructive" role="alert">
-                {t(deleteState.error)}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 rounded-xl bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                {t('profile.deleteCancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={isDeleting}
-                className="flex-1 rounded-xl bg-destructive/20 px-4 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/30 disabled:opacity-50"
-              >
-                {isDeleting ? t('profile.deleting') : t('profile.deleteConfirm')}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
     </div>
   )
 }

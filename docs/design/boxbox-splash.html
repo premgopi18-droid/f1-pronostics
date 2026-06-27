@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOX BOX — Splash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* --- tweak the timing here --- */
+    --car-duration: 2.6s;     /* how fast the car crosses */
+    --start-delay: .3s;       /* black hold before launch */
+    --f1-red: #E10600;        /* F1 red */
+    --f1-red-dark: #9c0400;
+  }
+
+  *{ margin:0; padding:0; box-sizing:border-box; }
+
+  html,body{ height:100%; background:#000; overflow:hidden; }
+
+  .stage{
+    position:fixed; inset:0;
+    background:#050505;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    font-family:'Archivo Black','Arial Black',Arial,sans-serif;
+  }
+
+  /* faint vignette so the black has depth */
+  .stage::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(120% 80% at 50% 50%, transparent 55%, rgba(0,0,0,.85) 100%);
+  }
+
+  /* ---------------- LOGO ---------------- */
+  .logo{
+    position:relative; z-index:3;
+    font-family:'Archivo Black','Arial Black',Arial,sans-serif;
+    font-weight:900;
+    font-size:clamp(58px, 17vw, 145px);
+    letter-spacing:-.005em;
+    line-height:1;
+    text-transform:uppercase;
+    white-space:nowrap;
+    transform:skewX(-7deg);
+    /* revealed by the car's wake → wiped open left to right */
+    clip-path: inset(0 100% 0 0);
+    filter:saturate(1.1);
+  }
+  .logo .w{ color:#fff; }
+  .logo .r{ color:var(--f1-red); }
+  .logo .gap{ display:inline-block; width:.28em; }
+
+  /* the red underline the car "draws" */
+  .underline{
+    position:absolute; z-index:3;
+    height:5px; width:min(70vw, 560px);
+    background:linear-gradient(90deg, transparent, var(--f1-red) 18%, #fff 92%, transparent);
+    bottom:calc(50% - clamp(45px,9vw,80px));
+    transform:scaleX(0); transform-origin:left center;
+    border-radius:4px;
+    box-shadow:0 0 14px var(--f1-red);
+    opacity:0;
+  }
+
+  /* ---------------- CAR + WAKE ---------------- */
+  .runner{
+    position:absolute; z-index:4;
+    top:50%; left:0;
+    transform:translate(-130%, -50%);
+    display:flex; align-items:center;
+    will-change:transform;
+  }
+
+  /* speed streaks trailing behind the car */
+  .streaks{
+    position:absolute; right:88%; top:50%;
+    transform:translateY(-50%);
+    width:62vw; height:120px;
+    pointer-events:none;
+  }
+  .streaks span{
+    position:absolute; left:0; height:2px; border-radius:2px;
+    width:100%;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.0) 30%, currentColor 100%);
+  }
+  .streaks span:nth-child(1){ top:24%; color:rgba(255,255,255,.55); }
+  .streaks span:nth-child(2){ top:40%; color:var(--f1-red); height:3px; }
+  .streaks span:nth-child(3){ top:54%; color:rgba(255,255,255,.85); }
+  .streaks span:nth-child(4){ top:68%; color:var(--f1-red); opacity:.7; }
+  .streaks span:nth-child(5){ top:82%; color:rgba(255,255,255,.4); }
+
+  .car{
+    width:clamp(220px, 42vw, 360px); height:auto;
+    filter:drop-shadow(0 8px 18px rgba(225,6,0,.45));
+  }
+
+  /* ---------------- ANIMATIONS (added via .play) ---------------- */
+  .play .runner{
+    animation:drive var(--car-duration) cubic-bezier(.55,.06,.3,1) var(--start-delay) forwards;
+  }
+  .play .car{
+    animation:blur var(--car-duration) ease-in-out var(--start-delay) forwards;
+  }
+  .play .logo{
+    animation:wake var(--car-duration) cubic-bezier(.55,.06,.3,1) var(--start-delay) forwards;
+  }
+  .play .underline{
+    animation:draw var(--car-duration) cubic-bezier(.55,.06,.3,1) var(--start-delay) forwards;
+  }
+  .play .logo{ }
+
+  @keyframes drive{
+    0%   { transform:translate(-130%, -50%); }
+    100% { transform:translate(130vw, -50%); }
+  }
+  /* car stays sharp through the centre — only a hint of blur at the edges */
+  @keyframes blur{
+    0%   { transform:scaleX(1.05); filter:blur(.5px) drop-shadow(0 8px 18px rgba(225,6,0,.45)); }
+    50%  { transform:scaleX(1);    filter:blur(0)    drop-shadow(0 8px 22px rgba(225,6,0,.6)); }
+    100% { transform:scaleX(1.05); filter:blur(.5px) drop-shadow(0 8px 18px rgba(225,6,0,.45)); }
+  }
+  /* logo wipes open just behind the car */
+  @keyframes wake{
+    0%   { clip-path:inset(0 100% 0 0); }
+    18%  { clip-path:inset(0 100% 0 0); }
+    72%  { clip-path:inset(0 0 0 0); }
+    100% { clip-path:inset(0 0 0 0); }
+  }
+  @keyframes draw{
+    0%   { transform:scaleX(0); opacity:0; }
+    18%  { transform:scaleX(0); opacity:1; }
+    72%  { transform:scaleX(1); opacity:1; }
+    100% { transform:scaleX(1); opacity:.9; }
+  }
+
+  /* settle glow once the logo is fully revealed */
+  .play .logo{ animation:wake var(--car-duration) cubic-bezier(.55,.06,.3,1) var(--start-delay) forwards; }
+  .play.done .logo{ animation:none; clip-path:inset(0 0 0 0);
+    text-shadow:0 0 1px rgba(255,255,255,.2); transition:text-shadow .4s; }
+
+  /* ---------------- replay control ---------------- */
+  .replay{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    z-index:9; opacity:0; pointer-events:none;
+    background:rgba(255,255,255,.06); color:#fff;
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:999px; padding:9px 18px;
+    font-family:'Saira Condensed',Arial,sans-serif; font-weight:800;
+    letter-spacing:.08em; text-transform:uppercase; font-size:13px;
+    cursor:pointer; backdrop-filter:blur(6px);
+    transition:opacity .4s, background .2s;
+  }
+  .replay:hover{ background:rgba(225,6,0,.25); border-color:var(--f1-red); }
+  .done .replay{ opacity:1; pointer-events:auto; }
+
+  .sound{
+    position:fixed; top:18px; right:18px; z-index:10;
+    width:42px; height:42px; border-radius:50%;
+    background:rgba(255,255,255,.06); color:#fff;
+    border:1px solid rgba(255,255,255,.18);
+    font-size:18px; line-height:1; cursor:pointer; backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center;
+    transition:background .2s, border-color .2s, opacity .3s;
+  }
+  .sound:hover{ background:rgba(225,6,0,.25); border-color:var(--f1-red); }
+  .sound.off{ opacity:.55; }
+
+  @media (prefers-reduced-motion: reduce){
+    .runner{ display:none; }
+    .logo{ clip-path:inset(0 0 0 0)!important; animation:none!important; }
+    .underline{ transform:scaleX(1); opacity:.9; animation:none!important; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+
+    <div class="logo">
+      <span class="w">Box</span><span class="gap"></span><span class="r">Box</span>
+    </div>
+    <div class="underline"></div>
+
+    <div class="runner">
+      <div class="streaks">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+
+      <!-- stylized anime-style F1, facing right -->
+      <svg class="car" viewBox="0 0 320 130" xmlns="http://www.w3.org/2000/svg" aria-label="F1 car">
+        <defs>
+          <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ff2b22"/>
+            <stop offset=".5" stop-color="#E10600"/>
+            <stop offset="1" stop-color="#9c0400"/>
+          </linearGradient>
+          <radialGradient id="rim" cx=".5" cy=".5" r=".5">
+            <stop offset="0" stop-color="#444"/>
+            <stop offset=".7" stop-color="#1a1a1a"/>
+            <stop offset="1" stop-color="#000"/>
+          </radialGradient>
+        </defs>
+
+        <!-- mirror the whole car so the nose points right, the way it travels -->
+        <g transform="translate(320,0) scale(-1,1)">
+        <!-- floor / plank -->
+        <rect x="58" y="92" width="190" height="10" rx="5" fill="#1c1c1c"/>
+
+        <!-- front wing -->
+        <path d="M2 96 L62 96 L58 80 L18 82 Z" fill="url(#bodyGrad)"/>
+        <rect x="0" y="96" width="64" height="7" rx="3" fill="#111"/>
+
+        <!-- nose -->
+        <path d="M40 84 Q120 62 168 70 L168 88 L60 92 Z" fill="url(#bodyGrad)"/>
+
+        <!-- sidepod / main body -->
+        <path d="M150 88 Q160 58 210 60 Q268 60 286 78 L292 90 L300 92
+                 L300 100 L150 100 Z" fill="url(#bodyGrad)"/>
+        <!-- engine cover slope -->
+        <path d="M188 62 Q210 30 232 40 L250 86 L186 86 Z" fill="url(#bodyGrad)"/>
+
+        <!-- airbox intake -->
+        <path d="M196 56 Q205 40 218 44 L222 60 L198 62 Z" fill="#7a0300"/>
+
+        <!-- cockpit + helmet -->
+        <ellipse cx="178" cy="70" rx="16" ry="11" fill="#0c0c0c"/>
+        <circle cx="180" cy="66" r="8" fill="#f2f2f2"/>
+        <path d="M174 66 a8 8 0 0 1 14 -3 l-14 4 z" fill="var(--f1-red)"/>
+
+        <!-- halo -->
+        <path d="M162 66 Q180 44 200 64" fill="none" stroke="#080808" stroke-width="5" stroke-linecap="round"/>
+        <line x1="180" y1="50" x2="180" y2="60" stroke="#080808" stroke-width="5"/>
+
+        <!-- accent stripe + number roundel -->
+        <path d="M70 90 L150 86 L150 92 L70 94 Z" fill="#fff" opacity=".85"/>
+        <circle cx="250" cy="80" r="11" fill="#fff"/>
+        <text x="250" y="85" text-anchor="middle" transform="translate(500,0) scale(-1,1)" font-family="Arial Black, Arial" font-weight="900" font-size="14" fill="#111">1</text>
+
+        <!-- rear wing -->
+        <rect x="288" y="40" width="9" height="44" rx="3" fill="#141414"/>
+        <path d="M276 44 L312 38 L312 50 L276 56 Z" fill="url(#bodyGrad)"/>
+        <path d="M278 56 L308 52 L308 60 L278 64 Z" fill="#7a0300"/>
+
+        <!-- wheels -->
+        <g>
+          <circle cx="92" cy="98" r="26" fill="#0a0a0a"/>
+          <circle cx="92" cy="98" r="13" fill="url(#rim)"/>
+          <circle cx="92" cy="98" r="4" fill="#666"/>
+        </g>
+        <g>
+          <circle cx="244" cy="98" r="28" fill="#0a0a0a"/>
+          <circle cx="244" cy="98" r="14" fill="url(#rim)"/>
+          <circle cx="244" cy="98" r="4" fill="#666"/>
+        </g>
+
+        <!-- tiny highlight on nose -->
+        <path d="M70 78 Q120 66 160 72" fill="none" stroke="#ff7a73" stroke-width="2" opacity=".7" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </div>
+
+    <button class="replay" id="replay" aria-label="Replay">↻ Rejouer</button>
+    <button class="sound" id="sound" aria-label="Couper le son">🔊</button>
+  </div>
+
+<script>
+  const stage  = document.getElementById('stage');
+  const replay = document.getElementById('replay');
+  const sound  = document.getElementById('sound');
+
+  let soundOn = true;
+  let ctx = null;
+
+  function ensureCtx(){
+    if(!ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return null;
+      ctx = new AC();
+    }
+    if(ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  // Fully synthesized F1 fly-by: revving engine + Doppler drop + air whoosh,
+  // panned left→right and bell-enveloped, scheduled to match the car.
+  function playEngine(delay, duration){
+    if(!soundOn) return;
+    const ac = ensureCtx();
+    if(!ac) return;
+
+    const t0  = ac.currentTime + delay;
+    const tMid = t0 + duration * 0.5;
+    const t1  = t0 + duration;
+
+    // shared stereo sweep (left → right)
+    const pan = ac.createStereoPanner();
+    pan.pan.setValueAtTime(-0.95, t0);
+    pan.pan.linearRampToValueAtTime(0.95, t1);
+    pan.connect(ac.destination);
+
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 3600;
+    lp.connect(pan);
+
+    // master bell envelope
+    const master = ac.createGain();
+    master.gain.setValueAtTime(0.0001, t0);
+    master.gain.exponentialRampToValueAtTime(0.55, tMid);
+    master.gain.exponentialRampToValueAtTime(0.0001, t1);
+    master.connect(lp);
+
+    // --- engine tone: stacked saws + a sub, with Doppler pitch glide ---
+    const eng = ac.createGain(); eng.gain.value = 0.6; eng.connect(master);
+
+    const hi = 540, lo = 235;
+    const voices = [
+      { type:'sawtooth', mul:1,    det:0  },
+      { type:'sawtooth', mul:1,    det:9  },
+      { type:'square',   mul:0.5,  det:-4 },
+    ];
+    const oscs = voices.map(v => {
+      const o = ac.createOscillator();
+      o.type = v.type; o.detune.value = v.det;
+      o.frequency.setValueAtTime(hi * v.mul, t0);
+      o.frequency.linearRampToValueAtTime(hi * 1.06 * v.mul, tMid); // approaching
+      o.frequency.exponentialRampToValueAtTime(lo * v.mul, t1);     // receding
+      o.connect(eng);
+      return o;
+    });
+
+    // engine "throb" (amplitude flutter that ramps up then down)
+    const lfo = ac.createOscillator(); lfo.type = 'sawtooth';
+    lfo.frequency.setValueAtTime(16, t0);
+    lfo.frequency.linearRampToValueAtTime(34, tMid);
+    lfo.frequency.linearRampToValueAtTime(13, t1);
+    const lfoGain = ac.createGain(); lfoGain.gain.value = 0.32;
+    lfo.connect(lfoGain); lfoGain.connect(eng.gain);
+
+    // --- air whoosh: band-passed noise that opens as it passes ---
+    const len = Math.floor(ac.sampleRate * (duration + 0.2));
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = Math.random()*2 - 1;
+    const noise = ac.createBufferSource(); noise.buffer = buf;
+    const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.Q.value = 0.7;
+    bp.frequency.setValueAtTime(800, t0);
+    bp.frequency.linearRampToValueAtTime(2300, tMid);
+    bp.frequency.exponentialRampToValueAtTime(450, t1);
+    const nGain = ac.createGain();
+    nGain.gain.setValueAtTime(0.0001, t0);
+    nGain.gain.exponentialRampToValueAtTime(0.28, tMid);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, t1);
+    noise.connect(bp); bp.connect(nGain); nGain.connect(pan);
+
+    oscs.forEach(o => { o.start(t0); o.stop(t1 + 0.05); });
+    lfo.start(t0);   lfo.stop(t1 + 0.05);
+    noise.start(t0); noise.stop(t1 + 0.05);
+  }
+
+  function getVar(name){
+    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+  }
+
+  function play(){
+    const delay    = getVar('--start-delay');
+    const duration = getVar('--car-duration');
+
+    stage.classList.remove('play','done');
+    void stage.offsetWidth;          // force reflow → restart animation
+    stage.classList.add('play');
+
+    playEngine(delay, duration);
+
+    setTimeout(()=> stage.classList.add('done'), (delay + duration) * 1000 + 120);
+  }
+
+  replay.addEventListener('click', play);
+
+  sound.addEventListener('click', () => {
+    soundOn = !soundOn;
+    sound.textContent = soundOn ? '🔊' : '🔇';
+    sound.classList.toggle('off', !soundOn);
+    sound.setAttribute('aria-label', soundOn ? 'Couper le son' : 'Activer le son');
+    if(soundOn) ensureCtx();   // unlock audio on this user gesture
+  });
+
+  window.addEventListener('load', play);
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import "./globals.css";
 import { SwRegister } from "@/app/components/sw-register";
 import { InstallBanner } from "@/app/components/install-banner";
 import { BottomNav } from "@/app/components/bottom-nav";
+import { SplashScreen } from "@/app/ui/splash-screen";
 import {
   REDUCE_MOTION_STORAGE_KEY,
   REDUCE_MOTION_CLASS,
@@ -90,6 +91,7 @@ export default function RootLayout({
         <InstallBanner />
         {children}
         <BottomNav />
+        <SplashScreen />
       </body>
     </html>
   );

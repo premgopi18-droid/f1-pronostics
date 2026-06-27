@@ -383,6 +383,7 @@ export const fr = {
     theme: "Thème",
     notifications: "Notifications",
     accessibility: "Mode accessibilité",
+    splashSound: "Son au lancement",
     signOut: "Se déconnecter",
     back: "Profil",
     // Sous-page edit pseudo

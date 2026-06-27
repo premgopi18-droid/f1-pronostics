@@ -849,6 +849,15 @@ Segmented control en haut (3 vues) :
 - ↑↓ uniquement en mode accessibilité — évite de surcharger l'interface en mode normal
 - Drag & drop disponible en parallèle même en mode accessibilité
 
+### Splash screen animé (décision 2026-06-27)
+
+Animation de lancement **in-app** (le splash système du manifest PWA reste statique — limite du standard).
+
+- **Format** : Lottie JSON (`public/animations/splash.json`, portrait 1080×1920, 3.2 s à 30 fps, sans dépendance de font). Lecture via `lottie-react`, fetché au runtime (hors bundle). Composant `app/ui/splash-screen.tsx`, monté dans le layout.
+- **Fréquence** : joué **une seule fois par session** d'onglet (`sessionStorage`) — pas rejoué lors des navigations client.
+- **`prefers-reduced-motion`** : splash **skippé** (système ou override manuel), via `resolveReducedMotion()` — mutualisé avec le mode accessibilité.
+- **Son** : moteur F1 synthétisé en Web Audio API (Doppler + panning L→R), porté du proto `docs/design/boxbox-splash.html` vers `lib/audio/engine-flyby.ts`. **Activé par défaut, désactivable** depuis le profil (toggle « Son au lancement », opt-out). Contrainte navigateur assumée : au **lancement à froid** l'`AudioContext` est suspendu faute de geste utilisateur → son **muet à ce moment-là** quelle que soit la préférence (dégradation silencieuse) ; il devient effectif une fois l'audio débloqué par un geste (ex. activation du toggle).
+
 ---
 
 ## 8. Ce qui reste à définir (TBD)

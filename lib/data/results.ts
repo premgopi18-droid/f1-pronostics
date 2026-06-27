@@ -233,7 +233,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
         lastName: driver.last_name,
         constructorCode: driver.constructors?.code ?? '',
         constructorName: driver.constructors?.name ?? '',
-        bestLapTime: (row as unknown as { best_lap_time: string | null }).best_lap_time ?? null,
+        bestLapTime: (row.best_lap_time as string | null) ?? null,
       }
       if (sessionType === 'practice_1') practice1.push(result)
       else if (sessionType === 'practice_2') practice2.push(result)

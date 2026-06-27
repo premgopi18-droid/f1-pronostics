@@ -87,6 +87,7 @@ async function handler(request: Request): Promise<Response> {
     if (pendingError) throw pendingError
 
     let sessionsConfirmed = 0
+    let writeErrors = 0
 
     for (const row of pending ?? []) {
       const gp = (row.grands_prix as unknown) as { round: number } | null
@@ -97,13 +98,14 @@ async function handler(request: Request): Promise<Response> {
       const round       = gp.round
       const startsAt    = row.starts_at as string
 
-      // Isolation par session : l'échec d'une source (OpenF1 bloqué pendant un
-      // live → 403, réseau, etc.) ne doit PAS avorter toute la sync ni les
-      // notifs qui suivent (même famille de bug que #121). On logue et on passe
-      // à la session suivante ; le cron retentera au prochain passage.
+      // Isolation par session, pour la source ET les écritures (même famille de
+      // bug que #121) : l'échec d'une session ne doit PAS avorter la sync ni les
+      // notifs qui suivent. Le fetch source est attendu/transitoire (OpenF1 bloqué
+      // en live → 403, réseau…) → on logue et on passe. Une erreur d'écriture est
+      // anormale → on la compte (`writeErrors`) pour renvoyer un 500 en fin de run
+      // (visibilité + retry cron, pipeline idempotent) SANS bloquer les notifs dues.
+      let results: Map<string, DriverResult> | null = null
       try {
-        let results: Map<string, DriverResult>
-
         if (sessionType === 'race') {
           results = await fetchRaceResults(rowSeason, round)
         } else if (sessionType === 'qualifying') {
@@ -116,18 +118,22 @@ async function handler(request: Request): Promise<Response> {
           const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
           const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt)
           results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
-        } else {
-          continue
         }
+      } catch (error) {
+        console.error('[api/f1/sync] fetch résultats session', row.id, error)
+        continue
+      }
 
-        // Résultats pas encore disponibles (course non terminée)
-        if (results.size === 0) continue
+      // Type inconnu, ou résultats pas encore disponibles (course non terminée).
+      if (!results || results.size === 0) continue
 
+      try {
         await upsertSessionResults(row.id as string, rowSeason, results)
         await confirmSessionResults(row.id as string)
         sessionsConfirmed++
       } catch (error) {
-        console.error('[api/f1/sync] confirmation session', row.id, error)
+        console.error('[api/f1/sync] écriture résultats session', row.id, error)
+        writeErrors++
       }
     }
 
@@ -160,12 +166,18 @@ async function handler(request: Request): Promise<Response> {
     revalidateTag('drivers', 'max')
     revalidateTag('constructors', 'max')
 
-    return Response.json({
-      gps: calendar.length,
-      sessionsConfirmed,
-      notified: gpsToNotify.length,
-      qualReminders: qualReminderGPs.length,
-    })
+    // Une écriture DB en échec est anormale → 500 (visibilité + retry cron), mais
+    // seulement après avoir traité les autres sessions et envoyé les notifs dues.
+    return Response.json(
+      {
+        gps: calendar.length,
+        sessionsConfirmed,
+        notified: gpsToNotify.length,
+        qualReminders: qualReminderGPs.length,
+        writeErrors,
+      },
+      writeErrors > 0 ? { status: 500 } : undefined,
+    )
   } catch (error) {
     console.error('[api/f1/sync]', error)
     return Response.json({ error: 'Internal error' }, { status: 500 })

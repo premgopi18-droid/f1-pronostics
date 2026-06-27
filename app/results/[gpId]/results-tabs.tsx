@@ -6,11 +6,24 @@ import { t } from '@/lib/i18n'
 import { TEAM_COLORS, DEFAULT_TEAM_COLOR } from '@/lib/f1/team-colors'
 import type { GpResultRow, PracticeResultRow } from '@/lib/data/results'
 
-type Tab = 'race' | 'qualifying' | 'practice1' | 'practice2' | 'practice3'
+type Tab =
+  | 'race'
+  | 'qualifying'
+  | 'sprintRace'
+  | 'sprintQualifying'
+  | 'practice1'
+  | 'practice2'
+  | 'practice3'
 
 const OFFICIAL_TABS: { id: Tab; label: () => string }[] = [
   { id: 'race',       label: () => t('results.tabRace') },
   { id: 'qualifying', label: () => t('results.tabQualifying') },
+]
+
+// Onglets sprint : week-ends sprint uniquement, affichés si des données existent.
+const SPRINT_TABS: { id: Tab; label: () => string }[] = [
+  { id: 'sprintRace',       label: () => t('results.tabSprint') },
+  { id: 'sprintQualifying', label: () => t('results.tabSprintQualifying') },
 ]
 
 const PRACTICE_TABS: { id: Tab; label: () => string }[] = [
@@ -22,13 +35,29 @@ const PRACTICE_TABS: { id: Tab; label: () => string }[] = [
 interface Props {
   race: GpResultRow[]
   qualifying: GpResultRow[]
+  sprintRace: GpResultRow[]
+  sprintQualifying: GpResultRow[]
   practice1: PracticeResultRow[]
   practice2: PracticeResultRow[]
   practice3: PracticeResultRow[]
 }
 
-export function GpResultsTabs({ race, qualifying, practice1, practice2, practice3 }: Props) {
+export function GpResultsTabs({
+  race,
+  qualifying,
+  sprintRace,
+  sprintQualifying,
+  practice1,
+  practice2,
+  practice3,
+}: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('race')
+
+  // Onglets sprint ajoutés aux officiels (mêmes résultats scorés) sur week-end sprint.
+  const sprintTabs = SPRINT_TABS.filter(({ id }) =>
+    id === 'sprintRace' ? sprintRace.length > 0 : sprintQualifying.length > 0,
+  )
+  const officialTabs = [...OFFICIAL_TABS, ...sprintTabs]
 
   const practiceTabs = PRACTICE_TABS.filter(({ id }) => {
     if (id === 'practice1') return practice1.length > 0
@@ -43,10 +72,16 @@ export function GpResultsTabs({ race, qualifying, practice1, practice2, practice
     return []
   }
 
+  const getOfficialRows = (tab: Tab): GpResultRow[] => {
+    if (tab === 'race') return race
+    if (tab === 'qualifying') return qualifying
+    if (tab === 'sprintRace') return sprintRace
+    if (tab === 'sprintQualifying') return sprintQualifying
+    return []
+  }
+
   const isPracticeTab = activeTab.startsWith('practice')
-  const officialRows = activeTab === 'race' ? race : qualifying
-  const practiceRows = getPracticeRows(activeTab)
-  const rows = isPracticeTab ? practiceRows : officialRows
+  const rows = isPracticeTab ? getPracticeRows(activeTab) : getOfficialRows(activeTab)
   const isEmpty = rows.length === 0
 
   return (
@@ -57,7 +92,7 @@ export function GpResultsTabs({ race, qualifying, practice1, practice2, practice
         aria-label={t('results.gpResultsOfficial')}
         className="flex gap-1 rounded-xl border border-border bg-card p-1"
       >
-        {OFFICIAL_TABS.map((tab) => (
+        {officialTabs.map((tab) => (
           <button
             key={tab.id}
             role="tab"

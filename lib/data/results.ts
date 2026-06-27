@@ -17,6 +17,10 @@ export type CalendarGp = {
   winner: string | null
   qualifyingStartsAt: string | null
   raceStartsAt: string | null
+  /** Au moins une session du GP a des résultats confirmés (EL incluses) → la page
+   *  résultats a quelque chose à montrer. Sert à n'afficher le lien « Résultats »
+   *  sur la card « prochain » que quand le week-end a commencé à produire des données. */
+  hasResults: boolean
 }
 
 export type GpResultRow = {
@@ -45,6 +49,8 @@ export type GpDetailData = {
   round: number
   race: GpResultRow[]
   qualifying: GpResultRow[]
+  sprintRace: GpResultRow[]
+  sprintQualifying: GpResultRow[]
   practice1: PracticeResultRow[]
   practice2: PracticeResultRow[]
   practice3: PracticeResultRow[]
@@ -67,7 +73,10 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
       .from('sessions')
       .select('id, gp_id, type, starts_at, results_confirmed_at')
       .eq('season', season)
-      .in('type', ['race', 'qualifying']),
+      // Types élargis (sprint + EL) uniquement pour calculer `hasResults` (lien
+      // « Résultats » de la card prochain), aligné sur `deriveCurrentGpView` qui
+      // regarde toutes les sessions — le reste du mapping ne lit que race/qualifying.
+      .in('type', ['race', 'qualifying', 'sprint_qualifying', 'sprint_race', ...PRACTICE_SESSION_TYPES]),
   ])
 
   if (gpsError) throw gpsError
@@ -81,9 +90,12 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
     { raceStartsAt?: string; qualifyingStartsAt?: string; raceResultsConfirmedAt?: string | null }
   >()
   const raceSessionToGp = new Map<string, string>()
+  // GP ayant au moins une session (toutes types, EL comprises) aux résultats confirmés.
+  const gpsWithResults = new Set<string>()
 
   for (const s of sessions) {
     const gpId = s.gp_id as string
+    if (s.results_confirmed_at != null) gpsWithResults.add(gpId)
     const entry = sessionMap.get(gpId) ?? {}
     if (s.type === 'race') {
       entry.raceStartsAt = s.starts_at as string
@@ -134,6 +146,7 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
       winner: winnerMap.get(gpId) ?? null,
       qualifyingStartsAt: gpSessions.qualifyingStartsAt ?? null,
       raceStartsAt: gpSessions.raceStartsAt ?? null,
+      hasResults: gpsWithResults.has(gpId),
     }
   })
 }
@@ -153,7 +166,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
       .from('sessions')
       .select('id, type')
       .eq('gp_id', gpId)
-      .in('type', ['race', 'qualifying', ...PRACTICE_SESSION_TYPES]),
+      .in('type', ['race', 'qualifying', 'sprint_race', 'sprint_qualifying', ...PRACTICE_SESSION_TYPES]),
   ])
 
   if (!gp) return null
@@ -180,6 +193,8 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
 
   const race: GpResultRow[] = []
   const qualifying: GpResultRow[] = []
+  const sprintRace: GpResultRow[] = []
+  const sprintQualifying: GpResultRow[] = []
   const practice1: PracticeResultRow[] = []
   const practice2: PracticeResultRow[] = []
   const practice3: PracticeResultRow[] = []
@@ -190,7 +205,12 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
 
     const sessionType = sessionTypeMap.get(row.session_id as string)
 
-    if (sessionType === 'race' || sessionType === 'qualifying') {
+    if (
+      sessionType === 'race' ||
+      sessionType === 'qualifying' ||
+      sessionType === 'sprint_race' ||
+      sessionType === 'sprint_qualifying'
+    ) {
       const result: GpResultRow = {
         position: row.position as number | null,
         dnf: row.dnf as boolean,
@@ -202,7 +222,9 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
         constructorCode: driver.constructors?.code ?? '',
       }
       if (sessionType === 'race') race.push(result)
-      else qualifying.push(result)
+      else if (sessionType === 'qualifying') qualifying.push(result)
+      else if (sessionType === 'sprint_race') sprintRace.push(result)
+      else sprintQualifying.push(result)
     } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
       const result: PracticeResultRow = {
         position: row.position as number,
@@ -235,6 +257,8 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
     round: gp.round as number,
     race: sortByPosition(race),
     qualifying: sortByPosition(qualifying),
+    sprintRace: sortByPosition(sprintRace),
+    sprintQualifying: sortByPosition(sprintQualifying),
     practice1: sortPractice(practice1),
     practice2: sortPractice(practice2),
     practice3: sortPractice(practice3),

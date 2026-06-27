@@ -1,4 +1,6 @@
-import type { SessionType } from "@/lib/scoring/types";
+import { SCOREABLE_SESSION_TYPES, type SessionType } from "@/lib/scoring/types";
+
+const SCOREABLE_TYPES = new Set<string>(SCOREABLE_SESSION_TYPES);
 
 /**
  * Phase de la Home pour le GP courant (le prochain GP non finalisé) :
@@ -44,3 +46,49 @@ export function sessionLockState(nowMs: number, startsAt: string): SessionLockSt
 
 /** Session telle qu'affichée dans la card week-end de la Home. */
 export type WeekendSession = { type: SessionType; lockState: SessionLockState };
+
+/** Session brute du GP (type texte issu de la DB, EL comprises). */
+export type RawGpSession = {
+  type: string;
+  startsAt: string;
+  resultsConfirmedAt: string | null;
+};
+
+export type CurrentGpView = {
+  phase: HomeGpPhase;
+  sessions: WeekendSession[];
+  /** Au moins une session du GP (EL comprises) a des résultats confirmés. */
+  hasResults: boolean;
+};
+
+/**
+ * Dérive la vue Home du GP courant à partir de ses sessions brutes. Pur — testable.
+ *
+ * Subtilité : `hasResults` regarde TOUTES les sessions (EL comprises, pour proposer
+ * le lien « Résultats »), tandis que la phase et les sessions rendues n'utilisent
+ * QUE les sessions scorées — inclure les essais fausserait la phase (une EL en
+ * cours basculerait la Home en « live ») et le rendu n'a pas de label pour les EL.
+ */
+export function deriveCurrentGpView(
+  nowMs: number,
+  weekendStartsAt: string | null,
+  sessions: ReadonlyArray<RawGpSession>,
+): CurrentGpView {
+  const hasResults = sessions.some((s) => s.resultsConfirmedAt !== null);
+  const scoreable = sessions.filter((s) => SCOREABLE_TYPES.has(s.type));
+
+  const phase = homeGpPhase(
+    nowMs,
+    weekendStartsAt,
+    scoreable.map((s) => ({ startsAt: s.startsAt, resultsConfirmedAt: s.resultsConfirmedAt })),
+  );
+
+  return {
+    phase,
+    hasResults,
+    sessions: scoreable.map((s) => ({
+      type: s.type as SessionType,
+      lockState: sessionLockState(nowMs, s.startsAt),
+    })),
+  };
+}

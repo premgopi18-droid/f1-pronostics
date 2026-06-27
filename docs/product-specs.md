@@ -794,7 +794,7 @@ Segmented control en haut (3 vues) :
 ```
 
 **Vue Calendrier** :
-- Prochain GP mis en avant (horaires sessions) + CTA "Pronostiquer" tant que les qualifications ne sont pas commencées
+- Prochain GP mis en avant (horaires sessions) + CTA "Pronostiquer" tant que les qualifications ne sont pas commencées, **et** un lien "Résultats" vers `/results/[gp-id]` — pour consulter les essais libres du week-end en cours (puis quali/course) et ajuster ses pronostics avant le verrou Q1. Le lien "Résultats" n'apparaît que si le GP a **au moins une session aux résultats confirmés** (`hasResults`, EL comprises) — sinon il mènerait à une page vide. Même lien (gaté pareil) sur la card du prochain GP de la **Home** (countdown + card week-end).
 - Liste chronologique : GP passés (vainqueur + lien recap) / GP en cours / GP futurs
 - GP futurs cliquables → page de prédiction `/predictions/[gp-id]`
 

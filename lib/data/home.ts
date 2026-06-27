@@ -1,21 +1,16 @@
 import { createServiceClient } from '@/lib/supabase'
 import { rawGpScore } from '@/lib/gp-score'
-import {
-  homeGpPhase,
-  sessionLockState,
-  type HomeGpPhase,
-  type WeekendSession,
-} from '@/lib/home-phase'
-import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
+import { deriveCurrentGpView, type CurrentGpView } from '@/lib/home-phase'
 
 const RACE_SESSION_TYPE = 'race'
 const PODIUM_SIZE = 3
 
-export type CurrentGpView = { phase: HomeGpPhase; sessions: WeekendSession[] }
+export type { CurrentGpView }
 
 /**
  * Phase du GP courant (countdown / week-end / live / calcul) + ses sessions pour la
- * card week-end. `Date.now()` est lu ici (fonction de données, hors render React).
+ * card week-end + `hasResults`. `Date.now()` est lu ici (fonction de données, hors
+ * render React). La dérivation est déléguée au helper pur `deriveCurrentGpView`.
  */
 export async function getCurrentGpView(
   gpId: string,
@@ -24,36 +19,25 @@ export async function getCurrentGpView(
   const supabase = createServiceClient()
   const nowMs = Date.now()
 
+  // Toutes les sessions (EL comprises) : le helper sépare ce qui sert à
+  // `hasResults` (tout) de ce qui sert à la phase / la card (sessions scorées).
   const { data: rows, error } = await supabase
     .from('sessions')
     .select('type, starts_at, results_confirmed_at')
     .eq('gp_id', gpId)
-    // Essais libres exclus : la card week-end et le calcul de phase ne portent
-    // que sur les sessions scorées (le « début du GP » est hors essais).
-    .in('type', SCOREABLE_SESSION_TYPES)
     .order('starts_at', { ascending: true })
 
   if (error) console.error('[data/home] sessions (view)', error)
 
-  const sessions = (rows ?? []) as Array<{
-    type: string
-    starts_at: string
-    results_confirmed_at: string | null
-  }>
-
-  const phase = homeGpPhase(
+  return deriveCurrentGpView(
     nowMs,
     weekendStartsAt,
-    sessions.map((s) => ({ startsAt: s.starts_at, resultsConfirmedAt: s.results_confirmed_at })),
-  )
-
-  return {
-    phase,
-    sessions: sessions.map((s) => ({
-      type: s.type as SessionType,
-      lockState: sessionLockState(nowMs, s.starts_at),
+    (rows ?? []).map((s) => ({
+      type: s.type as string,
+      startsAt: s.starts_at as string,
+      resultsConfirmedAt: s.results_confirmed_at as string | null,
     })),
-  }
+  )
 }
 
 export type PreviousGpCard = {

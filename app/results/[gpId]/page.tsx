@@ -37,6 +37,8 @@ export default async function GpResultsPage({ params }: Props) {
         <GpResultsTabs
           race={gp.race}
           qualifying={gp.qualifying}
+          sprintRace={gp.sprintRace}
+          sprintQualifying={gp.sprintQualifying}
           practice1={gp.practice1}
           practice2={gp.practice2}
           practice3={gp.practice3}

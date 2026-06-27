@@ -18,10 +18,12 @@ export function GpWeekendCard({
   name,
   gpId,
   sessions,
+  hasResults,
 }: {
   name: string;
   gpId: string;
   sessions: ReadonlyArray<WeekendSession>;
+  hasResults: boolean;
 }) {
   return (
     <Card>
@@ -52,6 +54,15 @@ export function GpWeekendCard({
       <Link href={`/predictions/${gpId}`} className={cn(buttonVariants({ size: "block" }), "mt-4")}>
         {t("home.modifyPredictions")} <span aria-hidden="true">→</span>
       </Link>
+      {/* Lien résultats : consulter les EL / quali du week-end en cours. */}
+      {hasResults && (
+        <Link
+          href={`/results/${gpId}`}
+          className="mt-3 inline-flex w-full justify-center text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+        >
+          {t("home.viewResults")} <span aria-hidden="true">›</span>
+        </Link>
+      )}
     </Card>
   );
 }

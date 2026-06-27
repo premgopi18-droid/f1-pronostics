@@ -117,7 +117,7 @@ async function handler(request: Request): Promise<Response> {
         } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
           const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
           const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt)
-          results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
+          results = new Map(raw.map(({ driverCode, position, bestLapTime }) => [driverCode, { position, fastestLap: false, bestLapTime }]))
         }
       } catch (error) {
         console.error('[api/f1/sync] fetch résultats session', row.id, error)

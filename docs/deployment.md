@@ -174,85 +174,32 @@ Vercel déclenche ses cron jobs avec une requête **GET** et injecte automatique
 
 ---
 
-## Crons cron-job.org (primaire, toutes les 10 min)
+## Crons cron-job.org (primaire)
 
-cron-job.org permet des jobs gratuits illimités avec fréquence jusqu'à toutes les 5 min. On l'utilise pour réduire le délai de scoring à ~10-20 min après chaque session.
+cron-job.org permet des jobs gratuits illimités avec fréquence jusqu'à toutes les 5 min. On l'utilise pour réduire le délai de scoring à ~15-30 min après chaque session.
 
 ### Créer un compte
 
 → [cron-job.org](https://cron-job.org) → Sign up (gratuit).
 
-### Jobs à créer
+### Jobs configurés (4 jobs)
 
-Créer **4 jobs** (2 routes × 2 fenêtres temporelles).
+| Job | URL | Expression crontab | Jours |
+|---|---|---|---|
+| Sync week-end | `/api/f1/sync` | `*/10 * * * 5,6,0` | Ven/Sam/Dim |
+| Trigger week-end | `/api/scores/trigger` | `5,15,25,35,45,55 * * * 5,6,0` | Ven/Sam/Dim |
+| Sync semaine | `/api/f1/sync` | `*/30 * * * 1,2,3,4` | Lun–Jeu |
+| Trigger semaine | `/api/scores/trigger` | `15,45 * * * 1,2,3,4` | Lun–Jeu |
 
-#### Job 1 — Sync qualifications (samedi)
+Tous les jobs utilisent la méthode **POST** avec le header `x-cron-secret: <CRON_SECRET>`.
 
-| Champ | Valeur |
-|---|---|
-| URL | `https://votre-domaine.vercel.app/api/f1/sync` |
-| Méthode | POST |
-| Header | `x-cron-secret: <votre CRON_SECRET>` |
-| Schedule | Toutes les 10 min |
-| Jours | Samedi uniquement |
-| Heures | 14:00 → 17:30 UTC |
+**Cadence week-end (ven–dim)** : sync toutes les 10 min, trigger toutes les 10 min décalé de 5 min → délai pipeline ~10-15 min après que Jolpica publie les résultats. Couvre toutes les sessions du week-end (EL, qualifs, sprint, course) sans gestion de fenêtres horaires par session.
 
-#### Job 2 — Trigger scoring qualifications (samedi)
-
-| Champ | Valeur |
-|---|---|
-| URL | `https://votre-domaine.vercel.app/api/scores/trigger` |
-| Méthode | POST |
-| Header | `x-cron-secret: <votre CRON_SECRET>` |
-| Schedule | Toutes les 10 min |
-| Jours | Samedi uniquement |
-| Heures | 14:10 → 17:30 UTC (décalé de 10 min par rapport au sync) |
-
-#### Job 3 — Sync course (dimanche)
-
-| Champ | Valeur |
-|---|---|
-| URL | `https://votre-domaine.vercel.app/api/f1/sync` |
-| Méthode | POST |
-| Header | `x-cron-secret: <votre CRON_SECRET>` |
-| Schedule | Toutes les 10 min |
-| Jours | Dimanche uniquement |
-| Heures | 14:00 → 18:00 UTC |
-
-#### Job 4 — Trigger scoring course (dimanche)
-
-| Champ | Valeur |
-|---|---|
-| URL | `https://votre-domaine.vercel.app/api/scores/trigger` |
-| Méthode | POST |
-| Header | `x-cron-secret: <votre CRON_SECRET>` |
-| Schedule | Toutes les 10 min |
-| Jours | Dimanche uniquement |
-| Heures | 14:10 → 18:00 UTC |
-
-### Semaines sprint
-
-Pour les week-ends avec sprint race (environ 6 par saison), ajouter 2 jobs supplémentaires sur le modèle ci-dessus :
-- **Vendredi 11:00–14:00 UTC** — sync + trigger (sprint qualifying)
-- **Samedi 10:00–13:00 UTC** — sync + trigger (sprint race)
-
-Ces jobs peuvent être activés/désactivés manuellement sur cron-job.org selon le calendrier.
-
-### Sync des essais libres (EL1/EL2/EL3) — **toutes les 10 min**
-
-Les résultats d'essais libres (informatifs, non scorés — cf. specs §3.3) proviennent d'OpenF1. Décision : **toute la sync tourne à 10 min**, EL incluses (pas de cadence dégradée). Ajouter des fenêtres `/api/f1/sync` couvrant les séances d'EL :
-- **Vendredi ~matin/midi UTC** — EL1 puis EL2 (horaires variables selon le fuseau du circuit ; se caler sur `FirstPractice`/`SecondPractice` du calendrier Jolpica)
-- **Samedi matin UTC** — EL3 (week-end classique uniquement)
-
-Les EL n'ont pas besoin de `/api/scores/trigger` (rien à scorer).
-
-### Notif « Session imminente » (10 min avant) — couverture cron
-
-Cette notif (cf. specs §3.6) est émise par `/api/f1/sync` quand une session démarre dans ≤ 10 min. Elle n'est envoyée **que si le cron tourne dans la fenêtre `[T-10min, T]`** de chaque session concernée. Conséquence opérationnelle : les fenêtres `/api/f1/sync` ci-dessus doivent **commencer suffisamment tôt** pour couvrir le T-10 de la **première** session de chaque jour (y compris EL1 le vendredi). Avec un cron à 10 min, élargir la borne basse de chaque fenêtre de ~15 min avant la première session du jour.
+**Cadence semaine (lun–jeu)** : sync toutes les 30 min, trigger toutes les 30 min décalé de 15 min → suffisant pour maintenir le calendrier et les pilotes à jour hors week-end de course.
 
 ### Pourquoi décaler sync et trigger ?
 
-`/api/f1/sync` récupère et stocke les résultats depuis Jolpica. `/api/scores/trigger` calcule les scores à partir de ce qui est en base. Si les deux tournent en même temps, le trigger pourrait scorer des données incomplètes. Le décalage de 10 min garantit que sync termine avant trigger.
+`/api/f1/sync` récupère et stocke les résultats depuis Jolpica/OpenF1. `/api/scores/trigger` calcule les scores à partir de ce qui est en base. Le décalage (5 min le week-end, 15 min en semaine) garantit que sync a terminé avant que trigger lise la DB.
 
 ---
 

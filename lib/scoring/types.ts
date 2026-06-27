@@ -21,7 +21,7 @@ export type ItemPayload =
 
 export type GPItemType = Exclude<ItemPayload['type'], 'wdc_move' | 'wcc_move'>
 
-export type DriverResult = { position: number | null; fastestLap: boolean; dnf?: boolean }
+export type DriverResult = { position: number | null; fastestLap: boolean; dnf?: boolean; bestLapTime?: string | null }
 
 /** `${userId}:${sessionType}` — clé O(1) pour la Map des scores */
 export type ScoreKey = `${string}:${string}`

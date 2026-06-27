@@ -279,6 +279,12 @@ function PracticeDriverRow({
         <span className="font-semibold text-foreground">{row.lastName}</span>
         <div className="text-xs text-text-muted">{row.constructorName}</div>
       </div>
+
+      {row.bestLapTime != null && (
+        <span className="shrink-0 font-mono text-xs tabular-nums text-text-secondary">
+          {row.bestLapTime}
+        </span>
+      )}
     </div>
   )
 }

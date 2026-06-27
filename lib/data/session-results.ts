@@ -75,12 +75,13 @@ export async function upsertSessionResults(
   const rows = Array.from(results.entries())
     .filter(([code]) => codeToId.has(code))
     .map(([code, result]) => ({
-      session_id:   sessionId,
+      session_id:    sessionId,
       season,
-      driver_id:    codeToId.get(code)!,
-      position:     result.position,
-      dnf:          result.dnf ?? false,
-      fastest_lap:  result.fastestLap,
+      driver_id:     codeToId.get(code)!,
+      position:      result.position,
+      dnf:           result.dnf ?? false,
+      fastest_lap:   result.fastestLap,
+      best_lap_time: result.bestLapTime ?? null,
     }))
 
   const { error } = await supabase

@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { ChevronLeft, Check } from 'lucide-react'
-import { THEMES, useTheme } from '@/lib/hooks/use-theme'
+import { useTheme } from '@/lib/hooks/use-theme'
+import { THEMES } from '@/lib/theme/themes'
 import { t } from '@/lib/i18n'
 
 export default function ThemePage() {

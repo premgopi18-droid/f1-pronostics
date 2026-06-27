@@ -1,22 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+// Constantes dans un module non-`'use client'` (cf. lib/theme/themes.ts) pour rester
+// lisibles depuis le layout serveur. Importer les constantes directement de là, pas via
+// ce hook : passer par un module `'use client'` côté serveur les transforme en
+// références client (sérialisées en `undefined`).
+import { THEME_STORAGE_KEY, THEMES, THEME_PRIMARY_COLORS, type ThemeId } from '@/lib/theme/themes'
 
-export const THEME_STORAGE_KEY = 'app-theme'
 const THEME_EVENT = 'theme-change'
-
-export type ThemeId = 'boxbox' | 'ferrari' | 'mercedes' | 'mclaren' | 'redbull' | 'aston'
-
-// Les libellés affichés viennent de l'i18n (`theme.themes.<id>`), pas d'ici —
-// `primary` sert à la pastille de couleur (swatch) du sélecteur.
-export const THEMES: { id: ThemeId; primary: string }[] = [
-  { id: 'boxbox',   primary: '#FF1801' },
-  { id: 'ferrari',  primary: '#DC0000' },
-  { id: 'mercedes', primary: '#00D2BE' },
-  { id: 'mclaren',  primary: '#FF8000' },
-  { id: 'redbull',  primary: '#3671C6' },
-  { id: 'aston',    primary: '#006E51' },
-]
 
 export function getStoredTheme(): ThemeId {
   try {
@@ -32,6 +23,9 @@ export function applyTheme(theme: ThemeId): void {
   } else {
     document.documentElement.setAttribute('data-theme', theme)
   }
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', THEME_PRIMARY_COLORS[theme])
 }
 
 export function setTheme(theme: ThemeId): void {

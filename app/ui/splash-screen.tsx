@@ -2,16 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { resolveReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
 import { getSplashSoundEnabled } from '@/lib/audio/splash-sound'
 import { playEngineFlyby } from '@/lib/audio/engine-flyby'
+import { SPLASH_PLAY_CLASS, SPLASH_BACKGROUND_COLOR } from '@/lib/splash/splash'
 
 // Lottie s'appuie sur lottie-web, qui touche `document`/`window` → chargé côté
 // client uniquement (jamais rendu au SSR).
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false })
 
-/** Marqueur sessionStorage : le splash ne se joue qu'une fois par session d'onglet. */
-const SPLASH_SESSION_KEY = 'splash-shown'
 /** Lottie servi statiquement (cf. public/animations/splash.json), fetché au runtime
  *  pour ne pas gonfler le bundle JS. */
 const LOTTIE_PATH = '/animations/splash.json'
@@ -24,27 +22,29 @@ const SOUND_DURATION_SECONDS = 2.6
 /** Durée du fondu de sortie une fois l'animation terminée. */
 const FADE_DURATION_MS = 500
 /** Filet de sécurité : si le Lottie échoue à charger/jouer, `onComplete` ne se
- *  déclenche jamais — on force la disparition pour ne pas masquer l'app.
- *  Animation = 3.2 s, on laisse une marge confortable. */
+ *  déclenche jamais — on force le fondu pour ne pas masquer l'app indéfiniment.
+ *  (Doublé par le filet du boot script, au cas où React lui-même ne tournerait pas.) */
 const SAFETY_TIMEOUT_MS = 5000
-
-type SplashPhase = 'idle' | 'playing' | 'fading' | 'gone'
 
 /**
  * Splash in-app joué au lancement : animation Lottie + son moteur F1 optionnel.
- * Skippé si « mode réduit » (système ou override) et rejoué une seule fois par
- * session (la navigation client ne remonte pas le layout, mais un reload oui →
- * sessionStorage, pas un simple state).
+ *
+ * L'overlay est rendu en SSR (présent dans le HTML) mais masqué par défaut ; le
+ * boot script du layout pose `.splash-play` sur <html> AVANT le 1er paint quand
+ * le splash doit jouer → l'écran est couvert immédiatement, sans flash de la
+ * Home (et la décision skip / une-fois-par-session est déjà prise là-bas). Ce
+ * composant ne fait que charger le Lottie, jouer le son, puis fondre et retirer
+ * l'overlay à la fin.
  */
 export function SplashScreen() {
-  // Démarre en `idle` (rendu serveur = rien) ; la décision se prend au montage
-  // client pour éviter tout mismatch d'hydratation autour de sessionStorage.
-  const [phase, setPhase] = useState<SplashPhase>('idle')
+  const [fading, setFading] = useState(false)
+  const [gone, setGone] = useState(false)
   const [animationData, setAnimationData] = useState<unknown>(null)
 
   useEffect(() => {
-    if (resolveReducedMotion()) return
-    if (sessionStorage.getItem(SPLASH_SESSION_KEY)) return
+    // Le boot script a déjà tranché : sans `.splash-play`, on ne joue rien
+    // (l'overlay reste masqué par CSS).
+    if (!document.documentElement.classList.contains(SPLASH_PLAY_CLASS)) return
 
     if (getSplashSoundEnabled()) {
       // Best-effort : muet si le navigateur garde l'AudioContext suspendu
@@ -53,27 +53,17 @@ export function SplashScreen() {
     }
 
     let cancelled = false
-    // L'overlay n'apparaît (`playing`) qu'une fois le JSON prêt : la transition
-    // d'état part d'un callback async, pas du corps de l'effet (évite les rendus
-    // en cascade). Le JSON est local → chargement quasi-instantané.
     fetch(LOTTIE_PATH)
       .then((response) => response.json())
       .then((data) => {
-        if (cancelled) return
-        // On ne marque la session « vue » qu'au moment où le splash s'affiche
-        // vraiment : un échec de fetch laissera donc un retry au prochain reload.
-        sessionStorage.setItem(SPLASH_SESSION_KEY, '1')
-        setAnimationData(data)
-        setPhase('playing')
+        if (!cancelled) setAnimationData(data)
       })
       .catch(() => {
-        // Échec de chargement : on ne masque jamais l'app (phase reste `idle`).
+        // Échec de chargement : le filet de sécurité enclenchera le fondu.
       })
 
-    // Filet de sécurité : si `onComplete` ne se déclenche jamais alors que
-    // l'animation est affichée, on force la sortie pour ne pas masquer l'app.
     const safetyTimer = window.setTimeout(() => {
-      if (!cancelled) setPhase((current) => (current === 'playing' ? 'fading' : current))
+      if (!cancelled) setFading(true)
     }, SAFETY_TIMEOUT_MS)
     return () => {
       cancelled = true
@@ -81,22 +71,23 @@ export function SplashScreen() {
     }
   }, [])
 
-  if (phase === 'idle' || phase === 'gone') return null
+  if (gone) return null
 
   return (
     <div
-      // Brand black plein écran, au-dessus de tout (nav + bannières en z-50).
+      // `splash-overlay` : masqué par défaut, révélé par `.splash-play` (globals.css).
+      // `items-center justify-center` s'appliquent une fois `display:flex` posé par cette classe.
       className={[
-        'fixed inset-0 z-[100] flex items-center justify-center bg-black',
+        'splash-overlay fixed inset-0 z-[100] items-center justify-center',
         'transition-opacity ease-out',
-        phase === 'fading' ? 'opacity-0' : 'opacity-100',
+        fading ? 'opacity-0' : 'opacity-100',
       ].join(' ')}
-      style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
-      // Garde anti-bubbling : ne réagir qu'au fondu de l'overlay lui-même, pas à
-      // une éventuelle transition d'un descendant (qui couperait le fondu court).
+      style={{ backgroundColor: SPLASH_BACKGROUND_COLOR, transitionDuration: `${FADE_DURATION_MS}ms` }}
+      // Garde anti-bubbling + ne réagir qu'au fondu de l'overlay lui-même.
       onTransitionEnd={(event) => {
-        if (event.target === event.currentTarget) {
-          setPhase((current) => (current === 'fading' ? 'gone' : current))
+        if (event.target === event.currentTarget && fading) {
+          document.documentElement.classList.remove(SPLASH_PLAY_CLASS)
+          setGone(true)
         }
       }}
       role="presentation"
@@ -106,7 +97,7 @@ export function SplashScreen() {
         <Lottie
           animationData={animationData}
           loop={false}
-          onComplete={() => setPhase('fading')}
+          onComplete={() => setFading(true)}
           className="h-full w-full"
         />
       )}

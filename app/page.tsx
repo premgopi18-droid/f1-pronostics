@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
-import { signOut } from '@/app/actions/auth'
 import { PushSubscribe } from '@/app/components/push-subscribe'
 import { UserAvatar } from '@/app/components/user-avatar'
 import { buttonVariants } from '@/app/ui/button'
@@ -188,16 +187,6 @@ export default async function HomePage() {
 
         <PushSubscribe />
       </div>
-
-      {/* Déconnexion — déménagera dans le profil (#51) */}
-      <form action={signOut} className="mt-auto pt-2">
-        <button
-          type="submit"
-          className="text-xs text-text-muted transition-colors hover:text-text-secondary"
-        >
-          {t('home.signOut')}
-        </button>
-      </form>
     </main>
   )
 }

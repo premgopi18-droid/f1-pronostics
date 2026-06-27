@@ -204,7 +204,7 @@ export default async function LeaguePage({
           </h2>
           <div className="rounded-2xl border border-border bg-card p-4">
             <div
-              className="flex gap-3 overflow-x-auto pb-0.5 scrollbar-none"
+              className="flex justify-center gap-3 overflow-x-auto pb-0.5 scrollbar-none"
               role="list"
               aria-label={t('leagues.itemsAvailable')}
             >

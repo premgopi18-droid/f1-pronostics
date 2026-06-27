@@ -83,7 +83,7 @@ Seuls les résultats officiels Jolpica sont stockés — pas de flag `is_officia
 | id | UUID PK | |
 | gp_id | UUID FK → grands_prix | |
 | season | INTEGER | |
-| type | TEXT | `qualifying` \| `race` \| `sprint_qualifying` \| `sprint_race` |
+| type | TEXT | `qualifying` \| `race` \| `sprint_qualifying` \| `sprint_race` \| `practice_1` \| `practice_2` \| `practice_3` (EL informatifs, non scorés) |
 | starts_at | TIMESTAMPTZ | UTC — sert de deadline de verrouillage |
 | results_confirmed_at | TIMESTAMPTZ | null jusqu'aux résultats officiels Jolpica |
 | notified_deadline_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif "deadline dans 1h" |

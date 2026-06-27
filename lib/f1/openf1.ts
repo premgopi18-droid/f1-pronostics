@@ -11,6 +11,7 @@ interface OpenF1Session {
   session_name: string   // "Sprint Qualifying", "Race", etc.
   year:         number
   circuit_short_name: string
+  date_start:   string   // ISO — début officiel de la session (UTC)
   date_end:     string   // ISO — fin officielle de la session
 }
 
@@ -65,6 +66,42 @@ function isSessionFinished(session: OpenF1Session): boolean {
   return new Date(session.date_end).getTime() <= Date.now()
 }
 
+// Tolérance de rapprochement entre la date Jolpica (planning du week-end) et la
+// date OpenF1 (début réel de la session). Les GP sont espacés d'au moins ~6
+// jours : une fenêtre de 2 jours identifie le bon week-end sans risque de capter
+// un AUTRE GP, tout en absorbant un éventuel décalage de planning ou de fuseau.
+const SESSION_MATCH_WINDOW_MS = 2 * 24 * 60 * 60 * 1000
+
+// Sélectionne la session OpenF1 d'un GP donné SANS dépendre du nom de circuit :
+// le `circuit_short_name` OpenF1 (« Catalunya », « Interlagos »…) ne matche pas
+// toujours la locality Jolpica (« Montmeló », « São Paulo »…), ce qui renvoyait
+// des résultats vides. On récupère donc toutes les sessions de l'année pour ce
+// nom, puis on retient la plus proche en date de la session attendue côté
+// Jolpica — et seulement si elle tombe dans la fenêtre (sinon : pas encore
+// publiée → null, le cron retentera).
+async function findSessionByDate(
+  year: number,
+  sessionName: string,
+  expectedStartsAt: string,
+): Promise<OpenF1Session | null> {
+  const sessions = await openf1Get<OpenF1Session[]>(
+    `/sessions?year=${year}&session_name=${encodeURIComponent(sessionName)}`,
+  )
+  if (!sessions?.length) return null
+
+  const expected = new Date(expectedStartsAt).getTime()
+  let best: OpenF1Session | null = null
+  let bestDelta = Infinity
+  for (const session of sessions) {
+    const delta = Math.abs(new Date(session.date_start).getTime() - expected)
+    if (delta < bestDelta) {
+      bestDelta = delta
+      best = session
+    }
+  }
+  return best && bestDelta <= SESSION_MATCH_WINDOW_MS ? best : null
+}
+
 // ============================================================
 // Sprint Qualifying (Shootout) — non disponible dans Jolpica
 // Retourne la classification finale : code → position
@@ -72,14 +109,11 @@ function isSessionFinished(session: OpenF1Session): boolean {
 
 export async function fetchSprintQualifyingResults(
   year: number,
-  circuitShortName: string,
+  expectedStartsAt: string,
 ): Promise<Map<string, DriverResult>> {
-  // 1. Trouver la session_key du Sprint Qualifying
-  const sessions = await openf1Get<OpenF1Session[]>(
-    `/sessions?year=${year}&session_name=Sprint+Qualifying&circuit_short_name=${encodeURIComponent(circuitShortName)}`,
-  )
-  if (!sessions?.length) return new Map()
-  const session = sessions[0]
+  // 1. Trouver la session_key du Sprint Qualifying (rapproché par date)
+  const session = await findSessionByDate(year, 'Sprint Qualifying', expectedStartsAt)
+  if (!session) return new Map()
   if (!isSessionFinished(session)) return new Map()
 
   // 2. Pilotes de la session → code acronyme
@@ -115,14 +149,11 @@ export async function fetchSprintQualifyingResults(
 
 export async function fetchPracticeResults(
   year: number,
-  circuitShortName: string,
   sessionName: PracticeSessionName,
+  expectedStartsAt: string,
 ): Promise<PracticeDriverResult[]> {
-  const sessions = await openf1Get<OpenF1Session[]>(
-    `/sessions?year=${year}&session_name=${encodeURIComponent(sessionName)}&circuit_short_name=${encodeURIComponent(circuitShortName)}`,
-  )
-  if (!sessions?.length) return []
-  const session = sessions[0]
+  const session = await findSessionByDate(year, sessionName, expectedStartsAt)
+  if (!session) return []
   if (!isSessionFinished(session)) return []
 
   const [drivers, laps] = await Promise.all([

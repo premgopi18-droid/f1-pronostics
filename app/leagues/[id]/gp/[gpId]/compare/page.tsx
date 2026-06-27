@@ -4,7 +4,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { t } from '@/lib/i18n'
-import type { SessionType } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 import {
   PredictionCompareClient,
   type MemberData,
@@ -39,7 +39,9 @@ export default async function PredictionComparePage({
     supabase
       .from('sessions')
       .select('id, type, starts_at, results_confirmed_at')
-      .eq('gp_id', gpId),
+      .eq('gp_id', gpId)
+      // Essais libres exclus : la comparaison ne porte que sur les sessions scorées.
+      .in('type', SCOREABLE_SESSION_TYPES),
     supabase
       .from('leagues')
       .select('id, name')

@@ -6,7 +6,7 @@ import {
   type HomeGpPhase,
   type WeekendSession,
 } from '@/lib/home-phase'
-import type { SessionType } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 
 const RACE_SESSION_TYPE = 'race'
 const PODIUM_SIZE = 3
@@ -28,6 +28,9 @@ export async function getCurrentGpView(
     .from('sessions')
     .select('type, starts_at, results_confirmed_at')
     .eq('gp_id', gpId)
+    // Essais libres exclus : la card week-end et le calcul de phase ne portent
+    // que sur les sessions scorées (le « début du GP » est hors essais).
+    .in('type', SCOREABLE_SESSION_TYPES)
     .order('starts_at', { ascending: true })
 
   if (error) console.error('[data/home] sessions (view)', error)

@@ -95,7 +95,6 @@ describe('fetchCalendar', () => {
       expect(bahrain.name).toBe('Bahrain Grand Prix')
       expect(bahrain.circuit).toBe('Bahrain International Circuit')
       expect(bahrain.country).toBe('Bahrain')
-      expect(bahrain.circuitShortName).toBe('Sakhir')
     })
 
     it('isSprintWeekend = false quand pas de Sprint', async () => {

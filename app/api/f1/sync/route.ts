@@ -28,7 +28,7 @@ import {
   markGPNotifiedQualReminder,
 } from '@/lib/data/f1-sync'
 import { isPushConfigured, sendPushToAll } from '@/lib/push/send'
-import type { DriverResult, DbSessionType, SessionType } from '@/lib/scoring/types'
+import type { DriverResult, DbSessionType } from '@/lib/scoring/types'
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
 async function handler(request: Request): Promise<Response> {
@@ -57,9 +57,6 @@ async function handler(request: Request): Promise<Response> {
 
     const gpRoundToId = await upsertGrandsPrix(calendar)
 
-    // Map round → circuitShortName pour le fetch OpenF1 sprint qualifying plus bas
-    const roundToCircuit = new Map(calendar.map((e) => [e.round, e.circuitShortName]))
-
     for (const entry of calendar) {
       const gpId = gpRoundToId.get(entry.round)
       if (!gpId) continue
@@ -83,7 +80,7 @@ async function handler(request: Request): Promise<Response> {
     const supabase = createServiceClient()
     const { data: pending, error: pendingError } = await supabase
       .from('sessions')
-      .select('id, type, season, grands_prix!gp_id(round)')
+      .select('id, type, season, starts_at, grands_prix!gp_id(round)')
       .is('results_confirmed_at', null)
       .lt('starts_at', now)
 
@@ -98,35 +95,40 @@ async function handler(request: Request): Promise<Response> {
       const sessionType = row.type as DbSessionType
       const rowSeason   = row.season as number
       const round       = gp.round
+      const startsAt    = row.starts_at as string
 
-      let results: Map<string, DriverResult>
+      // Isolation par session : l'échec d'une source (OpenF1 bloqué pendant un
+      // live → 403, réseau, etc.) ne doit PAS avorter toute la sync ni les
+      // notifs qui suivent (même famille de bug que #121). On logue et on passe
+      // à la session suivante ; le cron retentera au prochain passage.
+      try {
+        let results: Map<string, DriverResult>
 
-      if (sessionType === 'race') {
-        results = await fetchRaceResults(rowSeason, round)
-      } else if (sessionType === 'qualifying') {
-        results = await fetchQualifyingResults(rowSeason, round)
-      } else if (sessionType === 'sprint_race') {
-        results = await fetchSprintRaceResults(rowSeason, round)
-      } else if (sessionType === 'sprint_qualifying') {
-        const circuitShortName = roundToCircuit.get(round)
-        if (!circuitShortName) continue
-        results = await fetchSprintQualifyingResults(rowSeason, circuitShortName)
-      } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
-        const circuitShortName = roundToCircuit.get(round)
-        if (!circuitShortName) continue
-        const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
-        const raw = await fetchPracticeResults(rowSeason, circuitShortName, sessionName)
-        results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
-      } else {
-        continue
+        if (sessionType === 'race') {
+          results = await fetchRaceResults(rowSeason, round)
+        } else if (sessionType === 'qualifying') {
+          results = await fetchQualifyingResults(rowSeason, round)
+        } else if (sessionType === 'sprint_race') {
+          results = await fetchSprintRaceResults(rowSeason, round)
+        } else if (sessionType === 'sprint_qualifying') {
+          results = await fetchSprintQualifyingResults(rowSeason, startsAt)
+        } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
+          const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
+          const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt)
+          results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
+        } else {
+          continue
+        }
+
+        // Résultats pas encore disponibles (course non terminée)
+        if (results.size === 0) continue
+
+        await upsertSessionResults(row.id as string, rowSeason, results)
+        await confirmSessionResults(row.id as string)
+        sessionsConfirmed++
+      } catch (error) {
+        console.error('[api/f1/sync] confirmation session', row.id, error)
       }
-
-      // Résultats pas encore disponibles (course non terminée)
-      if (results.size === 0) continue
-
-      await upsertSessionResults(row.id as string, rowSeason, results)
-      await confirmSessionResults(row.id as string)
-      sessionsConfirmed++
     }
 
     // ── Notifications "pronostics ouverts" (48 h avant le week-end) ──────────

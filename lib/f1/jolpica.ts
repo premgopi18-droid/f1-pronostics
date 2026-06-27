@@ -59,7 +59,6 @@ export interface CalendarEntry {
   name:                string
   circuit:             string
   country:             string
-  circuitShortName:    string        // locality Jolpica — best-effort pour OpenF1
   isSprintWeekend:     boolean
   weekendStartsAt:     string        // Début du GP = 1ère session de compétition (sprint qualif ?? qualif), hors essais — ISO 8601
   qualifyingStartsAt:  string
@@ -200,7 +199,6 @@ export async function fetchCalendar(year: number): Promise<CalendarEntry[]> {
       name:               race.raceName,
       circuit:            race.Circuit.circuitName,
       country:            race.Circuit.Location.country,
-      circuitShortName:   race.Circuit.Location.locality,
       isSprintWeekend:    !!race.Sprint,
       weekendStartsAt,
       qualifyingStartsAt,

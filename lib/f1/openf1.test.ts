@@ -1,0 +1,157 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { fetchPracticeResults, fetchSprintQualifyingResults } from './openf1'
+
+// Les dates 2025 sont dans le passé (now = 2026) → sessions « terminées » par
+// défaut, sauf test dédié où l'on place date_end dans le futur.
+type SessionFixture = {
+  session_key:        number
+  session_name:       string
+  year:               number
+  circuit_short_name: string
+  date_start:         string
+  date_end:           string
+}
+
+describe('openf1 — sélection de session par date', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // Route la réponse selon le path OpenF1 appelé (/sessions, /drivers, /laps, /position).
+  function mockOpenF1(payloads: {
+    sessions?:  SessionFixture[]
+    drivers?:   { driver_number: number; name_acronym: string; session_key: number }[]
+    laps?:      { driver_number: number; lap_duration: number | null; date_start: string | null }[]
+    positions?: { driver_number: number; position: number; date: string }[]
+  }) {
+    vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
+      const url = input.toString()
+      const body =
+        url.includes('/sessions')  ? payloads.sessions  ?? [] :
+        url.includes('/drivers')   ? payloads.drivers   ?? [] :
+        url.includes('/laps')      ? payloads.laps      ?? [] :
+        url.includes('/position')  ? payloads.positions ?? [] :
+        []
+      return Promise.resolve({
+        status: 200,
+        ok:     true,
+        json:   () => Promise.resolve(body),
+      } as Response)
+    })
+  }
+
+  describe('fetchPracticeResults', () => {
+    it('retient la session du bon week-end (par date) et classe par meilleur tour', async () => {
+      mockOpenF1({
+        sessions: [
+          // Décoy : autre GP, une semaine avant → hors fenêtre, ne doit pas être retenu.
+          { session_key: 50, session_name: 'Practice 1', year: 2025,
+            circuit_short_name: 'Monte Carlo', date_start: '2025-05-23T11:30:00+00:00', date_end: '2025-05-23T12:30:00+00:00' },
+          // Cible : Barcelone (OpenF1 « Catalunya » ≠ locality Jolpica « Montmeló »).
+          { session_key: 100, session_name: 'Practice 1', year: 2025,
+            circuit_short_name: 'Catalunya', date_start: '2025-05-30T11:30:00+00:00', date_end: '2025-05-30T12:30:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 1,  name_acronym: 'VER', session_key: 100 },
+          { driver_number: 4,  name_acronym: 'NOR', session_key: 100 },
+          { driver_number: 16, name_acronym: 'LEC', session_key: 100 },
+        ],
+        laps: [
+          { driver_number: 1,  lap_duration: null,  date_start: null },                       // out-lap ignoré
+          { driver_number: 1,  lap_duration: 78.5,  date_start: '2025-05-30T11:40:00+00:00' },
+          { driver_number: 4,  lap_duration: 78.2,  date_start: '2025-05-30T11:42:00+00:00' }, // meilleur
+          { driver_number: 16, lap_duration: 78.9,  date_start: '2025-05-30T11:44:00+00:00' },
+        ],
+      })
+
+      const results = await fetchPracticeResults(2025, 'Practice 1', '2025-05-30T11:30:00Z')
+
+      expect(results).toEqual([
+        { position: 1, driverCode: 'NOR' },
+        { position: 2, driverCode: 'VER' },
+        { position: 3, driverCode: 'LEC' },
+      ])
+    })
+
+    it('renvoie [] si aucune session ne tombe dans la fenêtre de 2 jours', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 50, session_name: 'Practice 1', year: 2025,
+            circuit_short_name: 'Monte Carlo', date_start: '2025-05-23T11:30:00+00:00', date_end: '2025-05-23T12:30:00+00:00' },
+        ],
+      })
+
+      const results = await fetchPracticeResults(2025, 'Practice 1', '2025-08-01T11:30:00Z')
+      expect(results).toEqual([])
+    })
+
+    it('renvoie [] tant que la session n’est pas terminée (date_end futur)', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 100, session_name: 'Practice 1', year: 2099,
+            circuit_short_name: 'Catalunya', date_start: '2099-05-30T11:30:00+00:00', date_end: '2099-05-30T12:30:00+00:00' },
+        ],
+        laps: [{ driver_number: 1, lap_duration: 78.5, date_start: '2099-05-30T11:40:00+00:00' }],
+      })
+
+      const results = await fetchPracticeResults(2099, 'Practice 1', '2099-05-30T11:30:00Z')
+      expect(results).toEqual([])
+    })
+
+    it('départage les ex aequo par le premier à avoir signé le temps', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 100, session_name: 'Practice 2', year: 2025,
+            circuit_short_name: 'Catalunya', date_start: '2025-05-30T15:00:00+00:00', date_end: '2025-05-30T16:00:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 1, name_acronym: 'VER', session_key: 100 },
+          { driver_number: 4, name_acronym: 'NOR', session_key: 100 },
+        ],
+        laps: [
+          { driver_number: 1, lap_duration: 80.0, date_start: '2025-05-30T15:30:00+00:00' }, // même temps, plus tard
+          { driver_number: 4, lap_duration: 80.0, date_start: '2025-05-30T15:20:00+00:00' }, // signé en premier → P1
+        ],
+      })
+
+      const results = await fetchPracticeResults(2025, 'Practice 2', '2025-05-30T15:00:00Z')
+      expect(results).toEqual([
+        { position: 1, driverCode: 'NOR' },
+        { position: 2, driverCode: 'VER' },
+      ])
+    })
+  })
+
+  describe('fetchSprintQualifyingResults', () => {
+    it('mappe code → position depuis la session rapprochée par date', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 200, session_name: 'Sprint Qualifying', year: 2025,
+            circuit_short_name: 'Shanghai', date_start: '2025-03-21T07:30:00+00:00', date_end: '2025-03-21T08:14:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 1,  name_acronym: 'VER', session_key: 200 },
+          { driver_number: 44, name_acronym: 'HAM', session_key: 200 },
+        ],
+        positions: [
+          { driver_number: 1,  position: 2, date: '2025-03-21T08:00:00+00:00' },
+          { driver_number: 44, position: 1, date: '2025-03-21T08:00:00+00:00' },
+        ],
+      })
+
+      const results = await fetchSprintQualifyingResults(2025, '2025-03-21T07:30:00Z')
+
+      expect(results.get('VER')).toEqual({ position: 2, fastestLap: false })
+      expect(results.get('HAM')).toEqual({ position: 1, fastestLap: false })
+    })
+
+    it('renvoie une Map vide si aucune session proche', async () => {
+      mockOpenF1({ sessions: [] })
+      const results = await fetchSprintQualifyingResults(2025, '2025-03-21T07:30:00Z')
+      expect(results.size).toBe(0)
+    })
+  })
+})

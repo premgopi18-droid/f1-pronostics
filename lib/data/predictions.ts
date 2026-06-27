@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import { rawGpScore } from '@/lib/gp-score'
 import { sessionLockState } from '@/lib/home-phase'
-import type { SessionType } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 
 export interface PredictionRow {
   userId:  string
@@ -198,6 +198,9 @@ export async function getCurrentGpSessionStatuses(
     .from('sessions')
     .select('id, type, starts_at')
     .eq('gp_id', gpId)
+    // Exclut les essais libres (informatifs) : seules les sessions scorées sont
+    // pronosticables. Sinon `SESSION_LABEL[type]` est undefined → crash render.
+    .in('type', SCOREABLE_SESSION_TYPES)
     .order('starts_at', { ascending: true })
 
   if (sessionsError) { console.error('[data/predictions] sessions (current gp)', sessionsError); return [] }

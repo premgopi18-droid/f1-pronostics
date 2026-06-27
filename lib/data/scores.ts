@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase'
+import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
 import type { ScoreKey, SessionScore, SessionType } from '@/lib/scoring/types'
 
 export interface SeasonScoreRow {
@@ -72,6 +73,7 @@ export async function getPendingSessionScores(
         .from('sessions')
         .select('id, gp_id, season, type, grands_prix!gp_id(scoring_finalized_at)')
         .eq('season', season)
+        .in('type', SCOREABLE_SESSION_TYPES)
         .not('results_confirmed_at', 'is', null),
       supabase
         .from('scores')

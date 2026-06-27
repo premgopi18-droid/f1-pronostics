@@ -11,6 +11,13 @@ interface OpenF1Session {
   session_name: string   // "Sprint Qualifying", "Race", etc.
   year:         number
   circuit_short_name: string
+  date_end:     string   // ISO — fin officielle de la session
+}
+
+interface OpenF1Lap {
+  driver_number: number
+  lap_duration:  number | null  // secondes ; null sur les tours in/out
+  date_start:    string | null  // ISO — début du tour ; départage les ex aequo
 }
 
 interface OpenF1Driver {
@@ -23,6 +30,17 @@ interface OpenF1Position {
   driver_number: number
   position:      number
   date:          string  // ISO — entrée la plus récente = position finale
+}
+
+// ============================================================
+// Types publics — essais libres
+// ============================================================
+
+export type PracticeSessionName = 'Practice 1' | 'Practice 2' | 'Practice 3'
+
+export type PracticeDriverResult = {
+  position:   number
+  driverCode: string
 }
 
 // ============================================================
@@ -40,6 +58,13 @@ async function openf1Get<T>(path: string): Promise<T | null> {
   return response.json() as Promise<T>
 }
 
+// OpenF1 publie les positions/tours EN DIRECT pendant la session : on n'exploite
+// le classement qu'une fois la session terminée, sinon on figerait un ordre
+// intermédiaire (le cron confirme dès qu'il obtient un résultat non vide).
+function isSessionFinished(session: OpenF1Session): boolean {
+  return new Date(session.date_end).getTime() <= Date.now()
+}
+
 // ============================================================
 // Sprint Qualifying (Shootout) — non disponible dans Jolpica
 // Retourne la classification finale : code → position
@@ -55,6 +80,7 @@ export async function fetchSprintQualifyingResults(
   )
   if (!sessions?.length) return new Map()
   const session = sessions[0]
+  if (!isSessionFinished(session)) return new Map()
 
   // 2. Pilotes de la session → code acronyme
   const [drivers, positions] = await Promise.all([
@@ -78,4 +104,58 @@ export async function fetchSprintQualifyingResults(
     }
   }
   return result
+}
+
+// ============================================================
+// Essais libres (EL1/EL2/EL3) — non disponible dans Jolpica
+// Le classement d'une séance d'essais est trié par MEILLEUR TOUR (feuille de
+// temps), pas par position sur la piste — on dérive donc le classement depuis
+// /laps (min lap_duration par pilote), et non depuis /position.
+// ============================================================
+
+export async function fetchPracticeResults(
+  year: number,
+  circuitShortName: string,
+  sessionName: PracticeSessionName,
+): Promise<PracticeDriverResult[]> {
+  const sessions = await openf1Get<OpenF1Session[]>(
+    `/sessions?year=${year}&session_name=${encodeURIComponent(sessionName)}&circuit_short_name=${encodeURIComponent(circuitShortName)}`,
+  )
+  if (!sessions?.length) return []
+  const session = sessions[0]
+  if (!isSessionFinished(session)) return []
+
+  const [drivers, laps] = await Promise.all([
+    openf1Get<OpenF1Driver[]>(`/drivers?session_key=${session.session_key}`),
+    openf1Get<OpenF1Lap[]>(`/laps?session_key=${session.session_key}`),
+  ])
+
+  const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
+
+  // Meilleur tour par pilote (les tours in/out ont lap_duration null → ignorés).
+  const bestLapByDriver = new Map<number, { duration: number; setAt: string }>()
+  for (const lap of laps ?? []) {
+    if (lap.lap_duration == null) continue
+    const current = bestLapByDriver.get(lap.driver_number)
+    if (current === undefined || lap.lap_duration < current.duration) {
+      bestLapByDriver.set(lap.driver_number, { duration: lap.lap_duration, setAt: lap.date_start ?? '' })
+    }
+  }
+
+  // Classement par meilleur tour croissant ; ex aequo départagés par le 1er à
+  // avoir signé le temps (règle F1). Positions denses 1..N.
+  // NB : une séance terminée a toujours des tours chronométrés — une liste vide
+  // ici signifie donc « données OpenF1 pas encore dispo », et le cron retentera.
+  const ranked = [...bestLapByDriver.entries()].sort((a, b) =>
+    a[1].duration !== b[1].duration ? a[1].duration - b[1].duration : a[1].setAt.localeCompare(b[1].setAt),
+  )
+  const results: PracticeDriverResult[] = []
+  let position = 1
+  for (const [number] of ranked) {
+    const code = numberToCode.get(number)
+    if (!code) continue
+    results.push({ position: position++, driverCode: code })
+  }
+
+  return results
 }

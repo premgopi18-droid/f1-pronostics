@@ -42,6 +42,8 @@ interface JolpikaRace {
   date:   string   // race date YYYY-MM-DD
   time?:  string   // race time HH:MM:SSZ
   FirstPractice?:    { date: string; time: string }
+  SecondPractice?:   { date: string; time: string }
+  ThirdPractice?:    { date: string; time: string }
   Qualifying?:       { date: string; time: string }
   SprintQualifying?: { date: string; time: string }  // shootout — Jolpica v1.4+
   Sprint?:           { date: string; time: string }  // sprint race
@@ -64,6 +66,9 @@ export interface CalendarEntry {
   raceStartsAt:        string
   sprintRaceStartsAt:  string | null
   sprintQualStartsAt:  string | null
+  practice1StartsAt:   string | null
+  practice2StartsAt:   string | null
+  practice3StartsAt:   string | null
 }
 
 export interface DriverEntry {
@@ -204,6 +209,15 @@ export async function fetchCalendar(year: number): Promise<CalendarEntry[]> {
         ? `${race.Sprint.date}T${race.Sprint.time}`
         : null,
       sprintQualStartsAt,
+      practice1StartsAt: race.FirstPractice
+        ? `${race.FirstPractice.date}T${race.FirstPractice.time}`
+        : null,
+      practice2StartsAt: race.SecondPractice
+        ? `${race.SecondPractice.date}T${race.SecondPractice.time}`
+        : null,
+      practice3StartsAt: race.ThirdPractice
+        ? `${race.ThirdPractice.date}T${race.ThirdPractice.time}`
+        : null,
     }
   })
 }

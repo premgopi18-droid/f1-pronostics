@@ -9,7 +9,7 @@ import {
   fetchRaceResults,
   fetchSprintRaceResults,
 } from '@/lib/f1/jolpica'
-import { fetchSprintQualifyingResults } from '@/lib/f1/openf1'
+import { fetchSprintQualifyingResults, fetchPracticeResults } from '@/lib/f1/openf1'
 import {
   confirmSessionResults,
   upsertConstructors,
@@ -28,7 +28,7 @@ import {
   markGPNotifiedQualReminder,
 } from '@/lib/data/f1-sync'
 import { isPushConfigured, sendPushToAll } from '@/lib/push/send'
-import type { DriverResult, SessionType } from '@/lib/scoring/types'
+import type { DriverResult, DbSessionType, SessionType } from '@/lib/scoring/types'
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
 async function handler(request: Request): Promise<Response> {
@@ -64,7 +64,7 @@ async function handler(request: Request): Promise<Response> {
       const gpId = gpRoundToId.get(entry.round)
       if (!gpId) continue
 
-      const sessions: { type: SessionType; startsAt: string }[] = [
+      const sessions: { type: DbSessionType; startsAt: string }[] = [
         { type: 'qualifying', startsAt: entry.qualifyingStartsAt },
         { type: 'race',       startsAt: entry.raceStartsAt },
       ]
@@ -72,6 +72,9 @@ async function handler(request: Request): Promise<Response> {
         if (entry.sprintQualStartsAt) sessions.push({ type: 'sprint_qualifying', startsAt: entry.sprintQualStartsAt })
         if (entry.sprintRaceStartsAt) sessions.push({ type: 'sprint_race',       startsAt: entry.sprintRaceStartsAt })
       }
+      if (entry.practice1StartsAt) sessions.push({ type: 'practice_1', startsAt: entry.practice1StartsAt })
+      if (entry.practice2StartsAt) sessions.push({ type: 'practice_2', startsAt: entry.practice2StartsAt })
+      if (entry.practice3StartsAt) sessions.push({ type: 'practice_3', startsAt: entry.practice3StartsAt })
       await upsertSessions(gpId, season, sessions)
     }
 
@@ -92,7 +95,7 @@ async function handler(request: Request): Promise<Response> {
       const gp = (row.grands_prix as unknown) as { round: number } | null
       if (!gp) continue
 
-      const sessionType = row.type as SessionType
+      const sessionType = row.type as DbSessionType
       const rowSeason   = row.season as number
       const round       = gp.round
 
@@ -108,6 +111,12 @@ async function handler(request: Request): Promise<Response> {
         const circuitShortName = roundToCircuit.get(round)
         if (!circuitShortName) continue
         results = await fetchSprintQualifyingResults(rowSeason, circuitShortName)
+      } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
+        const circuitShortName = roundToCircuit.get(round)
+        if (!circuitShortName) continue
+        const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
+        const raw = await fetchPracticeResults(rowSeason, circuitShortName, sessionName)
+        results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
       } else {
         continue
       }

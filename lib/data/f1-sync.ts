@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
-import type { SessionType } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
+import type { DbSessionType, SessionType } from '@/lib/scoring/types'
 import type { CalendarEntry, ConstructorEntry, DriverConstructorLink, DriverEntry } from '@/lib/f1/jolpica'
 import {
   selectGPsToRemind,
@@ -121,7 +122,7 @@ export async function upsertGrandsPrix(
 export async function upsertSessions(
   gpId:     string,
   season:   number,
-  sessions: { type: SessionType; startsAt: string }[],
+  sessions: { type: DbSessionType; startsAt: string }[],
 ): Promise<void> {
   const supabase = createServiceClient()
   const { error } = await supabase
@@ -197,9 +198,10 @@ export async function markGPNotifiedOpen(gpId: string): Promise<void> {
 // GPs dont la PREMIÈRE session (= celle qui verrouille pronos + items : Sprint
 // Qualifying en week-end sprint, Qualifications sinon) commence dans les
 // prochaines 24h et qui n'ont pas encore reçu le rappel "pronos J-1".
-// L'ancre = la session la plus tôt du GP : la table `sessions` ne contient que
-// les sessions scorées (qualif/course/sprint), pas les essais libres — donc
-// min(starts_at) tombe bien sur la session-deadline.
+// L'ancre = la session scorée la plus tôt du GP. On filtre sur
+// SCOREABLE_SESSION_TYPES : la table `sessions` contient aussi les essais libres
+// (informatifs), qui commencent avant la qualif — sans ce filtre, min(starts_at)
+// tomberait sur l'EL1 au lieu de la vraie session-deadline.
 export async function getGPsNeedingQualReminder(
   season: number,
 ): Promise<{ id: string; name: string }[]> {
@@ -209,6 +211,7 @@ export async function getGPsNeedingQualReminder(
     .from('sessions')
     .select('starts_at, gp_id, grands_prix!gp_id(id, name, is_cancelled, notified_reminder_24h_at)')
     .eq('season', season)
+    .in('type', SCOREABLE_SESSION_TYPES)
 
   if (error) throw error
 
@@ -282,6 +285,7 @@ export async function getSessionsNeedingDeadlineNotification(
     .from('sessions')
     .select('id, type, gp_id, grands_prix!gp_id(name, is_cancelled)')
     .eq('season', season)
+    .in('type', SCOREABLE_SESSION_TYPES)
     .is('notified_deadline_at', null)
     .gte('starts_at', now.toISOString())
     .lte('starts_at', limit.toISOString())
@@ -341,6 +345,7 @@ export async function getSessionsNeedingPostNudge(
     .from('sessions')
     .select('id, type, gp_id, starts_at, notified_post_session_at, grands_prix!gp_id(name, is_cancelled)')
     .eq('season', season)
+    .in('type', SCOREABLE_SESSION_TYPES)
 
   if (error) throw error
 
@@ -379,7 +384,7 @@ export async function claimSessionPostNudge(sessionId: string): Promise<boolean>
 // Toutes les sessions d'un GP avec leur statut de confirmation — 1 requête vs N getSessionId
 export async function getSessionsForGP(
   gpId: string,
-): Promise<{ id: string; type: SessionType; confirmedAt: string | null }[]> {
+): Promise<{ id: string; type: DbSessionType; confirmedAt: string | null }[]> {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('sessions')
@@ -389,7 +394,7 @@ export async function getSessionsForGP(
   if (error) throw error
   return (data ?? []).map((row) => ({
     id:          row.id as string,
-    type:        row.type as SessionType,
+    type:        row.type as DbSessionType,
     confirmedAt: row.results_confirmed_at as string | null,
   }))
 }

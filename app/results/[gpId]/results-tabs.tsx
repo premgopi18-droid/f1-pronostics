@@ -189,7 +189,7 @@ function DriverRow({
   isLast: boolean
 }) {
   const teamColor = TEAM_COLORS[row.constructorCode] ?? DEFAULT_TEAM_COLOR
-  const isDnf = row.dnf || row.position === null
+  const isDnf = row.dnf || (!row.dns && row.position === null)
 
   return (
     <div
@@ -199,7 +199,9 @@ function DriverRow({
       )}
     >
       <div className="w-6 shrink-0 text-right">
-        {isDnf ? (
+        {row.dns ? (
+          <span className="text-xs font-bold text-text-muted">{t('results.dnsLabel')}</span>
+        ) : isDnf ? (
           <span className="text-xs font-bold text-destructive">{t('results.dnfLabel')}</span>
         ) : (
           <span

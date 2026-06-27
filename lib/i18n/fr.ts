@@ -285,6 +285,7 @@ export const fr = {
     tabPractice3: "EL 3",
     leader: "LEADER",
     dnfLabel: "DNF",
+    dnsLabel: "DNS",
     fastestLap: "Meilleur tour",
     noResults: "Résultats non disponibles.",
     practiceNoData: "Résultats non encore disponibles.",

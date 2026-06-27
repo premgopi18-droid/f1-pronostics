@@ -111,9 +111,10 @@ async function jolpikaGet<T>(path: string): Promise<T> {
 export function mapRaceResult(result: JolpikaRaceResult): [string, DriverResult] {
   const code = result.Driver.code
   return [code, {
-    position:  parseInt(result.position, 10),
+    position:   parseInt(result.position, 10),
     fastestLap: result.FastestLap?.rank === '1',
     dnf:        result.positionText === 'R',
+    dns:        result.positionText === 'W',
   }]
 }
 

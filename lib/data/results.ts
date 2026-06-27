@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase'
 import { getCountryCode } from '@/lib/f1/country-codes'
 import { getCountryNameFr, getGpNameFr } from '@/lib/f1/country-names-fr'
 import { computeGpStatuses, type GpStatus } from '@/lib/results/calendar'
-import { fetchPracticeResults } from '@/lib/f1/openf1'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,14 +145,14 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
   const [{ data: gp }, { data: sessionRows }] = await Promise.all([
     supabase
       .from('grands_prix')
-      .select('id, round, country, season, openf1_circuit')
+      .select('id, round, country')
       .eq('id', gpId)
       .maybeSingle(),
     supabase
       .from('sessions')
       .select('id, type')
       .eq('gp_id', gpId)
-      .in('type', ['race', 'qualifying']),
+      .in('type', ['race', 'qualifying', 'practice_1', 'practice_2', 'practice_3']),
   ])
 
   if (!gp) return null
@@ -162,29 +161,14 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
   const sessionIds = sessions.map((s) => s.id as string)
   const sessionTypeMap = new Map(sessions.map((s) => [s.id as string, s.type as string]))
 
-  const openf1Circuit = gp.openf1_circuit as string | null
-  const season = gp.season as number
-
-  // Fetches en parallèle : résultats DB + essais libres OpenF1 (si circuit connu)
-  const [resultRows, driverRows, practiceRaw1, practiceRaw2, practiceRaw3] = await Promise.all([
-    sessionIds.length > 0
-      ? supabase
-          .from('session_results')
-          .select(
-            'session_id, position, dnf, fastest_lap, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
-          )
-          .in('session_id', sessionIds)
-          .then((r) => r.data)
-      : Promise.resolve([]),
-    supabase
-      .from('drivers')
-      .select('code, last_name, constructors!constructor_id(name, code)')
-      .eq('season', season)
-      .then((r) => r.data),
-    openf1Circuit ? fetchPracticeResults(season, openf1Circuit, 'Practice 1') : Promise.resolve([]),
-    openf1Circuit ? fetchPracticeResults(season, openf1Circuit, 'Practice 2') : Promise.resolve([]),
-    openf1Circuit ? fetchPracticeResults(season, openf1Circuit, 'Practice 3') : Promise.resolve([]),
-  ])
+  const resultRows = sessionIds.length > 0
+    ? (await supabase
+        .from('session_results')
+        .select(
+          'session_id, position, dnf, fastest_lap, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
+        )
+        .in('session_id', sessionIds)).data
+    : []
 
   type DriverEmbed = {
     code: string
@@ -193,39 +177,43 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
     constructors: { name: string; code: string } | null
   }
 
-  type DriverRow = {
-    code: string
-    last_name: string
-    constructors: { name: string; code: string } | null
-  }
-
-  // Index code → info pilote pour enrichissement des résultats practice
-  const driverMap = new Map<string, DriverRow>()
-  for (const d of driverRows ?? []) {
-    driverMap.set(d.code as string, d as unknown as DriverRow)
-  }
-
   const race: GpResultRow[] = []
   const qualifying: GpResultRow[] = []
+  const practice1: PracticeResultRow[] = []
+  const practice2: PracticeResultRow[] = []
+  const practice3: PracticeResultRow[] = []
 
   for (const row of resultRows ?? []) {
     const driver = (row.drivers as unknown as DriverEmbed | null)
     if (!driver) continue
 
-    const result: GpResultRow = {
-      position: row.position as number | null,
-      dnf: row.dnf as boolean,
-      fastestLap: row.fastest_lap as boolean,
-      driverCode: driver.code,
-      firstName: driver.first_name,
-      lastName: driver.last_name,
-      constructorName: driver.constructors?.name ?? '',
-      constructorCode: driver.constructors?.code ?? '',
-    }
-
     const sessionType = sessionTypeMap.get(row.session_id as string)
-    if (sessionType === 'race') race.push(result)
-    else if (sessionType === 'qualifying') qualifying.push(result)
+
+    if (sessionType === 'race' || sessionType === 'qualifying') {
+      const result: GpResultRow = {
+        position: row.position as number | null,
+        dnf: row.dnf as boolean,
+        fastestLap: row.fastest_lap as boolean,
+        driverCode: driver.code,
+        firstName: driver.first_name,
+        lastName: driver.last_name,
+        constructorName: driver.constructors?.name ?? '',
+        constructorCode: driver.constructors?.code ?? '',
+      }
+      if (sessionType === 'race') race.push(result)
+      else qualifying.push(result)
+    } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
+      const result: PracticeResultRow = {
+        position: row.position as number,
+        driverCode: driver.code,
+        lastName: driver.last_name,
+        constructorCode: driver.constructors?.code ?? '',
+        constructorName: driver.constructors?.name ?? '',
+      }
+      if (sessionType === 'practice_1') practice1.push(result)
+      else if (sessionType === 'practice_2') practice2.push(result)
+      else practice3.push(result)
+    }
   }
 
   const sortByPosition = (rows: GpResultRow[]) =>
@@ -236,17 +224,8 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
       return a.position - b.position
     })
 
-  const enrichPractice = (raw: Awaited<ReturnType<typeof fetchPracticeResults>>): PracticeResultRow[] =>
-    raw.map(({ position, driverCode }) => {
-      const info = driverMap.get(driverCode)
-      return {
-        position,
-        driverCode,
-        lastName: info?.last_name ?? driverCode,
-        constructorCode: info?.constructors?.code ?? '',
-        constructorName: info?.constructors?.name ?? '',
-      }
-    })
+  const sortPractice = (rows: PracticeResultRow[]) =>
+    rows.sort((a, b) => a.position - b.position)
 
   return {
     id: gpId,
@@ -255,8 +234,8 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
     round: gp.round as number,
     race: sortByPosition(race),
     qualifying: sortByPosition(qualifying),
-    practice1: enrichPractice(practiceRaw1),
-    practice2: enrichPractice(practiceRaw2),
-    practice3: enrichPractice(practiceRaw3),
+    practice1: sortPractice(practice1),
+    practice2: sortPractice(practice2),
+    practice3: sortPractice(practice3),
   }
 }

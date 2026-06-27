@@ -1,4 +1,11 @@
+/** Sessions qui génèrent des pronostics et des scores. */
 export type SessionType = 'qualifying' | 'race' | 'sprint_qualifying' | 'sprint_race'
+
+/** Toutes les sessions stockées en DB, y compris les essais libres (informatifs, non scorés). */
+export type DbSessionType = SessionType | 'practice_1' | 'practice_2' | 'practice_3'
+
+export const SCOREABLE_SESSION_TYPES: readonly SessionType[] = ['qualifying', 'race', 'sprint_qualifying', 'sprint_race']
+export const PRACTICE_SESSION_TYPES: readonly DbSessionType[] = ['practice_1', 'practice_2', 'practice_3']
 
 export type ItemPayload =
   | { type: 'shield' }

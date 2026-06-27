@@ -195,6 +195,8 @@ Tous les jobs utilisent la méthode **POST** avec le header `x-cron-secret: <CRO
 
 **Cadence week-end (ven–dim)** : sync toutes les 10 min, trigger toutes les 10 min décalé de 5 min → délai pipeline ~10-15 min après que Jolpica publie les résultats. Couvre toutes les sessions du week-end (EL, qualifs, sprint, course) sans gestion de fenêtres horaires par session.
 
+> **Notif « Session imminente » (T-10 min, cf. specs §3.6)** : émise par `/api/f1/sync` quand une session démarre dans ≤ 10 min, donc seulement si le cron tourne dans la fenêtre `[T-10, T]`. Toutes les sessions F1 (EL, qualifs, sprint, course) ont lieu **ven–dim** : le sync week-end à `*/10` couvre par construction le T-10 de chacune. Aucune session ne tombe lun–jeu, donc la cadence `*/30` en semaine n'a pas à couvrir cette notif.
+
 **Cadence semaine (lun–jeu)** : sync toutes les 30 min, trigger toutes les 30 min décalé de 15 min → suffisant pour maintenir le calendrier et les pilotes à jour hors week-end de course.
 
 ### Pourquoi décaler sync et trigger ?

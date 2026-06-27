@@ -17,6 +17,7 @@ interface OpenF1Session {
 interface OpenF1Lap {
   driver_number: number
   lap_duration:  number | null  // secondes ; null sur les tours in/out
+  date_start:    string | null  // ISO — début du tour ; départage les ex aequo
 }
 
 interface OpenF1Driver {
@@ -132,17 +133,22 @@ export async function fetchPracticeResults(
   const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
 
   // Meilleur tour par pilote (les tours in/out ont lap_duration null → ignorés).
-  const bestLapByDriver = new Map<number, number>()
+  const bestLapByDriver = new Map<number, { duration: number; setAt: string }>()
   for (const lap of laps ?? []) {
     if (lap.lap_duration == null) continue
     const current = bestLapByDriver.get(lap.driver_number)
-    if (current === undefined || lap.lap_duration < current) {
-      bestLapByDriver.set(lap.driver_number, lap.lap_duration)
+    if (current === undefined || lap.lap_duration < current.duration) {
+      bestLapByDriver.set(lap.driver_number, { duration: lap.lap_duration, setAt: lap.date_start ?? '' })
     }
   }
 
-  // Classement = meilleurs tours croissants ; positions denses 1..N.
-  const ranked = [...bestLapByDriver.entries()].sort((a, b) => a[1] - b[1])
+  // Classement par meilleur tour croissant ; ex aequo départagés par le 1er à
+  // avoir signé le temps (règle F1). Positions denses 1..N.
+  // NB : une séance terminée a toujours des tours chronométrés — une liste vide
+  // ici signifie donc « données OpenF1 pas encore dispo », et le cron retentera.
+  const ranked = [...bestLapByDriver.entries()].sort((a, b) =>
+    a[1].duration !== b[1].duration ? a[1].duration - b[1].duration : a[1].setAt.localeCompare(b[1].setAt),
+  )
   const results: PracticeDriverResult[] = []
   let position = 1
   for (const [number] of ranked) {

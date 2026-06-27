@@ -292,10 +292,15 @@ Les notifications sont envoyées via Web Push (standard ouvert, compatible iOS 1
 | Deadline pronostic qualifications | 1h avant le début des qualifications |
 | Deadline pronostic course | 1h avant le départ |
 | Rappel « tu peux encore ajuster » | 2h après le début de **chaque session non-finale** du week-end (SQ, SR, Qualif), pour rappeler que le prono de la **session suivante** est toujours modifiable (ex. ajuster sa course avec la grille de qualif). Une seule notif par session via claim atomique ; envoyée uniquement si la session suivante n'a pas encore démarré. Un prono se verrouille au *début* de sa session (`sessionLockState`), donc la fenêtre d'ajustement reste ouverte. |
+| Session imminente (« ça va commencer ») | **10 min avant le début de chaque session** (essais libres inclus), pour ne pas la louper. Une seule notif par session (dédup atomique par session). **Configurable par l'utilisateur** — voir la préférence ci-dessous. |
 | Scores provisoires disponibles | Après chaque session (qualif, sprint) — scores de base sans items |
 | Résultats définitifs publiés | Après la course du dimanche — scores finaux avec items résolus |
 | Item joué contre vous | Après la course, en même temps que les résultats définitifs — surprise révélée avec les scores |
 | Classement mis à jour | Après chaque calcul de score (provisoire ou définitif) — fusionné dans la catégorie "Résultats & scores" dans les réglages utilisateur |
+
+> **Préférence « Session imminente »** : l'utilisateur choisit le périmètre de cette notif dans ses réglages — **toutes les sessions** / **sessions à enjeu uniquement** (Sprint Qualifying, Qualifications, Sprint Race, Course — celles où un prono/item se verrouille) / **aucune**. Par défaut : sessions à enjeu. Raison : une notif avant *chaque* session (EL1/2/3 inclus) peut atteindre 6 notifs/week-end dont 3 purement informatives — le choix évite la fatigue tout en couvrant ceux qui veulent tout suivre.
+>
+> ⚠️ **Prérequis infra** : la page de préférences notif actuelle est un MVP à **toggle global** (tous les types partagent un seul interrupteur d'abonnement, cf. `app/profile/notifications/page.tsx`). Cette préférence par-périmètre suppose un **vrai stockage de préférences notif par utilisateur** (colonne/table dédiée + lecture côté envoi). À construire avec cette feature, ou à mutualiser avec un futur chantier « préférences notif par catégorie ».
 
 ### 3.7 Installation (PWA)
 

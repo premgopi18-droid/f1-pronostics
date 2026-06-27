@@ -238,6 +238,18 @@ Pour les week-ends avec sprint race (environ 6 par saison), ajouter 2 jobs suppl
 
 Ces jobs peuvent être activés/désactivés manuellement sur cron-job.org selon le calendrier.
 
+### Sync des essais libres (EL1/EL2/EL3) — **toutes les 10 min**
+
+Les résultats d'essais libres (informatifs, non scorés — cf. specs §3.3) proviennent d'OpenF1. Décision : **toute la sync tourne à 10 min**, EL incluses (pas de cadence dégradée). Ajouter des fenêtres `/api/f1/sync` couvrant les séances d'EL :
+- **Vendredi ~matin/midi UTC** — EL1 puis EL2 (horaires variables selon le fuseau du circuit ; se caler sur `FirstPractice`/`SecondPractice` du calendrier Jolpica)
+- **Samedi matin UTC** — EL3 (week-end classique uniquement)
+
+Les EL n'ont pas besoin de `/api/scores/trigger` (rien à scorer).
+
+### Notif « Session imminente » (10 min avant) — couverture cron
+
+Cette notif (cf. specs §3.6) est émise par `/api/f1/sync` quand une session démarre dans ≤ 10 min. Elle n'est envoyée **que si le cron tourne dans la fenêtre `[T-10min, T]`** de chaque session concernée. Conséquence opérationnelle : les fenêtres `/api/f1/sync` ci-dessus doivent **commencer suffisamment tôt** pour couvrir le T-10 de la **première** session de chaque jour (y compris EL1 le vendredi). Avec un cron à 10 min, élargir la borne basse de chaque fenêtre de ~15 min avant la première session du jour.
+
 ### Pourquoi décaler sync et trigger ?
 
 `/api/f1/sync` récupère et stocke les résultats depuis Jolpica. `/api/scores/trigger` calcule les scores à partir de ce qui est en base. Si les deux tournent en même temps, le trigger pourrait scorer des données incomplètes. Le décalage de 10 min garantit que sync termine avant trigger.

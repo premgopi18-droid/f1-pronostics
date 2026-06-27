@@ -1,26 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { THEME_STORAGE_KEY, THEMES, THEME_PRIMARY_COLORS, type ThemeId } from '@/lib/theme/themes'
 
-export const THEME_STORAGE_KEY = 'app-theme'
+// Constantes définies dans un module non-`'use client'` (cf. lib/theme/themes.ts) pour
+// rester lisibles depuis le layout serveur ; ré-exportées ici pour la compat des imports.
+export { THEME_STORAGE_KEY, THEMES, THEME_PRIMARY_COLORS, type ThemeId }
+
 const THEME_EVENT = 'theme-change'
-
-export type ThemeId = 'boxbox' | 'ferrari' | 'mercedes' | 'mclaren' | 'redbull' | 'aston'
-
-// Les libellés affichés viennent de l'i18n (`theme.themes.<id>`), pas d'ici —
-// `primary` sert à la pastille de couleur (swatch) du sélecteur.
-export const THEMES: { id: ThemeId; primary: string }[] = [
-  { id: 'boxbox',   primary: '#FF1801' },
-  { id: 'ferrari',  primary: '#DC0000' },
-  { id: 'mercedes', primary: '#00D2BE' },
-  { id: 'mclaren',  primary: '#FF8000' },
-  { id: 'redbull',  primary: '#3671C6' },
-  { id: 'aston',    primary: '#006E51' },
-]
-
-export const THEME_PRIMARY_COLORS: Record<ThemeId, string> = Object.fromEntries(
-  THEMES.map((t) => [t.id, t.primary]),
-) as Record<ThemeId, string>
 
 export function getStoredTheme(): ThemeId {
   try {

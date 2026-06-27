@@ -7,8 +7,8 @@ import { BottomNav } from "@/app/components/bottom-nav";
 import {
   REDUCE_MOTION_STORAGE_KEY,
   REDUCE_MOTION_CLASS,
-} from "@/lib/hooks/use-prefers-reduced-motion";
-import { THEME_STORAGE_KEY, THEME_PRIMARY_COLORS } from "@/lib/hooks/use-theme";
+} from "@/lib/a11y/reduce-motion";
+import { THEME_STORAGE_KEY, THEME_PRIMARY_COLORS } from "@/lib/theme/themes";
 
 // Applique le mode accessibilité manuel avant le premier paint (anti-FOUC). La
 // préférence système, elle, est gérée en pur CSS (`@media prefers-reduced-motion`),
@@ -76,13 +76,16 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${titilliumWeb.variable} ${rajdhani.variable} h-full antialiased`}
     >
-      {/* Scripts dans <head> pour garantir l'exécution avant le premier paint (anti-FOUC). */}
-      <head>
+      <body className="min-h-full flex flex-col">
+        {/* Anti-FOUC : applique le thème et le mode accessibilité avant le premier paint.
+            Placés en tête de <body> (pas dans un <head> manuel) : Next gère lui-même le
+            <head> et y injecte la <meta name="theme-color"> du viewport — un <head> rendu
+            à la main la supprimerait. Depuis <body>, ce <head> est déjà parsé, donc le
+            script theme-color trouve la meta, et data-theme est posé sur <html> avant
+            tout paint du contenu. */}
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: reduceMotionBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: installPromptBootScript }} />
-      </head>
-      <body className="min-h-full flex flex-col">
         <SwRegister />
         <InstallBanner />
         {children}

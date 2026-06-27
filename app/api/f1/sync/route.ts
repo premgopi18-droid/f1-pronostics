@@ -97,30 +97,38 @@ async function handler(request: Request): Promise<Response> {
       const round       = gp.round
       const startsAt    = row.starts_at as string
 
-      let results: Map<string, DriverResult>
+      // Isolation par session : l'échec d'une source (OpenF1 bloqué pendant un
+      // live → 403, réseau, etc.) ne doit PAS avorter toute la sync ni les
+      // notifs qui suivent (même famille de bug que #121). On logue et on passe
+      // à la session suivante ; le cron retentera au prochain passage.
+      try {
+        let results: Map<string, DriverResult>
 
-      if (sessionType === 'race') {
-        results = await fetchRaceResults(rowSeason, round)
-      } else if (sessionType === 'qualifying') {
-        results = await fetchQualifyingResults(rowSeason, round)
-      } else if (sessionType === 'sprint_race') {
-        results = await fetchSprintRaceResults(rowSeason, round)
-      } else if (sessionType === 'sprint_qualifying') {
-        results = await fetchSprintQualifyingResults(rowSeason, startsAt)
-      } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
-        const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
-        const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt)
-        results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
-      } else {
-        continue
+        if (sessionType === 'race') {
+          results = await fetchRaceResults(rowSeason, round)
+        } else if (sessionType === 'qualifying') {
+          results = await fetchQualifyingResults(rowSeason, round)
+        } else if (sessionType === 'sprint_race') {
+          results = await fetchSprintRaceResults(rowSeason, round)
+        } else if (sessionType === 'sprint_qualifying') {
+          results = await fetchSprintQualifyingResults(rowSeason, startsAt)
+        } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
+          const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
+          const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt)
+          results = new Map(raw.map(({ driverCode, position }) => [driverCode, { position, fastestLap: false }]))
+        } else {
+          continue
+        }
+
+        // Résultats pas encore disponibles (course non terminée)
+        if (results.size === 0) continue
+
+        await upsertSessionResults(row.id as string, rowSeason, results)
+        await confirmSessionResults(row.id as string)
+        sessionsConfirmed++
+      } catch (error) {
+        console.error('[api/f1/sync] confirmation session', row.id, error)
       }
-
-      // Résultats pas encore disponibles (course non terminée)
-      if (results.size === 0) continue
-
-      await upsertSessionResults(row.id as string, rowSeason, results)
-      await confirmSessionResults(row.id as string)
-      sessionsConfirmed++
     }
 
     // ── Notifications "pronostics ouverts" (48 h avant le week-end) ──────────

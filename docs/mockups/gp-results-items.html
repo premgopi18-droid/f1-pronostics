@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maquette interactive — Résultats GP de ligue</title>
+<style>
+  :root{
+    --bg:#09090b; --card:#18181b; --card-me:#1f1f23; --card2:#0f0f11;
+    --line:#27272a; --text:#fafafa; --muted:#a1a1aa; --dim:#71717a; --faint:#52525b;
+    --exact:#22c55e; --approx:#f59e0b; --miss:#52525b;
+    --gold:#f5c84c; --silver:#cbd5e1; --bronze:#d08b54; --me:#1e5bff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:480px;margin:0 auto;padding:32px 16px 64px;display:flex;flex-direction:column;gap:32px}
+  .note{font-size:12px;color:var(--dim);text-align:center;border:1px dashed var(--line);border-radius:10px;padding:8px 12px;line-height:1.5}
+  .eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  h1{font-size:24px;font-weight:800;margin:2px 0 0}
+  .badge{font-size:11px;padding:4px 8px;border-radius:999px}
+  .badge.prov{background:rgba(245,158,11,.12);color:#fbbf24}
+  .row-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 4px}
+  section{display:flex;flex-direction:column;gap:10px}
+  .list{display:flex;flex-direction:column;gap:4px}
+
+  .score{display:flex;align-items:center;gap:10px;background:var(--card2);border-radius:14px;padding:10px 14px;
+    border-left:3px solid transparent;cursor:pointer;transition:box-shadow .12s,background .12s}
+  .score:hover{background:#161619}
+  .score .rank{width:18px;text-align:right;font-size:13px;color:var(--faint);font-variant-numeric:tabular-nums;font-weight:700}
+  .score .rank.p1{color:var(--gold)} .score .rank.p2{color:var(--silver)} .score .rank.p3{color:var(--bronze)}
+  /* casque F1 fidèle au composant AvatarHelmet : rond + visière + reflet */
+  .helmet{--hs:22px;position:relative;flex:none;overflow:hidden;border-radius:50%;
+    width:var(--hs);height:var(--hs);
+    box-shadow:inset 0 calc(var(--hs) * -0.15) calc(var(--hs) * 0.3) rgba(0,0,0,.35)}
+  .helmet::before{content:"";position:absolute;left:14%;right:14%;top:38%;height:24%;background:rgba(0,0,0,.45);border-radius:4px}
+  .helmet::after{content:"";position:absolute;left:0;right:0;top:14%;height:18%;background:rgba(255,255,255,.18)}
+  .pseudo{flex:1;font-weight:600;font-size:15px;display:flex;align-items:baseline;gap:6px;min-width:0}
+  .pseudo .me{font-size:12px;font-weight:500;color:var(--dim)}
+  .pts{font-weight:700;font-variant-numeric:tabular-nums}
+  .pills{display:flex;gap:6px;margin-left:4px}
+  .pill{font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;padding:2px 7px;border-radius:999px;display:inline-flex;align-items:center;gap:3px}
+  .pill.ex{background:rgba(34,197,94,.14);color:var(--exact)}
+  .pill.ap{background:rgba(245,158,11,.14);color:var(--approx)}
+  .score.me{background:var(--card-me);border-left-color:var(--me)}
+  .score.sel{box-shadow:inset 0 0 0 1.5px var(--me)}
+  .score .chev{margin-left:2px;color:var(--faint);font-size:13px}
+  .score.sel .chev{color:var(--me)}
+
+  .fact{background:var(--card);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+  .fact .top{display:flex;align-items:center;gap:8px;font-size:14px}
+  .fact .emo{font-size:18px}.fact .who{font-weight:600}
+  .chain{display:flex;flex-direction:column;gap:4px;padding-left:26px;border-left:2px solid var(--line);margin-left:8px}
+  .step{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .delta{font-weight:700;font-variant-numeric:tabular-nums}
+  .delta.pos{color:var(--exact)}.delta.neg{color:#f87171}.delta.nil{color:var(--faint)}
+  .tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:6px}
+  .tag.cancel{background:rgba(248,113,113,.12);color:#f87171}.tag.ok{background:rgba(34,197,94,.12);color:var(--exact)}
+
+  .detailcard{background:var(--card);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .dhead{display:flex;align-items:center;gap:10px}
+  .dhead .helmet{--hs:28px}
+  .dhead .nm{font-weight:700;font-size:16px}.dhead .nm .me{font-size:12px;font-weight:500;color:var(--dim)}
+  .dhead .right{margin-left:auto;text-align:right}
+  .dhead .tot{font-weight:800;font-size:16px}.dhead .sub{font-size:11px;color:var(--dim)}
+  .hint{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px}
+  .sesstabs{display:flex;gap:6px;flex-wrap:wrap}
+  .stab{font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;background:var(--card2);color:var(--muted);border:1px solid transparent;cursor:pointer}
+  .stab.on{background:rgba(30,91,255,.14);color:#9db8ff;border-color:rgba(30,91,255,.35)}
+  .sesstot{font-size:11px;color:var(--dim);margin:2px 0 -2px}
+  .detail{display:flex;flex-direction:column;gap:3px}
+  .line{display:flex;align-items:center;gap:8px;background:var(--card2);border-radius:9px;padding:7px 12px;font-size:13px}
+  .line .pos{width:22px;text-align:right;color:var(--faint);font-variant-numeric:tabular-nums}
+  .line .code{font-family:ui-monospace,monospace;width:38px;font-weight:600}
+  .line .mark{font-weight:700}
+  .line .mark.ex{color:var(--exact)}.line .mark.ap{color:var(--approx)}.line .mark.no{color:var(--faint)}
+  .line .gain{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600}
+  .line .gain.on{color:var(--text)}.line .gain.off{color:var(--faint)}
+  .fl{margin-top:8px;padding-top:11px;border-top:1px solid var(--line)}
+  .fl .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--approx);font-weight:700;padding-right:4px}
+  .itemline{display:flex;align-items:center;gap:8px;background:rgba(30,91,255,.06);border:1px solid rgba(30,91,255,.18);border-radius:9px;padding:7px 12px;font-size:13px;margin-top:3px}
+  .itemline .emo{font-size:15px}.itemline .txt{color:var(--muted)}.itemline .d{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+  .legend{font-size:11px;color:var(--dim);display:flex;gap:14px;flex-wrap:wrap;padding-top:2px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .dot{width:9px;height:9px;border-radius:999px;display:inline-block}
+  .empty{font-size:13px;color:var(--dim);padding:8px 2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="note">Maquette <b>interactive</b> — clique une ligne du classement et les onglets de session. Données fictives. Direction visuelle pour l'issue #151.</div>
+
+  <div class="row-head">
+    <div><div class="eyebrow">Round 11 · Autriche</div><h1>Grand Prix d'Autriche</h1></div>
+    <span class="badge prov">Provisoire</span>
+  </div>
+
+  <section>
+    <h2>Total GP</h2>
+    <div class="list" id="board"></div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--exact)"></span>● exacte</span>
+      <span><span class="dot" style="background:var(--approx)"></span>◐ approchée</span>
+      <span style="color:var(--faint)">détail : ±N = écart de positions</span>
+      <span><span class="dot" style="background:var(--me)"></span>ma ligne</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>⚡ Faits marquants du GP</h2>
+    <div class="fact">
+      <div class="top"><span class="emo">🃏</span><span><span class="who" style="color:#9B51E0">Lena</span> joue <b>Wild Card</b> sur <span class="who" style="color:#22C55E">Jarod</span> · Course</span><span class="delta pos" style="margin-left:auto">+8</span></div>
+      <div class="chain"><div class="step">Score course de Jarod : 17 pts</div><div class="step">Lena vole la moitié <span class="delta neg">−8 pour Jarod</span></div><div class="step">Lena encaisse <span class="tag ok">+8</span></div></div>
+    </div>
+    <div class="fact">
+      <div class="top"><span class="emo">🚫</span><span><span class="who" style="color:#FF8000">Victor</span> bloque <b>VER</b> contre <span class="who" style="color:#1E5BFF">Prem</span> · Course</span><span class="tag cancel" style="margin-left:auto">Annulé</span></div>
+      <div class="chain"><div class="step">🛡️ Prem avait posé un <b>Bouclier</b></div><div class="step">→ blocage annulé, VER rapporte normalement <span class="delta nil">0</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Détail du joueur</h2>
+    <div class="hint">👆 Clique une ligne du classement pour voir un autre joueur</div>
+    <div class="detailcard" id="detail"></div>
+  </section>
+
+</div>
+
+<script>
+// ── Type de week-end : ordre des sessions affichées ───────────────────────
+const IS_SPRINT = false;
+const SESSIONS = IS_SPRINT
+  ? [['sprint_q','Sprint Q.'],['sprint','Sprint'],['qualifying','Qualifs'],['race','Course']]
+  : [['qualifying','Qualifs'],['race','Course']];
+
+// ── Données fictives ──────────────────────────────────────────────────────
+const PLAYERS = [
+  { id:'prem', pseudo:'Prem', me:true, color:'#1E5BFF', txt:'#fff', total:42, ex:3, ap:2,
+    s:{ qualifying:{ tot:16, rows:[r('P1','LEC','ex',null,8),r('P2','VER','ex',null,6),r('P3','NOR','ap','RUS',2,2)], items:[item('✨','Dernier tour de magie (×2)','pos','+7')] },
+        race:{ tot:26, rows:[r('P1','VER','ex',null,10),r('P2','LEC','ap','PIA',6,1),r('P3','NOR','no','PIA',null)], fl:fl('HAM','ex',null,10),
+               items:[item('🛡️','Bouclier — a annulé le blocage de Victor','nil','0')] } } },
+  { id:'jarod', pseudo:'Jarod', color:'#22C55E', total:38, ex:2, ap:3,
+    s:{ qualifying:{ tot:21, rows:[r('P1','VER','ex',null,8),r('P2','NOR','ex',null,6),r('P3','PIA','ap','LEC',4,1)], items:[] },
+        race:{ tot:17, rows:[r('P1','VER','ex',null,10),r('P2','PIA','ap','LEC',4,1),r('P3','RUS','no','NOR',null)], fl:fl('VER','no','HAM',null),
+               items:[item('🃏','Wild Card jouée sur lui par Lena','neg','−8')] } } },
+  { id:'lena', pseudo:'Lena', color:'#9B51E0', total:31, ex:2, ap:1,
+    s:{ qualifying:{ tot:9, rows:[r('P1','NOR','ap','VER',5,1),r('P2','LEC','ex',null,6),r('P3','HAM','no','PIA',null)], items:[] },
+        race:{ tot:22, rows:[r('P1','VER','ex',null,10),r('P2','LEC','ex',null,8),r('P3','SAI','no','NOR',null)], fl:fl('LEC','no','HAM',null),
+               items:[item('🃏','Wild Card jouée sur Jarod','pos','+8')] } } },
+  { id:'victor', pseudo:'Victor', color:'#FF8000', total:24, ex:1, ap:2,
+    s:{ qualifying:{ tot:11, rows:[r('P1','VER','ex',null,8),r('P2','PIA','ap','NOR',3,2),r('P3','ALO','no','LEC',null)], items:[] },
+        race:{ tot:13, rows:[r('P1','NOR','no','VER',null),r('P2','LEC','ap','PIA',4,1),r('P3','RUS','no','NOR',null)], fl:fl('NOR','no','HAM',null),
+               items:[item('🚫','Bloquer VER contre Prem — annulé par son bouclier','nil','0')] } } },
+];
+function r(pos,code,mark,actual,gain,delta){return {pos,code,mark,actual,gain,delta}}
+function fl(code,mark,actual,gain){return {code,mark,actual,gain}}
+function item(emo,txt,kind,delta){return {emo,txt,kind,delta}}
+
+let selected = PLAYERS.find(p=>p.me).id;
+let session  = 'race';
+
+// ── Rendu classement ──────────────────────────────────────────────────────
+function renderBoard(){
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  PLAYERS.forEach((p,i)=>{
+    const el = document.createElement('div');
+    el.className = 'score' + (p.me?' me':'') + (p.id===selected?' sel':'');
+    el.onclick = ()=>{ selected = p.id; renderBoard(); renderDetail(); };
+    const rank = i+1, rc = rank<=3?` p${rank}`:'';
+    el.innerHTML =
+      `<span class="rank${rc}">${rank}</span>`+
+      `<span class="helmet" style="background:${p.color}"></span>`+
+      `<span class="pseudo">${p.pseudo}${p.me?' <span class="me">(moi)</span>':''}</span>`+
+      `<span class="pills">${p.ex?`<span class="pill ex">●${p.ex}</span>`:''}${p.ap?`<span class="pill ap">◐${p.ap}</span>`:''}</span>`+
+      `<span class="pts">${p.total} pts</span>`+
+      `<span class="chev">▸</span>`;
+    board.appendChild(el);
+  });
+}
+
+// ── Rendu détail ──────────────────────────────────────────────────────────
+function renderDetail(){
+  const p = PLAYERS.find(x=>x.id===selected);
+  const d = document.getElementById('detail');
+  const tabs = SESSIONS.map(([key,lbl])=>{
+    const has = !!p.s[key];
+    const on = key===session ? ' on':'';
+    return `<span class="stab${on}" data-k="${key}" ${has?'':'style="opacity:.35;cursor:not-allowed"'}>${lbl}</span>`;
+  }).join('');
+
+  const sess = p.s[session];
+  let body = '';
+  if(!sess){ body = `<div class="empty">Pas de pronostic pour cette session.</div>`; }
+  else {
+    const rows = sess.rows.map(x=>{
+      const mark = x.mark==='ex'?`<span class="mark ex">●</span>`
+                 : x.mark==='ap'?`<span class="mark ap">±${x.delta}</span>`
+                 : `<span class="mark no">✗</span><span class="code" style="color:var(--faint)">${x.actual||''}</span>`;
+      const gain = x.gain!=null?`<span class="gain on">+${x.gain}</span>`:`<span class="gain off">—</span>`;
+      return `<div class="line"><span class="pos">${x.pos}</span><span class="code">${x.code}</span>${mark}${gain}</div>`;
+    }).join('');
+    let flrow = '';
+    if(sess.fl){
+      const f = sess.fl;
+      const mark = f.mark==='ex'?`<span class="mark ex">●</span>`
+                 : `<span class="mark no">✗</span><span class="code" style="color:var(--faint)">${f.actual||''}</span>`;
+      const gain = f.gain!=null?`<span class="gain on">+${f.gain}</span>`:`<span class="gain off">—</span>`;
+      flrow = `<div class="line fl"><span class="lbl">Meilleur tour</span><span class="code">${f.code}</span>${mark}${gain}</div>`;
+    }
+    const items = (sess.items||[]).map(it=>
+      `<div class="itemline"><span class="emo">${it.emo}</span><span class="txt">${it.txt}</span><span class="d delta ${it.kind}">${it.delta}</span></div>`
+    ).join('');
+    body = `<div class="detail">${rows}${flrow}${items}</div>`;
+  }
+
+  const sessLbl = (SESSIONS.find(([k])=>k===session)||[])[1] || '';
+  d.innerHTML =
+    `<div class="dhead">
+       <span class="helmet" style="background:${p.color}"></span>
+       <span class="nm">${p.pseudo}${p.me?' <span class="me">(moi)</span>':''}</span>
+       <span class="right"><div class="tot">${p.total} pts</div><div class="sub">total GP</div></span>
+     </div>
+     <div class="sesstabs">${tabs}</div>
+     ${sess?`<div class="sesstot">${sessLbl} — ${sess.tot} pts</div>`:''}
+     ${body}`;
+
+  d.querySelectorAll('.stab[data-k]').forEach(t=>{
+    const k = t.getAttribute('data-k');
+    if(p.s[k]) t.onclick = ()=>{ session = k; renderDetail(); };
+  });
+}
+
+renderBoard();
+renderDetail();
+</script>
+</body>
+</html>

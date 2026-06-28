@@ -80,6 +80,7 @@ export async function upsertSessionResults(
       driver_id:     codeToId.get(code)!,
       position:      result.position,
       dnf:           result.dnf ?? false,
+      dns:           result.dns ?? false,
       fastest_lap:   result.fastestLap,
       best_lap_time: result.bestLapTime ?? null,
     }))

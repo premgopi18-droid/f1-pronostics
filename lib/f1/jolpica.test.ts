@@ -275,6 +275,15 @@ describe('mapRaceResult', () => {
     expect(result.dnf).toBe(true)
   })
 
+  // Un pilote forfait avant le départ a `positionText: "W"` (Withdrew) — distinct
+  // d'un abandon en course ("R"). On le marque dns=true / dnf=false pour que l'UI
+  // affiche un badge DNS dédié et que le pari dnf_prediction ne se déclenche pas.
+  it('mappe un DNS (positionText "W") sur dns=true / dnf=false', () => {
+    const [, result] = mapRaceResult(makeResult('STR', '20', 'W'))
+    expect(result.dns).toBe(true)
+    expect(result.dnf).toBe(false)
+  })
+
   it('détecte le tour le plus rapide (FastestLap.rank === "1")', () => {
     const [, withFl]    = mapRaceResult(makeResult('NOR', '3', '3', '1'))
     const [, withoutFl] = mapRaceResult(makeResult('LEC', '2', '2', '5'))

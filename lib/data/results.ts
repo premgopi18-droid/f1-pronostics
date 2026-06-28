@@ -26,6 +26,7 @@ export type CalendarGp = {
 export type GpResultRow = {
   position: number | null
   dnf: boolean
+  dns: boolean
   fastestLap: boolean
   driverCode: string
   firstName: string
@@ -180,7 +181,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
     ? (await supabase
         .from('session_results')
         .select(
-          'session_id, position, dnf, fastest_lap, best_lap_time, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
+          'session_id, position, dnf, dns, fastest_lap, best_lap_time, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
         )
         .in('session_id', sessionIds)).data
     : []
@@ -215,6 +216,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
       const result: GpResultRow = {
         position: row.position as number | null,
         dnf: row.dnf as boolean,
+        dns: row.dns as boolean,
         fastestLap: row.fastest_lap as boolean,
         driverCode: driver.code,
         firstName: driver.first_name,

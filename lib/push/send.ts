@@ -65,6 +65,35 @@ export async function sendPushToAll(payload: PushPayload): Promise<void> {
   )
 }
 
+// Envoie la notif "session imminente" aux utilisateurs dont la préférence
+// `notif_imminence_scope` couvre le type de session :
+//   isStakesSession = true  → 'all' + 'stakes-only'
+//   isStakesSession = false → 'all' uniquement (sessions EL)
+export async function sendImminencePush(payload: PushPayload, isStakesSession: boolean): Promise<void> {
+  if (!configureVapid()) return
+  const supabase = createServiceClient()
+
+  const scopes = isStakesSession ? ['all', 'stakes-only'] : ['all']
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id')
+    .in('notif_imminence_scope', scopes)
+
+  if (!profiles || profiles.length === 0) return
+  const userIds = profiles.map((p) => p.id as string)
+
+  const { data: subs } = await supabase
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth_key')
+    .in('user_id', userIds)
+
+  await deliverToSubs(
+    (subs ?? []).map((s) => ({ endpoint: s.endpoint as string, p256dh: s.p256dh as string, auth_key: s.auth_key as string })),
+    payload,
+  )
+}
+
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
   if (!configureVapid()) return
   const supabase = createServiceClient()

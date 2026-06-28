@@ -1,4 +1,4 @@
-import type { SessionType } from '@/lib/scoring/types'
+import type { DbSessionType, SessionType } from '@/lib/scoring/types'
 
 // Logique PURE (sans I/O) de sélection des fenêtres de rappel push. Extraite des
 // selectors Supabase de `f1-sync.ts` pour être testable : tri/regroupement par GP,
@@ -7,6 +7,7 @@ import type { SessionType } from '@/lib/scoring/types'
 
 export const POST_SESSION_NUDGE_DELAY_MS = 2 * 60 * 60 * 1000 // 2h après le début de la session
 export const QUAL_REMINDER_WINDOW_MS     = 24 * 60 * 60 * 1000 // rappel « pronos J-1 »
+export const IMMINENCE_WINDOW_MS         = 10 * 60 * 1000       // 10 min avant le début
 
 // ── Nudge « tu peux encore ajuster la session suivante » ──────────────────────
 
@@ -53,6 +54,29 @@ export function selectSessionsToNudge(rows: NudgeSessionRow[], now: Date): Nudge
     }
   }
   return result
+}
+
+// ── Session imminente (10 min avant le début) ─────────────────────────────────
+
+export interface ImminenceSessionRow {
+  id:          string
+  type:        DbSessionType
+  gpId:        string
+  gpName:      string
+  isCancelled: boolean
+  startsAt:    Date
+  notified:    boolean
+}
+
+// Cible les sessions dont `startsAt` ∈ [now, now + 10min], non annulées,
+// non déjà notifiées. La borne basse est inclusive (on ne manque pas le cron
+// qui tourne exactement à T-10) ; la borne haute laisse une marge par rapport
+// au cron suivant (toutes les 10 min).
+export function selectSessionsStartingSoon(rows: ImminenceSessionRow[], now: Date): ImminenceSessionRow[] {
+  const limit = new Date(now.getTime() + IMMINENCE_WINDOW_MS)
+  return rows.filter(
+    (row) => !row.isCancelled && !row.notified && row.startsAt >= now && row.startsAt <= limit,
+  )
 }
 
 // ── Rappel « pronos J-1 » (au niveau GP) ──────────────────────────────────────

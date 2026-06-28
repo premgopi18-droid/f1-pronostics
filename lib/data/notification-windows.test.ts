@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest'
 import {
   selectSessionsToNudge,
   selectGPsToRemind,
+  selectSessionsStartingSoon,
   POST_SESSION_NUDGE_DELAY_MS,
   QUAL_REMINDER_WINDOW_MS,
+  IMMINENCE_WINDOW_MS,
   type NudgeSessionRow,
   type QualReminderRow,
+  type ImminenceSessionRow,
 } from './notification-windows'
 
 const NOW = new Date('2025-03-15T12:00:00Z')
@@ -130,6 +133,91 @@ describe('selectSessionsToNudge', () => {
       NOW,
     )
     expect(result.map((r) => r.id).sort()).toEqual(['g1-qual', 'g2-qual'])
+  })
+})
+
+function imminenceRow(overrides: Partial<ImminenceSessionRow>): ImminenceSessionRow {
+  return {
+    id:          'sess',
+    type:        'qualifying',
+    gpId:        'gp1',
+    gpName:      'GP Test',
+    isCancelled: false,
+    startsAt:    hoursFromNow(0.1),
+    notified:    false,
+    ...overrides,
+  }
+}
+
+const minsFromNow = (m: number) => new Date(NOW.getTime() + m * 60 * 1000)
+
+describe('selectSessionsStartingSoon', () => {
+  it('sélectionne une session démarrant dans la fenêtre 10 min', () => {
+    const result = selectSessionsStartingSoon(
+      [imminenceRow({ id: 'qual', startsAt: minsFromNow(5) })],
+      NOW,
+    )
+    expect(result.map((r) => r.id)).toEqual(['qual'])
+  })
+
+  it('exclut une session démarrant dans plus de 10 min', () => {
+    const result = selectSessionsStartingSoon(
+      [imminenceRow({ id: 'qual', startsAt: minsFromNow(11) })],
+      NOW,
+    )
+    expect(result).toEqual([])
+  })
+
+  it('exclut une session déjà démarrée (starts_at < now)', () => {
+    const result = selectSessionsStartingSoon(
+      [imminenceRow({ id: 'qual', startsAt: minsFromNow(-1) })],
+      NOW,
+    )
+    expect(result).toEqual([])
+  })
+
+  it('inclut une session pile à now (borne basse incluse)', () => {
+    const result = selectSessionsStartingSoon(
+      [imminenceRow({ id: 'qual', startsAt: NOW })],
+      NOW,
+    )
+    expect(result.map((r) => r.id)).toEqual(['qual'])
+  })
+
+  it('inclut une session pile à now + 10min (borne haute incluse)', () => {
+    const result = selectSessionsStartingSoon(
+      [imminenceRow({ id: 'qual', startsAt: new Date(NOW.getTime() + IMMINENCE_WINDOW_MS) })],
+      NOW,
+    )
+    expect(result.map((r) => r.id)).toEqual(['qual'])
+  })
+
+  it('exclut une session annulée', () => {
+    const result = selectSessionsStartingSoon(
+      [imminenceRow({ id: 'qual', startsAt: minsFromNow(5), isCancelled: true })],
+      NOW,
+    )
+    expect(result).toEqual([])
+  })
+
+  it('exclut une session déjà notifiée', () => {
+    const result = selectSessionsStartingSoon(
+      [imminenceRow({ id: 'qual', startsAt: minsFromNow(5), notified: true })],
+      NOW,
+    )
+    expect(result).toEqual([])
+  })
+
+  it('sélectionne plusieurs sessions dans la fenêtre', () => {
+    const result = selectSessionsStartingSoon(
+      [
+        imminenceRow({ id: 'p1',   type: 'practice_1', gpId: 'gp1', startsAt: minsFromNow(3) }),
+        imminenceRow({ id: 'qual', type: 'qualifying',  gpId: 'gp2', startsAt: minsFromNow(8) }),
+        imminenceRow({ id: 'race', type: 'race',        gpId: 'gp3', startsAt: minsFromNow(15) }),
+      ],
+      NOW,
+    )
+    expect(result.map((r) => r.id).sort()).toEqual(['p1', 'qual'])
   })
 })
 

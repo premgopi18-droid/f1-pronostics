@@ -100,7 +100,7 @@ export function AdminClient({
       <section aria-labelledby="invite-heading">
         <h2
           id="invite-heading"
-          className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-muted"
+          className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary"
         >
           {t('admin.inviteSection')}
         </h2>
@@ -213,7 +213,7 @@ export function AdminClient({
       <section aria-labelledby="members-heading">
         <h2
           id="members-heading"
-          className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-muted"
+          className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary"
         >
           {t('admin.membersSection')}
         </h2>

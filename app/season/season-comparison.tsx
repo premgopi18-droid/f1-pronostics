@@ -77,7 +77,7 @@ export function SeasonComparison({
               'flex-1 rounded-lg py-2 text-sm font-semibold transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               tab === t_
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-background text-primary shadow-sm'
                 : 'text-text-secondary hover:text-foreground',
             )}
           >

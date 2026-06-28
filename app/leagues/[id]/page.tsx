@@ -198,7 +198,7 @@ export default async function LeaguePage({
         <section aria-labelledby="items-heading">
           <h2
             id="items-heading"
-            className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-muted"
+            className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary"
           >
             {t('leagueDetail.myItemsTitle')}
           </h2>
@@ -236,7 +236,7 @@ export default async function LeaguePage({
           <section aria-labelledby="preview-heading">
             <h2
               id="preview-heading"
-              className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-muted"
+              className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary"
             >
               {t('leagueDetail.seasonPreviewTitle')}
             </h2>
@@ -288,7 +288,7 @@ export default async function LeaguePage({
           <section id="gps" aria-labelledby="gps-heading">
             <h2
               id="gps-heading"
-              className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-muted"
+              className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary"
             >
               {t('leagueDetail.weekendsTitle')}
             </h2>

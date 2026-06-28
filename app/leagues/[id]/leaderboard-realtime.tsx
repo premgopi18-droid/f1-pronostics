@@ -78,7 +78,7 @@ export function LeaderboardRealtime({
       <div className="mb-3 flex items-center justify-between">
         <h2
           id="leaderboard-heading"
-          className="text-2xs font-semibold uppercase tracking-widest text-text-muted"
+          className="text-2xs font-semibold uppercase tracking-widest text-primary"
         >
           {t('leagueDetail.leaderboardTitle')}
         </h2>
@@ -113,7 +113,7 @@ export function LeaderboardRealtime({
                 color={helmet.color}
                 size={32}
                 label={member.profile.pseudo}
-                className={cn(isCurrentUser && 'ring-2 ring-white ring-offset-1 ring-offset-transparent')}
+                className={cn(isCurrentUser && 'ring-2 ring-primary ring-offset-1 ring-offset-transparent')}
               />
 
               <div className="flex min-w-0 flex-1 flex-col gap-1">

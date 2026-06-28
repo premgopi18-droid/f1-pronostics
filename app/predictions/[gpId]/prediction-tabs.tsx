@@ -119,7 +119,7 @@ export function PredictionTabs({ sessions, drivers }: Props) {
               className={cn(
                 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 i === activeIndex
-                  ? 'bg-background text-foreground shadow-sm'
+                  ? 'bg-background text-primary shadow-sm'
                   : 'text-text-secondary hover:text-foreground',
               )}
             >

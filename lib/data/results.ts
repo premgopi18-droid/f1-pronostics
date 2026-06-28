@@ -216,7 +216,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
       const result: GpResultRow = {
         position: row.position as number | null,
         dnf: row.dnf as boolean,
-        dns: (row as unknown as { dns: boolean }).dns,
+        dns: row.dns as boolean,
         fastestLap: row.fastest_lap as boolean,
         driverCode: driver.code,
         firstName: driver.first_name,

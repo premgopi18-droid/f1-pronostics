@@ -21,7 +21,7 @@ interface JolpikaConstructor {
 
 export interface JolpikaRaceResult {
   position:     string
-  positionText: string   // "1".."20", "R"=Retired, "D"=DSQ, "N"=non-classé
+  positionText: string   // "1".."20", "R"=Retired (DNF), "W"=Withdrew (DNS), "D"=DSQ, "N"=non-classé
   Driver:       JolpikaDriver
   FastestLap?:  { rank: string }
 }

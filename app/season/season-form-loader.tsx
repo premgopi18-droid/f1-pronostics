@@ -13,7 +13,7 @@ const SeasonFormDynamic = dynamic(
     loading: () => (
       <div className="flex flex-col gap-2">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-11 rounded-xl bg-zinc-900 animate-pulse" />
+          <div key={i} className="h-11 rounded-xl bg-primary/10 animate-pulse" />
         ))}
       </div>
     ),

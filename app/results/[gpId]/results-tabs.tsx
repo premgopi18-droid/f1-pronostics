@@ -104,7 +104,7 @@ export function GpResultsTabs({
               'flex-1 rounded-lg py-2 text-sm font-semibold transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               activeTab === tab.id
-                ? 'bg-background text-primary shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-text-secondary hover:text-foreground',
             )}
           >

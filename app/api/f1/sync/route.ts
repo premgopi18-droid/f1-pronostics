@@ -26,8 +26,11 @@ import {
   markGPNotifiedOpen,
   getGPsNeedingQualReminder,
   markGPNotifiedQualReminder,
+  getSessionsNeedingImminenceNotification,
+  claimSessionImminenceNotification,
 } from '@/lib/data/f1-sync'
-import { isPushConfigured, sendPushToAll } from '@/lib/push/send'
+import { isPushConfigured, sendPushToAll, sendImminencePush } from '@/lib/push/send'
+import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
 import type { DriverResult, DbSessionType } from '@/lib/scoring/types'
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
@@ -162,6 +165,20 @@ async function handler(request: Request): Promise<Response> {
       await markGPNotifiedQualReminder(gp.id)
     }
 
+    // ── Notifications "session imminente" (10 min avant le début) ───────────────
+    // Toutes sessions (EL incluses) ; sendImminencePush filtre par préférence user.
+    const imminenceSessions = pushReady ? await getSessionsNeedingImminenceNotification(season) : []
+    for (const session of imminenceSessions) {
+      const isStakesSession = (SCOREABLE_SESSION_TYPES as readonly string[]).includes(session.type)
+      const claimed = await claimSessionImminenceNotification(session.id)
+      if (!claimed) continue
+      await sendImminencePush({
+        title: `🏁 ${session.gpName} — ça commence !`,
+        body:  'La session débute dans moins de 10 minutes.',
+        url:   '/',
+      }, isStakesSession)
+    }
+
     // Next 16 : revalidateTag exige un profil de cache (stale-while-revalidate).
     revalidateTag('drivers', 'max')
     revalidateTag('constructors', 'max')
@@ -174,6 +191,7 @@ async function handler(request: Request): Promise<Response> {
         sessionsConfirmed,
         notified: gpsToNotify.length,
         qualReminders: qualReminderGPs.length,
+        imminenceNotifs: imminenceSessions.length,
         writeErrors,
       },
       writeErrors > 0 ? { status: 500 } : undefined,

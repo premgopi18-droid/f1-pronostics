@@ -127,6 +127,7 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 | id | UUID PK | = auth.users.id |
 | pseudo | TEXT UNIQUE | |
 | avatar_key | TEXT | identifiant de l'avatar prédéfini |
+| notif_imminence_scope | TEXT | `'all'` / `'stakes-only'` / `'none'` — défaut `'stakes-only'` |
 | is_deleted | BOOLEAN | défaut false |
 | deleted_at | TIMESTAMPTZ | null si actif |
 | created_at | TIMESTAMPTZ | |

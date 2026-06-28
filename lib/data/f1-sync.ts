@@ -5,9 +5,12 @@ import type { CalendarEntry, ConstructorEntry, DriverConstructorLink, DriverEntr
 import {
   selectGPsToRemind,
   selectSessionsToNudge,
+  selectSessionsStartingSoon,
+  IMMINENCE_WINDOW_MS,
   type NudgeSessionRow,
   type NudgeTarget,
   type QualReminderRow,
+  type ImminenceSessionRow,
 } from '@/lib/data/notification-windows'
 
 // Appelé depuis /api/f1/sync — synchronise calendrier + pilotes + écuries depuis Jolpica
@@ -376,6 +379,58 @@ export async function claimSessionPostNudge(sessionId: string): Promise<boolean>
     .update({ notified_post_session_at: new Date().toISOString() })
     .eq('id', sessionId)
     .is('notified_post_session_at', null)
+    .select('id')
+  if (error) throw error
+  return (data ?? []).length > 0
+}
+
+// Sessions démarrant dans les 10 prochaines minutes et pas encore notifiées.
+// Toutes les sessions (EL incluses) sont candidates ; le filtrage stakes-only
+// se fait côté envoi selon la préférence utilisateur (voir sendImminencePush).
+export async function getSessionsNeedingImminenceNotification(
+  season: number,
+): Promise<ImminenceSessionRow[]> {
+  const supabase = createServiceClient()
+  const now      = new Date()
+  const limit    = new Date(now.getTime() + IMMINENCE_WINDOW_MS)
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('id, type, gp_id, starts_at, notified_imminence_at, grands_prix!gp_id(name, is_cancelled)')
+    .eq('season', season)
+    .is('notified_imminence_at', null)
+    .gte('starts_at', now.toISOString())
+    .lte('starts_at', limit.toISOString())
+
+  if (error) throw error
+
+  type GPMeta = { name: string; is_cancelled: boolean }
+  const rows: ImminenceSessionRow[] = []
+  for (const raw of data ?? []) {
+    const gp = raw.grands_prix as unknown as GPMeta | null
+    if (!gp) continue
+    rows.push({
+      id:          raw.id as string,
+      type:        raw.type as DbSessionType,
+      gpId:        raw.gp_id as string,
+      gpName:      gp.name,
+      isCancelled: gp.is_cancelled,
+      startsAt:    new Date(raw.starts_at as string),
+      notified:    raw.notified_imminence_at != null,
+    })
+  }
+
+  return selectSessionsStartingSoon(rows, now)
+}
+
+// Claim atomique de la notif "session imminente" — voir claimSessionDeadlineNotification.
+export async function claimSessionImminenceNotification(sessionId: string): Promise<boolean> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('sessions')
+    .update({ notified_imminence_at: new Date().toISOString() })
+    .eq('id', sessionId)
+    .is('notified_imminence_at', null)
     .select('id')
   if (error) throw error
   return (data ?? []).length > 0

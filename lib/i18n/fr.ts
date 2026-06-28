@@ -266,6 +266,7 @@ export const fr = {
     tabDrivers: "Pilotes",
     tabTeams: "Écuries",
     badgeProchain: "PROCHAIN",
+    badgeEnCours: "EN COURS",
     qualiLabel: "Quali",
     raceLabel: "Course",
     winner: "Vainqueur",

@@ -45,7 +45,7 @@ export default async function ResultsPage() {
     status: gp.status,
     winner: gp.winner,
     // Pronostiquable tant que les qualifications ne sont pas commencées.
-    canPredict: gp.qualifyingStartsAt ? new Date(gp.qualifyingStartsAt).getTime() > nowMs : false,
+    canPredict: gp.raceStartsAt ? new Date(gp.raceStartsAt).getTime() > nowMs : false,
     hasResults: gp.hasResults,
     formattedQualiTime: gp.qualifyingStartsAt ? formatSessionTime(gp.qualifyingStartsAt) : null,
     formattedRaceTime:  gp.raceStartsAt       ? formatSessionTime(gp.raceStartsAt)       : null,

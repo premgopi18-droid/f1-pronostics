@@ -84,11 +84,11 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
             <p className="text-sm text-text-secondary">{t('results.noCalendar')}</p>
           )}
 
-          {/* PROCHAIN hero */}
+          {/* PROCHAIN / EN COURS hero */}
           {prochain && (
             <Card variant="gradient">
               <div className="text-2xs font-bold uppercase tracking-wider text-primary">
-                {t('results.badgeProchain')}
+                {prochain.hasResults ? t('results.badgeEnCours') : t('results.badgeProchain')}
               </div>
               <div className="mt-2 flex items-start gap-3">
                 <CountryBadge code={prochain.countryCode} />
@@ -114,7 +114,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                       {prochain.hasResults && (
                         <Link
                           href={`/results/${prochain.id}`}
-                          className="inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                          className="inline-flex text-sm font-semibold text-text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                           aria-label={`${t('results.linkResults')} — ${prochain.gpName}`}
                         >
                           {t('results.linkResults')} ›
@@ -164,7 +164,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                     {gp.status === 'completed' && (
                       <Link
                         href={`/results/${gp.id}`}
-                        className="text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        className="text-sm font-semibold text-text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                         aria-label={`${t('results.linkResults')} — ${gp.displayName}`}
                       >
                         {t('results.linkResults')} ›
@@ -183,7 +183,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                     {gp.status === 'prochain' && !gp.canPredict && gp.hasResults && (
                       <Link
                         href={`/results/${gp.id}`}
-                        className="text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        className="text-sm font-semibold text-text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                         aria-label={`${t('results.linkResults')} — ${gp.displayName}`}
                       >
                         {t('results.linkResults')} ›

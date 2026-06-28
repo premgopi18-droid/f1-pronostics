@@ -39,14 +39,25 @@ const IMMINENCE_SCOPE_OPTIONS: { value: ImminenceScope; labelKey: 'notifications
 export function NotificationsContent({ defaultImminenceScope }: { defaultImminenceScope: ImminenceScope }) {
   const { status, pending, toggle } = usePushSubscription()
   const [imminenceScope, setImminenceScope] = useState<ImminenceScope>(defaultImminenceScope)
+  const [saveError, setSaveError] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const isSubscribed = status === 'subscribed'
 
   function handleScopeChange(scope: ImminenceScope) {
+    if (scope === imminenceScope) return
+    // Optimiste : on applique tout de suite, et on revient à la valeur précédente
+    // si l'écriture échoue (session expirée, erreur réseau) pour ne pas afficher
+    // une préférence non persistée.
+    const previous = imminenceScope
+    setSaveError(false)
     setImminenceScope(scope)
     startTransition(async () => {
-      await updateImminenceScope(scope)
+      const result = await updateImminenceScope(scope)
+      if (result.error) {
+        setImminenceScope(previous)
+        setSaveError(true)
+      }
     })
   }
 
@@ -126,14 +137,19 @@ export function NotificationsContent({ defaultImminenceScope }: { defaultImminen
                 <span className="text-xs text-muted-foreground">{t('notifications.imminenceSub')}</span>
               </span>
             </div>
-            <div className="flex divide-x divide-border border-t border-border">
+            <div
+              role="radiogroup"
+              aria-label={t('notifications.imminence')}
+              className="flex divide-x divide-border border-t border-border"
+            >
               {IMMINENCE_SCOPE_OPTIONS.map(({ value, labelKey }) => (
                 <button
                   key={value}
                   type="button"
+                  role="radio"
                   disabled={isPending}
                   onClick={() => handleScopeChange(value)}
-                  aria-pressed={imminenceScope === value}
+                  aria-checked={imminenceScope === value}
                   className={[
                     'flex flex-1 items-center justify-center px-2 py-3 text-xs font-medium transition-colors disabled:opacity-60',
                     imminenceScope === value
@@ -146,6 +162,17 @@ export function NotificationsContent({ defaultImminenceScope }: { defaultImminen
               ))}
             </div>
           </div>
+
+          {isPending && (
+            <p className="mt-2 text-xs text-muted-foreground" role="status">
+              {t('notifications.imminenceScopeSaving')}
+            </p>
+          )}
+          {saveError && (
+            <p className="mt-2 text-xs text-destructive" role="alert">
+              {t('notifications.imminenceScopeError')}
+            </p>
+          )}
         </>
       )}
     </main>

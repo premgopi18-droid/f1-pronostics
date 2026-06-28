@@ -436,6 +436,7 @@ export const fr = {
     imminenceScopeStakes: "Sessions à enjeu",
     imminenceScopeNone: "Aucune",
     imminenceScopeSaving: "Enregistrement…",
+    imminenceScopeError: "Échec de l'enregistrement, réessaie.",
     back: "Profil",
     unsupported: "Notifications push non supportées sur cet appareil.",
     denied: "Notifications bloquées dans les réglages de ton navigateur.",

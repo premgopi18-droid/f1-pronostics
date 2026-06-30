@@ -268,3 +268,8 @@ body {
    vu, ou JS absent). */
 .splash-overlay { display: none; }
 .splash-play .splash-overlay { display: flex; }
+
+/* Taille de police ajustable — classe posée sur <html> par le profil + boot script anti-FOUC.
+   Scale la font-size racine : tous les rem de l'app (Tailwind inclus) suivent. */
+.font-size-lg { font-size: 112.5%; } /* ~18px base */
+.font-size-xl { font-size: 125%; }   /* ~20px base */

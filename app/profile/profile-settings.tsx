@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight, Pencil, Palette, Paintbrush, Bell, Accessibility, Volume2, Smartphone, Share } from 'lucide-react'
+import { ChevronRight, Pencil, Palette, Paintbrush, Bell, Accessibility, Volume2, Smartphone, Share, Type } from 'lucide-react'
 import {
   usePrefersReducedMotion,
   setReduceMotionOverride,
@@ -9,11 +9,20 @@ import {
 import { useSplashSoundEnabled, setSplashSoundEnabled } from '@/lib/audio/splash-sound'
 import { ensureAudioContext } from '@/lib/audio/engine-flyby'
 import { useInstallPrompt } from '@/lib/hooks/use-install-prompt'
+import { useFontSize, setFontSizeOption } from '@/lib/hooks/use-font-size'
+import { FONT_SIZE_OPTIONS, type FontSizeOption } from '@/lib/a11y/font-size'
 import { t } from '@/lib/i18n'
+
+const FONT_SIZE_LABELS: Record<FontSizeOption, string> = {
+  normal: t('profile.fontSizeNormal'),
+  large:  t('profile.fontSizeLarge'),
+  xlarge: t('profile.fontSizeXlarge'),
+}
 
 export function ProfileSettings() {
   // usePrefersReducedMotion se souscrit aux changements système et à l'override utilisateur.
   const reducedMotion = usePrefersReducedMotion()
+  const fontSizeOption = useFontSize()
   const { isIOS, showInSettings, canPromptInstall, install } = useInstallPrompt()
   const splashSoundEnabled = useSplashSoundEnabled()
 
@@ -152,6 +161,35 @@ export function ProfileSettings() {
               />
             </span>
           </button>
+        </li>
+
+        <li>
+          <div className="flex items-start gap-3 px-4 py-4">
+            <Type size={18} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden />
+            <div className="flex flex-1 flex-col gap-2">
+              <span className="text-sm font-medium text-foreground">
+                {t('profile.fontSize')}
+              </span>
+              <div role="group" aria-label={t('profile.fontSize')} className="flex gap-1.5">
+                {FONT_SIZE_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setFontSizeOption(option)}
+                    aria-pressed={fontSizeOption === option}
+                    className={[
+                      'rounded-lg px-3 py-1 text-xs font-medium transition-colors min-h-[44px] flex items-center',
+                      fontSizeOption === option
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                    ].join(' ')}
+                  >
+                    {FONT_SIZE_LABELS[option]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </li>
 
         <li>

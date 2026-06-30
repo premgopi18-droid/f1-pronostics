@@ -203,6 +203,8 @@ export const fr = {
     noScores:        "Aucun score pour ce GP. Les scores apparaissent dès qu'une session est confirmée.",
     totalGp:         "Total GP",
     factsTitle:      "⚡ Faits marquants du GP",
+    factsEmptyCalm:  "🐔 Pas un seul item joué ce week-end… vous attendiez une invitation ?",
+    factsPending:    "🤐 Les coups fourrés seront révélés après la course.",
     detailTitle:     "Détail du joueur",
     detailHint:      "👆 Touche une ligne du classement pour voir un autre joueur",
     me:              "(moi)",

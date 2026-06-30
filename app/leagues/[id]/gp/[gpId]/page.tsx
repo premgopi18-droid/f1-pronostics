@@ -299,7 +299,7 @@ export default async function GPScoresPage({
 
         {/* Classement + faits marquants + détail */}
         {hasScores && (
-          <GPResultsClient members={memberViews} sessions={sessionViews} facts={facts} />
+          <GPResultsClient members={memberViews} sessions={sessionViews} facts={facts} revealed={isDefinitif} />
         )}
 
       </div>

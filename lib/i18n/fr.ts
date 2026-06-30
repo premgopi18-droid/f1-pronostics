@@ -198,8 +198,10 @@ export const fr = {
   gpResults: {
     badgeDefinitif:  "Définitif",
     badgeProvisoire: "Provisoire",
-    playItem:        "🎮 Jouer un item",
-    compareLink:     "👀 Pronos comparés",
+    playItem:          "🎮 Jouer un item",
+    itemsWeekend:      "🎮 Items du week-end",
+    compareLink:       "👀 Pronos comparés",
+    compareLockedHint: "Dispo après le départ de la 1ʳᵉ séance",
     noScores:        "Aucun score pour ce GP. Les scores apparaissent dès qu'une session est confirmée.",
     totalGp:         "Total GP",
     factsTitle:      "⚡ Faits marquants du GP",

@@ -112,9 +112,10 @@ export function buildSessionDetail(
  * Inclut ses propres items (delta acteur) et les items offensifs le ciblant (delta cible).
  */
 export function buildMemberItemLines(
-  items:      ResolvedItem[],
-  memberId:   string,
-  identity:   Map<string, PlayerIdentity>,
+  items:            ResolvedItem[],
+  memberId:         string,
+  identity:         Map<string, PlayerIdentity>,
+  shieldedByTarget: Map<string, number>,   // pré-calculé une fois (cf. countShieldedAttacksByTarget)
 ): Map<SessionType, ItemLine[]> {
   const bySession = new Map<SessionType, ItemLine[]>()
   const push = (session: SessionType, line: ItemLine) => {
@@ -140,7 +141,7 @@ export function buildMemberItemLines(
       if (isOffensive && targetId) {
         text = t('gpResults.detailItemOwnOffensive', { item: label, target: pseudoOf(targetId) })
       } else if (item.itemType === 'shield') {
-        const blocked = countShielded(items, memberId)
+        const blocked = shieldedByTarget.get(memberId) ?? 0
         text = label + (blocked > 0 ? t('gpResults.detailShieldNeutralized', { pts: blocked }) : '')
       } else {
         text = t('gpResults.detailItemOwn', { item: label })
@@ -159,12 +160,4 @@ export function buildMemberItemLines(
   }
 
   return bySession
-}
-
-function countShielded(items: ResolvedItem[], targetId: string): number {
-  return items.filter(
-    (i) => (i.itemType === 'block_driver' || i.itemType === 'wild_card')
-      && i.wasShielded
-      && (i.payload.target_user_id as string | undefined) === targetId,
-  ).length
 }

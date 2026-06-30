@@ -1,5 +1,4 @@
 import { t } from '@/lib/i18n'
-import type { TranslationKey } from '@/lib/i18n'
 import { itemEmoji, itemName } from '@/lib/items/catalog'
 import { formatSignedDelta, type DeltaKind } from '@/lib/scoring/delta'
 import { ITEM_RESOLUTION_ORDER } from '@/lib/scoring/resolve-items'
@@ -49,25 +48,28 @@ function orderIndex(itemType: string): number {
   return index < 0 ? ITEM_RESOLUTION_ORDER.length : index
 }
 
-function chain(key: string, vars: Record<string, string | number> = {}): string {
-  return t(`gpResults.${key}` as TranslationKey, vars)
-}
-
-export function buildGPFacts(
-  items:    ResolvedItem[],
-  identity: Map<string, PlayerIdentity>,
-): Fact[] {
-  const unknown: PlayerIdentity = { pseudo: '?', color: '#52525b' }
-  const who = (userId: string): PlayerIdentity => identity.get(userId) ?? unknown
-
-  // Nombre d'attaques neutralisées par le bouclier de chaque joueur.
-  const shieldedAttacksByTarget = new Map<string, number>()
+/**
+ * Nombre d'attaques (block/wild_card) neutralisées par le bouclier de chaque joueur,
+ * indexé par userId ciblé. Source unique partagée par les faits marquants et le détail.
+ */
+export function countShieldedAttacksByTarget(items: ResolvedItem[]): Map<string, number> {
+  const byTarget = new Map<string, number>()
   for (const item of items) {
     if ((item.itemType === 'block_driver' || item.itemType === 'wild_card') && item.wasShielded) {
       const target = item.payload.target_user_id as string | undefined
-      if (target) shieldedAttacksByTarget.set(target, (shieldedAttacksByTarget.get(target) ?? 0) + 1)
+      if (target) byTarget.set(target, (byTarget.get(target) ?? 0) + 1)
     }
   }
+  return byTarget
+}
+
+export function buildGPFacts(
+  items:             ResolvedItem[],
+  identity:          Map<string, PlayerIdentity>,
+  shieldedByTarget:  Map<string, number>,
+): Fact[] {
+  const unknown: PlayerIdentity = { pseudo: '?', color: '#52525b' }
+  const who = (userId: string): PlayerIdentity => identity.get(userId) ?? unknown
 
   const facts: Fact[] = []
 
@@ -81,13 +83,13 @@ export function buildGPFacts(
 
     switch (item.itemType) {
       case 'shield': {
-        const blocked = shieldedAttacksByTarget.get(item.userId) ?? 0
+        const blocked = shieldedByTarget.get(item.userId) ?? 0
         facts.push({
           key: baseKey, emoji,
           actorPseudo: actor.pseudo, actorColor: actor.color,
           verb: t('gpResults.factPlays'), object: itemName('shield'),
           deltaKind: 'nil',
-          chain: [blocked > 0 ? chain('chainShieldBlocked', { pts: blocked }) : chain('chainShieldUnused')],
+          chain: [blocked > 0 ? t('gpResults.chainShieldBlocked', { pts: blocked }) : t('gpResults.chainShieldUnused')],
         })
         break
       }
@@ -111,19 +113,19 @@ export function buildGPFacts(
           facts.push({
             ...common, deltaKind: 'nil', tag: t('gpResults.factCancelled'),
             chain: [
-              chain('chainBlockShielded', { target: target.pseudo }),
-              chain('chainBlockCancelled', { driver }),
+              t('gpResults.chainBlockShielded', { target: target.pseudo }),
+              t('gpResults.chainBlockCancelled', { driver }),
             ],
           })
         } else if (loss < 0) {
           facts.push({
             ...common, deltaText: formatSignedDelta(loss), deltaKind: 'neg',
-            chain: [chain('chainBlockRemoved', { driver, session: sLabel ?? '', pts: Math.abs(loss) })],
+            chain: [t('gpResults.chainBlockRemoved', { driver, session: sLabel ?? '', pts: Math.abs(loss) })],
           })
         } else {
           facts.push({
             ...common, deltaText: '0', deltaKind: 'nil',
-            chain: [chain('chainBlockNoPoints', { driver })],
+            chain: [t('gpResults.chainBlockNoPoints', { driver })],
           })
         }
         break
@@ -147,8 +149,8 @@ export function buildGPFacts(
           facts.push({
             ...common, deltaKind: 'nil', tag: t('gpResults.factCancelled'),
             chain: [
-              chain('chainBlockShielded', { target: target.pseudo }),
-              chain('chainWildCancelled'),
+              t('gpResults.chainBlockShielded', { target: target.pseudo }),
+              t('gpResults.chainWildCancelled'),
             ],
           })
         } else {
@@ -157,8 +159,8 @@ export function buildGPFacts(
             deltaText: stolen > 0 ? formatSignedDelta(stolen) : undefined,
             deltaKind: stolen > 0 ? 'pos' : 'nil',
             chain: [
-              chain('chainWildSteal', { actor: actor.pseudo, session: sLabel ?? '', target: target.pseudo }),
-              chain('chainWildTransfer', { pts: stolen, target: target.pseudo, actor: actor.pseudo }),
+              t('gpResults.chainWildSteal', { actor: actor.pseudo, session: sLabel ?? '', target: target.pseudo }),
+              t('gpResults.chainWildTransfer', { pts: stolen, target: target.pseudo, actor: actor.pseudo }),
             ],
           })
         }
@@ -176,8 +178,8 @@ export function buildGPFacts(
           deltaText: gain > 0 ? formatSignedDelta(gain) : undefined,
           deltaKind: gain > 0 ? 'pos' : 'nil',
           chain: [gain > 0
-            ? chain('chainDoubleApplied', { session: sLabel ?? '', pts: gain })
-            : chain('chainDoubleNoEffect')],
+            ? t('gpResults.chainDoubleApplied', { session: sLabel ?? '', pts: gain })
+            : t('gpResults.chainDoubleNoEffect')],
         })
         break
       }
@@ -193,8 +195,8 @@ export function buildGPFacts(
           deltaText: gain > 0 ? formatSignedDelta(gain) : undefined,
           deltaKind: gain > 0 ? 'pos' : 'nil',
           chain: [gain > 0
-            ? chain('chainBonusApplied', { pts: gain })
-            : chain('chainBonusNoEffect')],
+            ? t('gpResults.chainBonusApplied', { pts: gain })
+            : t('gpResults.chainBonusNoEffect')],
         })
         break
       }

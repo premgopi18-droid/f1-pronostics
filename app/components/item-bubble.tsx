@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
-import { itemName } from "@/lib/items/catalog";
-import { GP_ITEM_EMOJI, type GpItemType } from "@/lib/leagues/league-list";
+import { itemEmoji, itemName } from "@/lib/items/catalog";
+import { type GpItemType } from "@/lib/leagues/league-list";
 
 export function ItemBubble({
   itemType,
@@ -17,7 +17,7 @@ export function ItemBubble({
       aria-label={`${itemName(itemType)} — ${usesRemaining} ${usesRemaining > 1 ? t("leagues.remainingPlural") : t("leagues.remaining")}`}
     >
       <span className="text-xl leading-none" aria-hidden>
-        {GP_ITEM_EMOJI[itemType]}
+        {itemEmoji(itemType)}
       </span>
       <span className="font-numeric text-2xs font-semibold text-text-secondary tabular-nums">
         {usesRemaining}

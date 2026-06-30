@@ -28,8 +28,8 @@ function makeItem(
     id:                'test-item',
     wasShielded:       false,
     effectApplied:     false,
-    pointsDeltaActor:  null,
-    pointsDeltaTarget: null,
+    pointsDeltaActor:  0,
+    pointsDeltaTarget: 0,
     ...overrides,
   }
 }

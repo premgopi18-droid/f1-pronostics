@@ -6,7 +6,7 @@ import { getCurrentSeason } from '@/lib/api/cron'
 import { t } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
 import { getHelmet, DEFAULT_HELMET } from '@/lib/profile/avatars'
-import { buildGPFacts, type PlayerIdentity, type ResolvedItem } from '@/lib/items/facts'
+import { buildGPFacts, countShieldedAttacksByTarget, type PlayerIdentity, type ResolvedItem } from '@/lib/items/facts'
 import { buildMemberItemLines, buildSessionDetail } from '@/lib/scoring/gp-detail'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 import {
@@ -180,13 +180,15 @@ export default async function GPScoresPage({
       pointsDeltaTarget: row.points_delta_target as number | null,
     }))
 
-  const facts = buildGPFacts(resolvedItems, identity)
+  // Comptage des attaques neutralisées par bouclier — calculé une fois, partagé.
+  const shieldedByTarget = countShieldedAttacksByTarget(resolvedItems)
+  const facts = buildGPFacts(resolvedItems, identity, shieldedByTarget)
 
   // ── Vues membres ──────────────────────────────────────────────────────────
   const memberViews: MemberView[] = (members ?? []).map((m) => {
     const memberId = m.user_id as string
     const info     = identity.get(memberId)!
-    const itemLines = buildMemberItemLines(resolvedItems, memberId, identity)
+    const itemLines = buildMemberItemLines(resolvedItems, memberId, identity, shieldedByTarget)
 
     const sessionsView: Partial<Record<SessionType, MemberSessionDetail>> = {}
     let total = 0

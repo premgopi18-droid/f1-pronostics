@@ -74,9 +74,10 @@ export async function getItemsForGP(
     payload:           mapPayload(row.item_type as string, row.payload as Record<string, unknown>),
     wasShielded:       (row.was_shielded as boolean | null) ?? false,
     effectApplied:     (row.effect_applied as boolean | null) ?? false,
-    // Renseignés par applyItemEffects avant markItemsResolved.
-    pointsDeltaActor:  null,
-    pointsDeltaTarget: null,
+    // 0 par défaut : un item non touché par un resolver (bouclier, item annulé)
+    // reste à 0/0. Les resolvers écrasent ces valeurs avant markItemsResolved.
+    pointsDeltaActor:  0,
+    pointsDeltaTarget: 0,
   }))
 }
 

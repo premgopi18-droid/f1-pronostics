@@ -56,7 +56,8 @@ export interface PlayedItem {
   effectApplied: boolean
   // Effet chiffré renseigné par le moteur de résolution (cf. issue #151).
   // actor = joueur qui a joué l'item ; target = cible (null pour items non offensifs).
-  // null tant que l'item n'est pas résolu.
-  pointsDeltaActor:  number | null
+  // Initialisés à 0 à la construction : un item qui ne passe par aucun resolver
+  // (bouclier, item offensif annulé) reste donc à 0/0 sans passe de rattrapage.
+  pointsDeltaActor:  number
   pointsDeltaTarget: number | null
 }

@@ -244,16 +244,8 @@ export function applyItemEffects(
     active(type).forEach(i => RESOLVERS[type](i, scores, ctx))
   }
 
-  // Items sans effet sur les points : boucliers (canal défensif) et items offensifs
-  // annulés par un bouclier (jamais passés dans un resolver, donc actor resté null).
-  // → 0/0. Les items bonus mettent volontairement target à null (pas de cible) et
-  // ont déjà un actor non-null, donc ne sont pas touchés ici. Cf. table issue #151.
-  for (const item of items) {
-    if (item.pointsDeltaActor === null) {
-      item.pointsDeltaActor  = 0
-      item.pointsDeltaTarget = 0
-    }
-  }
-
+  // Pas de passe de rattrapage : les deltas sont initialisés à 0/0 à la construction
+  // (lib/data/items.ts). Un item non touché par un resolver — bouclier, ou item
+  // offensif annulé par un bouclier (exclu par `active`) — reste donc à 0/0.
   return scores
 }

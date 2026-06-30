@@ -23,7 +23,7 @@ Built by two people (names TBD). UI language: French. Code language: English.
 | File | Content |
 |---|---|
 | [docs/product-specs.md](docs/product-specs.md) | Full product specs — features, scoring rules, item rules, TBDs |
-| [docs/data-model.md](docs/data-model.md) | Database schema — 16 tables, RLS policies, indexes, constraints |
+| [docs/data-model.md](docs/data-model.md) | Database schema — 17 tables, RLS policies, indexes, constraints |
 | [docs/scoring-spec.md](docs/scoring-spec.md) | Scoring algorithm — pseudocode, worked example, edge cases |
 | [docs/architecture.md](docs/architecture.md) | Code architecture — layer boundaries, patterns, execution model |
 

@@ -38,17 +38,6 @@ export const GP_ITEM_TYPES: readonly GpItemType[] = [
   'fia_penalty',
 ]
 
-export const GP_ITEM_EMOJI: Record<GpItemType, string> = {
-  shield:          '🛡️',
-  block_driver:    '🚫',
-  wild_card:       '🃏',
-  double_points:   '✨',
-  dnf_prediction:  '💥',
-  underdog_top5:   '🔥',
-  no_points_team:  '💧',
-  fia_penalty:     '🚔',
-}
-
 /**
  * Calcule le rang de l'utilisateur dans une ligue à partir des scores bruts.
  * Les membres sans aucune ligne de score sont à 0 pt et n'influencent pas le rang

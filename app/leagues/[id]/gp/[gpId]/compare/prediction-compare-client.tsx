@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { t } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { POSITIONS_TO_SCORE, SCORE_TABLES } from '@/lib/scoring/constants'
+import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
+import { classifyPositionDelta } from '@/lib/scoring/position-mark'
 import type { SessionType } from '@/lib/scoring/types'
 
 export type SessionInfo = {
@@ -44,12 +45,8 @@ function matchQuality(
   if (!official || official.length === 0 || !predicted) return 'unknown'
   const actualPos = official.indexOf(predicted) + 1
   if (actualPos === 0) return 'miss'
-  const delta = Math.abs(position - actualPos)
-  if (delta === 0) return 'exact'
-  // Le barème accorde des points jusqu'à un certain écart (±2 en course/qualifs,
-  // ±1 en sprint) : tout delta qui rapporte des points est un hit partiel.
-  const scoreTable = SCORE_TABLES[sessionType] as Record<number, number>
-  return (scoreTable[delta] ?? 0) > 0 ? 'partial' : 'miss'
+  // Règle exact/partial/miss partagée avec le détail des résultats GP.
+  return classifyPositionDelta(Math.abs(position - actualPos), sessionType)
 }
 
 const QUALITY_CLASSES: Record<'exact' | 'partial' | 'miss' | 'unknown', string> = {

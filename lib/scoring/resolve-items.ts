@@ -8,6 +8,23 @@ import type {
 } from './types'
 
 // ============================================================
+// Ordre de résolution (spec §3.5) — source unique.
+// applyItemEffects applique les resolvers dans cet ordre ; les faits marquants
+// (lib/items/facts.ts) s'en servent pour ordonner l'affichage. Un seul endroit à
+// modifier si la séquence change.
+// ============================================================
+
+export const ITEM_RESOLUTION_ORDER = [
+  'shield',
+  'block_driver',
+  'wild_card',
+  'double_points',
+  'dnf_prediction',
+  'underdog_top5',
+  'no_points_team',
+] as const
+
+// ============================================================
 // Helpers
 // ============================================================
 
@@ -56,11 +73,18 @@ function resolveBlock(
   const { targetUserId, sessionType, driverCode } = item.payload
 
   const victim = scores.get(scoreKey(targetUserId, sessionType))
-  if (!victim) { item.effectApplied = false; return }
+  if (!victim) {
+    item.effectApplied     = false
+    item.pointsDeltaActor  = 0
+    item.pointsDeltaTarget = 0
+    return
+  }
 
   const pts = victim.breakdown.find(e => e.code === driverCode)?.pts ?? 0
   victim.finalScore -= pts
-  item.effectApplied = pts > 0
+  item.effectApplied     = pts > 0
+  item.pointsDeltaActor  = 0              // bloquer ne rapporte rien à l'acteur
+  item.pointsDeltaTarget = pts > 0 ? -pts : 0  // retire les points de position à la cible
 }
 
 // ============================================================
@@ -92,6 +116,8 @@ export function resolveWildCards(
 
     wc.payload.pointsStolen = stolen
     wc.effectApplied        = true
+    wc.pointsDeltaActor     = stolen                 // l'attaquant encaisse
+    wc.pointsDeltaTarget    = stolen > 0 ? -stolen : 0  // la cible perd
   }
 }
 
@@ -106,7 +132,15 @@ function resolveDouble(
 ): void {
   if (item.payload.type !== 'double_points') return
   const score = scores.get(scoreKey(item.userId, item.payload.sessionType))
-  if (score) { score.finalScore *= 2; item.effectApplied = true }
+  item.pointsDeltaTarget = null   // item non offensif : pas de cible
+  if (score) {
+    const before = score.finalScore
+    score.finalScore *= 2
+    item.effectApplied    = true
+    item.pointsDeltaActor = score.finalScore - before
+  } else {
+    item.pointsDeltaActor = 0
+  }
 }
 
 // ============================================================
@@ -122,11 +156,12 @@ function resolveDnfPrediction(
   if (item.payload.type !== 'dnf_prediction') return
   // DNS (dnf absent/false) = item wasted — seul dnf=true déclenche le bonus
   const confirmed = ctx.raceResults.get(item.payload.driverCode)?.dnf === true
-  if (confirmed) {
-    const score = scores.get(scoreKey(item.userId, 'race'))
-    if (score) score.finalScore += ITEM_BONUS_POINTS.dnf_prediction
-  }
-  item.effectApplied = confirmed
+  const score     = scores.get(scoreKey(item.userId, 'race'))
+  const applied   = confirmed && score != null
+  if (applied) score!.finalScore += ITEM_BONUS_POINTS.dnf_prediction
+  item.effectApplied     = confirmed
+  item.pointsDeltaActor  = applied ? ITEM_BONUS_POINTS.dnf_prediction : 0
+  item.pointsDeltaTarget = null
 }
 
 function resolveUnderdogTop5(
@@ -143,11 +178,13 @@ function resolveUnderdogTop5(
   const isUnderdog   = qualPos === null || qualPos > 10
   const finishedTop5 = racePos !== null && racePos <= 5
 
-  if (isUnderdog && finishedTop5) {
-    const score = scores.get(scoreKey(item.userId, 'race'))
-    if (score) score.finalScore += ITEM_BONUS_POINTS.underdog_top5
-  }
-  item.effectApplied = isUnderdog && finishedTop5
+  const triggered = isUnderdog && finishedTop5
+  const score     = scores.get(scoreKey(item.userId, 'race'))
+  const applied   = triggered && score != null
+  if (applied) score!.finalScore += ITEM_BONUS_POINTS.underdog_top5
+  item.effectApplied     = triggered
+  item.pointsDeltaActor  = applied ? ITEM_BONUS_POINTS.underdog_top5 : 0
+  item.pointsDeltaTarget = null
 }
 
 function resolveNoPointsTeam(
@@ -161,11 +198,12 @@ function resolveNoPointsTeam(
     const pos = ctx.raceResults.get(code)?.position
     return pos !== null && pos !== undefined && pos <= 10
   })
-  if (!teamScored) {
-    const score = scores.get(scoreKey(item.userId, 'race'))
-    if (score) score.finalScore += ITEM_BONUS_POINTS.no_points_team
-  }
-  item.effectApplied = !teamScored
+  const score   = scores.get(scoreKey(item.userId, 'race'))
+  const applied = !teamScored && score != null
+  if (applied) score!.finalScore += ITEM_BONUS_POINTS.no_points_team
+  item.effectApplied     = !teamScored
+  item.pointsDeltaActor  = applied ? ITEM_BONUS_POINTS.no_points_team : 0
+  item.pointsDeltaTarget = null
 }
 
 // ============================================================
@@ -206,5 +244,8 @@ export function applyItemEffects(
     active(type).forEach(i => RESOLVERS[type](i, scores, ctx))
   }
 
+  // Pas de passe de rattrapage : les deltas sont initialisés à 0/0 à la construction
+  // (lib/data/items.ts). Un item non touché par un resolver — bouclier, ou item
+  // offensif annulé par un bouclier (exclu par `active`) — reste donc à 0/0.
   return scores
 }

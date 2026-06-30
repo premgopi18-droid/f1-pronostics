@@ -21,12 +21,15 @@ function makeEntry(code: string, predictedPos: number, actualPos: number | null,
 }
 
 function makeItem(
-  overrides: Omit<PlayedItem, 'id' | 'wasShielded' | 'effectApplied'> & Partial<Pick<PlayedItem, 'wasShielded' | 'effectApplied'>>,
+  overrides: Omit<PlayedItem, 'id' | 'wasShielded' | 'effectApplied' | 'pointsDeltaActor' | 'pointsDeltaTarget'>
+    & Partial<Pick<PlayedItem, 'wasShielded' | 'effectApplied' | 'pointsDeltaActor' | 'pointsDeltaTarget'>>,
 ): PlayedItem {
   return {
-    id:            'test-item',
-    wasShielded:   false,
-    effectApplied: false,
+    id:                'test-item',
+    wasShielded:       false,
+    effectApplied:     false,
+    pointsDeltaActor:  0,
+    pointsDeltaTarget: 0,
     ...overrides,
   }
 }
@@ -377,6 +380,123 @@ describe('No points team', () => {
 
     expect(scores.get('alice:race')!.finalScore).toBe(10)
     expect(items[0].effectApplied).toBe(false)
+  })
+})
+
+// ============================================================
+// Deltas chiffrés (issue #151) — points_delta_actor / points_delta_target
+// ============================================================
+
+describe('Deltas chiffrés', () => {
+  it('block_driver : actor 0, target = -points retirés', () => {
+    const scores = new Map<ScoreKey, SessionScore>([
+      ['alice:race', makeScore(20, 1, [makeEntry('VER', 1, 1, 5)])],
+    ])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'bob', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
+    ]
+
+    applyItemEffects(items, scores, emptyCtx)
+
+    expect(items[0].pointsDeltaActor).toBe(0)
+    expect(items[0].pointsDeltaTarget).toBe(-5)
+  })
+
+  it('block_driver sans points à retirer : actor 0, target 0', () => {
+    const scores = new Map<ScoreKey, SessionScore>([
+      ['alice:race', makeScore(10, 0, [makeEntry('PER', 2, null, 0)])],
+    ])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'bob', payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'PER' } }),
+    ]
+
+    applyItemEffects(items, scores, emptyCtx)
+
+    expect(items[0].pointsDeltaActor).toBe(0)
+    expect(items[0].pointsDeltaTarget).toBe(0)
+  })
+
+  it('wild_card : actor +stolen, target -stolen', () => {
+    const scores = new Map<ScoreKey, SessionScore>([
+      ['alice:race', makeScore(22)],
+      ['bob:race',   makeScore(10)],
+    ])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'bob', payload: { type: 'wild_card', targetUserId: 'alice', sessionType: 'race' } }),
+    ]
+
+    applyItemEffects(items, scores, emptyCtx)
+
+    expect(items[0].pointsDeltaActor).toBe(11)
+    expect(items[0].pointsDeltaTarget).toBe(-11)
+  })
+
+  it('double_points : actor = montant ajouté par le ×2, target null', () => {
+    const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(15)]])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'double_points', sessionType: 'race' } }),
+    ]
+
+    applyItemEffects(items, scores, emptyCtx)
+
+    expect(items[0].pointsDeltaActor).toBe(15)   // 30 - 15
+    expect(items[0].pointsDeltaTarget).toBeNull()
+  })
+
+  it('bonus prédiction (dnf) : actor +8, target null', () => {
+    const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(10)]])
+    const raceResults = new Map<string, DriverResult>([['ALO', { position: null, fastestLap: false, dnf: true }]])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'dnf_prediction', driverCode: 'ALO' } }),
+    ]
+
+    applyItemEffects(items, scores, { ...emptyCtx, raceResults })
+
+    expect(items[0].pointsDeltaActor).toBe(8)
+    expect(items[0].pointsDeltaTarget).toBeNull()
+  })
+
+  it('bonus non déclenché : actor 0, target null', () => {
+    const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(10)]])
+    const raceResults = new Map<string, DriverResult>([['ALO', { position: 5, fastestLap: false, dnf: false }]])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'dnf_prediction', driverCode: 'ALO' } }),
+    ]
+
+    applyItemEffects(items, scores, { ...emptyCtx, raceResults })
+
+    expect(items[0].pointsDeltaActor).toBe(0)
+    expect(items[0].pointsDeltaTarget).toBeNull()
+  })
+
+  it('shield : actor 0, target 0', () => {
+    const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(20)]])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'shield' } }),
+    ]
+
+    applyItemEffects(items, scores, emptyCtx)
+
+    expect(items[0].pointsDeltaActor).toBe(0)
+    expect(items[0].pointsDeltaTarget).toBe(0)
+  })
+
+  it('item offensif annulé par bouclier : actor 0, target 0', () => {
+    const scores = new Map<ScoreKey, SessionScore>([
+      ['alice:race', makeScore(20, 1, [makeEntry('VER', 1, 1, 5)])],
+      ['bob:race',   makeScore(40)],
+    ])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'shield' } }),
+      makeItem({ userId: 'bob',   payload: { type: 'block_driver', targetUserId: 'alice', sessionType: 'race', driverCode: 'VER' } }),
+    ]
+
+    applyItemEffects(items, scores, emptyCtx)
+
+    const block = items.find(i => i.payload.type === 'block_driver')!
+    expect(block.wasShielded).toBe(true)
+    expect(block.pointsDeltaActor).toBe(0)
+    expect(block.pointsDeltaTarget).toBe(0)
   })
 })
 

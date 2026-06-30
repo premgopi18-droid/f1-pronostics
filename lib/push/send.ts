@@ -94,6 +94,17 @@ export async function sendImminencePush(payload: PushPayload, isStakesSession: b
   )
 }
 
+// Envoie à UN abonnement précis (clés déjà en main, sans relire la base). Utile
+// quand on cible l'appareil qui vient de s'abonner plutôt que tous ceux du user
+// (évite de re-notifier un appareil déjà prévenu — cf. notif de rattrapage #115).
+export async function sendPushToSubscription(
+  sub:     { endpoint: string; p256dh: string; auth_key: string },
+  payload: PushPayload,
+): Promise<void> {
+  if (!configureVapid()) return
+  await deliverToSubs([sub], payload)
+}
+
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
   if (!configureVapid()) return
   const supabase = createServiceClient()

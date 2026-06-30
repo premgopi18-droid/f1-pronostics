@@ -3,12 +3,15 @@ import {
   selectSessionsToNudge,
   selectGPsToRemind,
   selectSessionsStartingSoon,
+  selectClosestCatchUpDeadline,
   POST_SESSION_NUDGE_DELAY_MS,
   QUAL_REMINDER_WINDOW_MS,
   IMMINENCE_WINDOW_MS,
+  CATCH_UP_DEADLINE_WINDOW_MS,
   type NudgeSessionRow,
   type QualReminderRow,
   type ImminenceSessionRow,
+  type CatchUpDeadlineRow,
 } from './notification-windows'
 
 const NOW = new Date('2025-03-15T12:00:00Z')
@@ -267,5 +270,68 @@ describe('selectGPsToRemind', () => {
       NOW,
     )
     expect(result).toEqual([])
+  })
+})
+
+function catchUpRow(overrides: Partial<CatchUpDeadlineRow>): CatchUpDeadlineRow {
+  return {
+    gpId:     'gp1',
+    gpName:   'GP Test',
+    type:     'qualifying',
+    startsAt: minsFromNow(30),
+    ...overrides,
+  }
+}
+
+describe('selectClosestCatchUpDeadline', () => {
+  it('retourne null si aucune session', () => {
+    expect(selectClosestCatchUpDeadline([], NOW)).toBeNull()
+  })
+
+  it('retourne la session dont la deadline tombe dans la fenêtre', () => {
+    const result = selectClosestCatchUpDeadline([catchUpRow({ startsAt: hoursFromNow(1) })], NOW)
+    expect(result?.gpId).toBe('gp1')
+  })
+
+  it('retourne null si la deadline est au-delà de la fenêtre (> 2h)', () => {
+    const result = selectClosestCatchUpDeadline([catchUpRow({ startsAt: hoursFromNow(3) })], NOW)
+    expect(result).toBeNull()
+  })
+
+  it('retourne null si la deadline est déjà passée (starts_at < now)', () => {
+    const result = selectClosestCatchUpDeadline([catchUpRow({ startsAt: minsFromNow(-1) })], NOW)
+    expect(result).toBeNull()
+  })
+
+  it('retourne la deadline la PLUS proche quand plusieurs sont dans la fenêtre', () => {
+    const result = selectClosestCatchUpDeadline(
+      [
+        catchUpRow({ gpId: 'race',  type: 'race',       startsAt: hoursFromNow(1.5) }),
+        catchUpRow({ gpId: 'qual',  type: 'qualifying', startsAt: minsFromNow(20) }),
+      ],
+      NOW,
+    )
+    expect(result?.gpId).toBe('qual')
+  })
+
+  it('inclut une deadline pile à now (borne basse incluse)', () => {
+    const result = selectClosestCatchUpDeadline([catchUpRow({ startsAt: NOW })], NOW)
+    expect(result?.gpId).toBe('gp1')
+  })
+
+  it('inclut une deadline pile à now + 2h (borne haute incluse)', () => {
+    const result = selectClosestCatchUpDeadline(
+      [catchUpRow({ startsAt: new Date(NOW.getTime() + CATCH_UP_DEADLINE_WINDOW_MS) })],
+      NOW,
+    )
+    expect(result?.gpId).toBe('gp1')
+  })
+
+  it('exclut une deadline juste au-delà de la limite', () => {
+    const result = selectClosestCatchUpDeadline(
+      [catchUpRow({ startsAt: new Date(NOW.getTime() + CATCH_UP_DEADLINE_WINDOW_MS + 1000) })],
+      NOW,
+    )
+    expect(result).toBeNull()
   })
 })

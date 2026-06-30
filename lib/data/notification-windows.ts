@@ -8,6 +8,7 @@ import type { DbSessionType, SessionType } from '@/lib/scoring/types'
 export const POST_SESSION_NUDGE_DELAY_MS = 2 * 60 * 60 * 1000 // 2h après le début de la session
 export const QUAL_REMINDER_WINDOW_MS     = 24 * 60 * 60 * 1000 // rappel « pronos J-1 »
 export const IMMINENCE_WINDOW_MS         = 10 * 60 * 1000       // 10 min avant le début
+export const CATCH_UP_DEADLINE_WINDOW_MS = 2 * 60 * 60 * 1000   // rattrapage à l'activation des push (#115)
 
 // ── Nudge « tu peux encore ajuster la session suivante » ──────────────────────
 
@@ -77,6 +78,31 @@ export function selectSessionsStartingSoon(rows: ImminenceSessionRow[], now: Dat
   return rows.filter(
     (row) => !row.isCancelled && !row.notified && row.startsAt >= now && row.startsAt <= limit,
   )
+}
+
+// ── Rattrapage à l'activation des push (#115) ─────────────────────────────────
+
+export interface CatchUpDeadlineRow {
+  gpId:     string
+  gpName:   string
+  type:     SessionType
+  startsAt: Date
+}
+
+// Quand un utilisateur active les push en plein week-end, le cron de rappel
+// (J-1, 1h avant) est déjà passé. À l'abonnement, on cherche la deadline scorable
+// la plus proche dont `startsAt` tombe dans [now, now + CATCH_UP_DEADLINE_WINDOW_MS]
+// pour le prévenir immédiatement. Une seule cible (la plus imminente) → un seul
+// message. Les rows reçues sont déjà filtrées (scorables, non annulées) côté requête.
+// Bornes inclusives : on ne veut pas rater une deadline pile à `now` ou à la limite.
+export function selectClosestCatchUpDeadline(
+  rows: CatchUpDeadlineRow[],
+  now:  Date,
+): CatchUpDeadlineRow | null {
+  const limit = new Date(now.getTime() + CATCH_UP_DEADLINE_WINDOW_MS)
+  const inWindow = rows.filter((row) => row.startsAt >= now && row.startsAt <= limit)
+  if (inWindow.length === 0) return null
+  return inWindow.reduce((closest, row) => (row.startsAt < closest.startsAt ? row : closest))
 }
 
 // ── Rappel « pronos J-1 » (au niveau GP) ──────────────────────────────────────

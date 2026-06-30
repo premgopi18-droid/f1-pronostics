@@ -6,11 +6,14 @@ import {
   selectGPsToRemind,
   selectSessionsToNudge,
   selectSessionsStartingSoon,
+  selectClosestCatchUpDeadline,
   IMMINENCE_WINDOW_MS,
+  CATCH_UP_DEADLINE_WINDOW_MS,
   type NudgeSessionRow,
   type NudgeTarget,
   type QualReminderRow,
   type ImminenceSessionRow,
+  type CatchUpDeadlineRow,
 } from '@/lib/data/notification-windows'
 
 // Appelé depuis /api/f1/sync — synchronise calendrier + pilotes + écuries depuis Jolpica
@@ -248,6 +251,44 @@ export async function markGPNotifiedQualReminder(gpId: string): Promise<void> {
     .update({ notified_reminder_24h_at: new Date().toISOString() })
     .eq('id', gpId)
   if (error) throw error
+}
+
+// Deadline scorable la plus proche dans la fenêtre de rattrapage (#115). Appelé à
+// l'activation des push : si une session-deadline (pronos + items) tombe dans les
+// prochaines CATCH_UP_DEADLINE_WINDOW_MS, on prévient l'utilisateur tout de suite
+// (le cron de rappel J-1/1h est déjà passé). Pas de claim/dédup : c'est un one-shot
+// par abonnement, ciblé sur le seul user qui vient de s'abonner.
+export async function getImminentDeadlineForCatchUp(
+  season: number,
+): Promise<CatchUpDeadlineRow | null> {
+  const supabase = createServiceClient()
+  const now   = new Date()
+  const limit = new Date(now.getTime() + CATCH_UP_DEADLINE_WINDOW_MS)
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('type, gp_id, starts_at, grands_prix!gp_id(name, is_cancelled)')
+    .eq('season', season)
+    .in('type', SCOREABLE_SESSION_TYPES)
+    .gte('starts_at', now.toISOString())
+    .lte('starts_at', limit.toISOString())
+
+  if (error) throw error
+
+  type GPMeta = { name: string; is_cancelled: boolean }
+  const rows: CatchUpDeadlineRow[] = []
+  for (const raw of data ?? []) {
+    const gp = raw.grands_prix as unknown as GPMeta | null
+    if (!gp || gp.is_cancelled) continue
+    rows.push({
+      gpId:     raw.gp_id as string,
+      gpName:   gp.name,
+      type:     raw.type as SessionType,
+      startsAt: new Date(raw.starts_at as string),
+    })
+  }
+
+  return selectClosestCatchUpDeadline(rows, now)
 }
 
 // GPs dont le scoring est finalisé et la notification résultats pas encore envoyée

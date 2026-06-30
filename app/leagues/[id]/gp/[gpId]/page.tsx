@@ -309,13 +309,14 @@ export default async function GPScoresPage({
               <span className="text-xs text-muted-foreground">→</span>
             </Link>
           ) : (
-            <div
-              aria-disabled
-              className="flex items-center justify-between rounded-xl bg-card px-4 py-3 opacity-50"
+            <button
+              type="button"
+              disabled
+              className="flex w-full cursor-not-allowed items-center justify-between rounded-xl bg-card px-4 py-3 text-left opacity-50"
             >
               <span className="text-sm font-medium text-muted-foreground">{t('gpResults.compareLink')}</span>
               <span className="text-[11px] text-muted-foreground">{t('gpResults.compareLockedHint')}</span>
-            </div>
+            </button>
           )}
         </div>
 

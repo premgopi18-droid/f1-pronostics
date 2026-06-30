@@ -39,6 +39,8 @@ interface Props {
   members:  MemberView[]
   sessions: SessionView[]
   facts:    Fact[]
+  /** GP révélé (scoring finalisé) → distingue « aucun item joué » du « pas encore révélé ». */
+  revealed: boolean
 }
 
 const RANK_COLOR = ['text-gold', 'text-silver', 'text-bronze'] as const
@@ -194,7 +196,7 @@ function SessionDetailBody({ detail }: { detail: MemberSessionDetail | undefined
 
 // ── Composant principal ─────────────────────────────────────────────────────
 
-export function GPResultsClient({ members, sessions, facts }: Props) {
+export function GPResultsClient({ members, sessions, facts, revealed }: Props) {
   const defaultMember = members.find((m) => m.isMe)?.userId ?? members[0]?.userId ?? ''
   const [selectedId, setSelectedId] = useState(defaultMember)
 
@@ -262,13 +264,17 @@ export function GPResultsClient({ members, sessions, facts }: Props) {
         </div>
       </section>
 
-      {/* Faits marquants — visible seulement après résolution des items */}
-      {facts.length > 0 && (
-        <section className="flex flex-col gap-2.5">
-          <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            {t('gpResults.factsTitle')}
-          </h2>
-          {facts.map((fact) => (
+      {/* Faits marquants — les faits si items résolus, sinon un message contextuel */}
+      <section className="flex flex-col gap-2.5">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+          {t('gpResults.factsTitle')}
+        </h2>
+        {facts.length === 0 ? (
+          <p className="rounded-xl bg-card px-3.5 py-3 text-sm text-muted-foreground">
+            {revealed ? t('gpResults.factsEmptyCalm') : t('gpResults.factsPending')}
+          </p>
+        ) : (
+          facts.map((fact) => (
             <div key={fact.key} className="flex flex-col gap-2 rounded-xl bg-card px-3.5 py-3">
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-lg">{fact.emoji}</span>
@@ -300,9 +306,9 @@ export function GPResultsClient({ members, sessions, facts }: Props) {
                 ))}
               </div>
             </div>
-          ))}
-        </section>
-      )}
+          ))
+        )}
+      </section>
 
       {/* Détail du joueur */}
       <section className="flex flex-col gap-2.5">

@@ -50,8 +50,13 @@ const inter = Inter({
   display: "swap",
 });
 
-// Titillium ne sert que de police d'affichage (`font-display`), toujours en bold ou
-// black dans l'UI → on ne charge que 700 et 900 (400/600 n'étaient jamais rendus).
+// On ne charge que les graisses réellement rendues (chaque graisse = 1 woff2 préchargé).
+// ⚠️ Ces listes sont le contrat des graisses disponibles : utiliser une graisse non
+// listée (ex. `font-display` en poids normal, `font-numeric` en `font-medium`) ne lève
+// AUCUNE erreur — le navigateur synthétise/approxime silencieusement. Pour un nouveau
+// besoin, ajouter explicitement la graisse ici.
+
+// Titillium = police d'affichage (`font-display`), toujours en bold (700) ou black (900).
 const titilliumWeb = Titillium_Web({
   variable: "--font-titillium",
   weight: ["700", "900"],
@@ -59,8 +64,7 @@ const titilliumWeb = Titillium_Web({
   display: "swap",
 });
 
-// Rajdhani ne sert qu'aux chiffres (`font-numeric`) : 400 (poids par défaut), 600
-// (semibold) et 700 (bold) sont utilisés ; 500 ne l'était nulle part.
+// Rajdhani = chiffres (`font-numeric`) : 400 (défaut), 600 (semibold), 700 (bold).
 const rajdhani = Rajdhani({
   variable: "--font-rajdhani",
   weight: ["400", "600", "700"],

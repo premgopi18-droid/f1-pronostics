@@ -213,7 +213,7 @@ function ComparisonPanel({
       {/* Badge + titre */}
       <div>
         <h2 className="text-lg font-bold text-foreground">{title}</h2>
-        <p className="mt-1 text-xs text-primary font-semibold">
+        <p className="mt-1 text-xs text-primary-text font-semibold">
           🔒 {t('season.lockedBadge')}
         </p>
       </div>
@@ -228,7 +228,7 @@ function ComparisonPanel({
             </p>
           </div>
           <div className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-center">
-            <p className="text-xl font-bold text-primary tabular-nums">{score + bonus}</p>
+            <p className="text-xl font-bold text-primary-text tabular-nums">{score + bonus}</p>
             <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-text-secondary">
               {t('season.statsProjected')}
             </p>

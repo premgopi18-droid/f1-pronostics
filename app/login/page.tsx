@@ -15,7 +15,7 @@ export default function LoginPage() {
 
       <div className="relative">
         <h1 className="font-display text-[54px] font-black leading-none tracking-tight text-foreground">
-          BOX<span className="text-primary">BOX</span>
+          BOX<span className="text-primary-text">BOX</span>
         </h1>
         <p className="mx-auto mt-3.5 max-w-[240px] text-[15px] leading-relaxed text-text-secondary">
           {t('login.tagline1')}

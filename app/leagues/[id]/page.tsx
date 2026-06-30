@@ -198,7 +198,7 @@ export default async function LeaguePage({
         <section aria-labelledby="items-heading">
           <h2
             id="items-heading"
-            className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary"
+            className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary-text"
           >
             {t('leagueDetail.myItemsTitle')}
           </h2>
@@ -236,7 +236,7 @@ export default async function LeaguePage({
           <section aria-labelledby="preview-heading">
             <h2
               id="preview-heading"
-              className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary"
+              className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary-text"
             >
               {t('leagueDetail.seasonPreviewTitle')}
             </h2>
@@ -288,7 +288,7 @@ export default async function LeaguePage({
           <section id="gps" aria-labelledby="gps-heading">
             <h2
               id="gps-heading"
-              className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary"
+              className="mb-3 text-2xs font-semibold uppercase tracking-widest text-primary-text"
             >
               {t('leagueDetail.weekendsTitle')}
             </h2>
@@ -313,7 +313,7 @@ export default async function LeaguePage({
                     ) : isPast ? (
                       <span className="text-2xs font-semibold text-warning">{t('leagueDetail.gpStatusProvisional')}</span>
                     ) : isNext ? (
-                      <span className="text-2xs font-semibold text-primary">{t('leagueDetail.gpStatusNext')}</span>
+                      <span className="text-2xs font-semibold text-primary-text">{t('leagueDetail.gpStatusNext')}</span>
                     ) : (
                       <span className="text-2xs font-semibold text-text-muted">{t('leagueDetail.gpStatusUpcoming')}</span>
                     )}

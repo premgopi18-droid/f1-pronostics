@@ -74,7 +74,7 @@ export function JoinPreview({ preview, code }: { preview: LeaguePreview; code: s
           <p className="max-w-xs text-sm text-text-secondary">{t("join.alreadyMemberText")}</p>
           <Link
             href={`/leagues/${id}`}
-            className="mt-1 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            className="mt-1 text-sm font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
           >
             {t("join.alreadyMemberCta")} →
           </Link>

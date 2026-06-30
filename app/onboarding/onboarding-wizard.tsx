@@ -93,7 +93,7 @@ export function OnboardingWizard() {
 
       {step === 1 ? (
         <div className="flex flex-1 flex-col">
-          <p className="text-xs font-bold uppercase tracking-wider text-primary">
+          <p className="text-xs font-bold uppercase tracking-wider text-primary-text">
             {t("onboarding.pseudoStep")}
           </p>
           <h1 className="mt-2 font-display text-[28px] font-bold text-foreground">
@@ -149,7 +149,7 @@ export function OnboardingWizard() {
           <input type="hidden" name="pseudo" value={pseudo} />
           <input type="hidden" name="avatar_key" value={avatar ?? ""} />
 
-          <p className="text-xs font-bold uppercase tracking-wider text-primary">
+          <p className="text-xs font-bold uppercase tracking-wider text-primary-text">
             {t("onboarding.avatarStep")}
           </p>
           <h1 className="mt-2 font-display text-[28px] font-bold text-foreground">

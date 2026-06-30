@@ -77,7 +77,7 @@ export function CreateLeagueForm() {
       {/* Info admin */}
       <div className="rounded-xl bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-foreground">
         {t('createLeague.infoTextPre')}{' '}
-        <strong className="font-semibold text-primary">{t('createLeague.infoAdmin')}</strong>
+        <strong className="font-semibold text-primary-text">{t('createLeague.infoAdmin')}</strong>
         {t('createLeague.infoTextPost')}
       </div>
 

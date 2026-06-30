@@ -77,7 +77,7 @@ export default async function SeasonPage() {
           {t('season.pageTitle')}
         </h1>
         {deadlines.submissionDeadline && (
-          <p className={`text-sm ${isSubmissionOpen ? 'text-text-secondary' : 'text-primary font-semibold'}`}>
+          <p className={`text-sm ${isSubmissionOpen ? 'text-text-secondary' : 'text-primary-text font-semibold'}`}>
             {isSubmissionOpen
               ? `${t('season.deadlinePrefix')} ${formatDeadline(deadlines.submissionDeadline)}`
               : t('season.lockedSince')

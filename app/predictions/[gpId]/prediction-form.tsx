@@ -121,7 +121,7 @@ function A11yHintBanner({ onActivate, onDismiss }: { onActivate: () => void; onD
     <div className="flex items-start justify-between gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-2.5">
       <p className="text-sm text-text-secondary">
         {t('predict.a11yHint')}{' '}
-        <button onClick={onActivate} className="text-primary underline underline-offset-2 transition-opacity hover:opacity-80">
+        <button onClick={onActivate} className="text-primary-text underline underline-offset-2 transition-opacity hover:opacity-80">
           {t('predict.a11yHintCta')}
         </button>
       </p>
@@ -348,7 +348,7 @@ function RaceForm({
           className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5 text-sm transition-colors hover:bg-secondary/40"
         >
           {fastestLap ? (
-            <span className="font-mono font-semibold text-primary">{fastestLap}</span>
+            <span className="font-mono font-semibold text-primary-text">{fastestLap}</span>
           ) : (
             <span className="text-text-secondary">{t('predict.choosePilot')} →</span>
           )}
@@ -604,7 +604,7 @@ function QualifsForm({
                   onClick={() => add(driver.code)}
                   disabled={isComplete}
                   aria-label={`${t('predict.add')} ${driver.firstName} ${driver.lastName}`}
-                  className="shrink-0 text-sm font-semibold text-primary transition-colors hover:text-primary/80 disabled:pointer-events-none disabled:opacity-30"
+                  className="shrink-0 text-sm font-semibold text-primary-text transition-colors hover:text-primary-text/80 disabled:pointer-events-none disabled:opacity-30"
                 >
                   {t('predict.add')}
                 </button>

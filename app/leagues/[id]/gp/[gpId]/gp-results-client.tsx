@@ -252,7 +252,7 @@ export function GPResultsClient({ members, sessions, facts, revealed }: Props) {
               </span>
               <Pills exact={m.exactTotal} approx={m.approxTotal} />
               <span className="font-bold tabular-nums text-foreground">{m.total} {t('gpResults.pts')}</span>
-              <span className={cn('text-sm', m.userId === selectedId ? 'text-accent' : 'text-muted-foreground')}>▸</span>
+              <span className={cn('text-sm', m.userId === selectedId ? 'text-primary-text' : 'text-muted-foreground')}>▸</span>
             </button>
           ))}
         </div>
@@ -347,7 +347,7 @@ export function GPResultsClient({ members, sessions, facts, revealed }: Props) {
                       className={cn(
                         'rounded-full border border-transparent px-3 py-1.5 text-xs font-semibold transition-colors',
                         on
-                          ? 'border-accent/40 bg-accent-soft text-accent'
+                          ? 'border-accent/40 bg-accent-soft text-primary-text'
                           : 'bg-surface-2 text-muted-foreground hover:brightness-110',
                         !has && 'cursor-not-allowed opacity-40',
                       )}

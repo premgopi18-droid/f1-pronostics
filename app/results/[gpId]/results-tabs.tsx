@@ -243,7 +243,7 @@ function DriverRow({
       </div>
 
       {isFirst && !isDnf && (
-        <span className="text-2xs font-bold uppercase tracking-wider text-primary">
+        <span className="text-2xs font-bold uppercase tracking-wider text-primary-text">
           {t('results.leader')}
         </span>
       )}

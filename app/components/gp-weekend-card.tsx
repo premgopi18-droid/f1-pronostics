@@ -58,7 +58,7 @@ export function GpWeekendCard({
       {hasResults && (
         <Link
           href={`/results/${gpId}`}
-          className="mt-3 inline-flex w-full justify-center text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="mt-3 inline-flex w-full justify-center text-sm font-semibold text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
         >
           {t("home.viewResults")} <span aria-hidden="true">›</span>
         </Link>

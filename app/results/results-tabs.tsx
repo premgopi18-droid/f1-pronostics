@@ -87,7 +87,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
           {/* PROCHAIN / EN COURS hero */}
           {prochain && (
             <Card variant="gradient">
-              <div className="text-2xs font-bold uppercase tracking-wider text-primary">
+              <div className="text-2xs font-bold uppercase tracking-wider text-primary-text">
                 {prochain.hasResults ? t('results.badgeEnCours') : t('results.badgeProchain')}
               </div>
               <div className="mt-2 flex items-start gap-3">
@@ -123,7 +123,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                       {prochain.canPredict && (
                         <Link
                           href={`/predictions/${prochain.id}`}
-                          className="inline-flex text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                          className="inline-flex text-sm font-semibold text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                           aria-label={`${t('results.linkPredict')} — ${prochain.gpName}`}
                         >
                           {t('results.linkPredict')} ›
@@ -174,7 +174,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
                       (gp.status === 'prochain' && gp.canPredict)) && (
                       <Link
                         href={`/predictions/${gp.id}`}
-                        className="text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        className="text-sm font-semibold text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                         aria-label={`${t('results.linkPredict')} — ${gp.displayName}`}
                       >
                         {t('results.linkPredict')} ›
@@ -294,7 +294,7 @@ function StandingRow({
         aria-hidden
       />
       <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{name}</span>
-      <span className="shrink-0 text-sm font-bold tabular-nums text-primary">
+      <span className="shrink-0 text-sm font-bold tabular-nums text-primary-text">
         {points} {t('season.standingsPts')}
       </span>
     </div>

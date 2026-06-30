@@ -78,7 +78,7 @@ export function LeaderboardRealtime({
       <div className="mb-3 flex items-center justify-between">
         <h2
           id="leaderboard-heading"
-          className="text-2xs font-semibold uppercase tracking-widest text-primary"
+          className="text-2xs font-semibold uppercase tracking-widest text-primary-text"
         >
           {t('leagueDetail.leaderboardTitle')}
         </h2>

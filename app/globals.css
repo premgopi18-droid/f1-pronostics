@@ -26,9 +26,14 @@
   --surface-inverse: #FFFFFF;
   --foreground-inverse: #18181B;
 
-  /* Accent F1 Red */
-  --primary: #FF1801;
+  /* Accent F1 Red — rouge F1 officiel (#E10600). Assombri depuis #FF1801 pour que
+     le texte blanc sur bg-primary atteigne le seuil WCAG AA (4.5:1 → 4.97). */
+  --primary: #E10600;
   --primary-foreground: #FFFFFF;
+  /* Variante du primaire lisible EN TEXTE sur fond sombre : le primaire « plein »
+     (fond de bouton) est trop sombre pour servir de couleur de texte sur #15151E/
+     #1E1E2A. text-primary-text vise 4.5:1 en texte. Surchargé par thème ci-dessous. */
+  --primary-text: #FF4A38;
 
   /* Surfaces secondaires */
   --secondary: #2A2A3A;
@@ -37,9 +42,9 @@
   --muted: #2A2A3A;
   --muted-foreground: #A0A0B0;
 
-  --accent: #FF1801;
+  --accent: #E10600;
   --accent-foreground: #FFFFFF;
-  --accent-soft: #FF18011F; /* accent à ~12% — badges, bandeaux d'état */
+  --accent-soft: #E106001F; /* accent à ~12% — badges, bandeaux d'état */
 
   /* Gold — scores & points (omniprésent dans l'UI) */
   --gold: #F2C94C;
@@ -62,11 +67,11 @@
   /* Bordures & inputs */
   --border: #2A2A3A;
   --input: #2A2A3A;
-  --ring: #FF1801;
+  --ring: #E10600;
 
   /* Typographie */
   --text-secondary: #A0A0B0;
-  --text-muted: #606070;
+  --text-muted: #9090A0; /* éclairci depuis #606070 (2.67:1, échec WCAG) → 5.24:1 */
 
   /* Rayon de bordure base */
   --radius: 0.625rem;
@@ -82,18 +87,21 @@
   --accent:       #DC0000;
   --ring:         #DC0000;
   --accent-soft:  #DC00001F;
+  --primary-text: #FF5A5A; /* #DC0000 en texte = 3.17:1 (échec) → 5.38:1 */
 }
 [data-theme="mercedes"] {
   --primary:      #00D2BE;
   --accent:       #00D2BE;
   --ring:         #00D2BE;
   --accent-soft:  #00D2BE1F;
+  --primary-text: var(--primary); /* teal clair : 8.6:1 en texte, déjà conforme */
 }
 [data-theme="mclaren"] {
   --primary:      #FF8000;
   --accent:       #FF8000;
   --ring:         #FF8000;
   --accent-soft:  #FF80001F;
+  --primary-text: var(--primary); /* orange clair : 6.54:1 en texte, déjà conforme */
 }
 /* Livrées claires (teal Petronas, papaya McLaren) : le texte blanc par défaut
  * passe sous le seuil WCAG AA sur bg-primary. On bascule le foreground en sombre
@@ -108,12 +116,14 @@
   --accent:       #3671C6;
   --ring:         #3671C6;
   --accent-soft:  #3671C61F;
+  --primary-text: #5B91DD; /* #3671C6 en texte = 3.4:1 (échec) → 5.13:1 */
 }
 [data-theme="aston"] {
   --primary:      #006E51;
   --accent:       #006E51;
   --ring:         #006E51;
   --accent-soft:  #006E511F;
+  --primary-text: #1FA87E; /* #006E51 en texte = 2.63:1 (échec) → 5.46:1 */
 }
 
 @theme inline {
@@ -133,6 +143,7 @@
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
 
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -246,8 +257,8 @@ body {
 
 /* Mode accessibilité — tokens contraste WCAG AAA. Calculé sur les deux fonds réels
    de l'app (page #15151E ET carte #1E1E2A) pour tenir le seuil AAA (7:1) partout.
-   text-secondary : #A0A0B0 → #C8C8D8 (~10.9:1 page · ~10.0:1 carte)
-   text-muted     : #606070 → #AEAEBE (~8.3:1  page · ~7.5:1  carte)
+   text-secondary : #A0A0B0 (AA) → #C8C8D8 (~10.9:1 page · ~10.0:1 carte)
+   text-muted     : #9090A0 (AA) → #AEAEBE (~8.3:1  page · ~7.5:1  carte)
    Double déclencheur, comme la réduction d'animations ci-dessus : préférence système
    (auto, sans JS) ET classe `.reduce-motion` (override manuel posé par le toggle profil). */
 @media (prefers-reduced-motion: reduce) {

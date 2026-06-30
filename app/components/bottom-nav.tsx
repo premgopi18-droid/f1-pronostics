@@ -67,7 +67,7 @@ export function BottomNav() {
               className={cn(
                 "flex flex-1 flex-col items-center justify-center gap-1 text-2xs font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                active ? "text-primary" : "text-text-muted hover:text-text-secondary",
+                active ? "text-primary-text" : "text-text-muted hover:text-text-secondary",
               )}
             >
               <Icon size={22} strokeWidth={active ? 2.4 : 2} aria-hidden />

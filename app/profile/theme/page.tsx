@@ -50,7 +50,7 @@ export default function ThemePage() {
                 {isActive && (
                   <Check
                     size={18}
-                    className="shrink-0 text-primary"
+                    className="shrink-0 text-primary-text"
                     aria-label={t('theme.applied')}
                   />
                 )}

@@ -10,7 +10,7 @@ export type ThemeId = 'boxbox' | 'ferrari' | 'mercedes' | 'mclaren' | 'redbull' 
 // Les libellés affichés viennent de l'i18n (`theme.themes.<id>`), pas d'ici —
 // `primary` sert à la pastille de couleur (swatch) du sélecteur.
 export const THEMES: { id: ThemeId; primary: string }[] = [
-  { id: 'boxbox',   primary: '#FF1801' },
+  { id: 'boxbox',   primary: '#E10600' },
   { id: 'ferrari',  primary: '#DC0000' },
   { id: 'mercedes', primary: '#00D2BE' },
   { id: 'mclaren',  primary: '#FF8000' },

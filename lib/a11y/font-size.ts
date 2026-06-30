@@ -7,7 +7,10 @@ export const FONT_SIZE_STORAGE_KEY = 'font-size-override'
 
 export const FONT_SIZE_OPTIONS: readonly FontSizeOption[] = ['normal', 'large', 'xlarge']
 
-// Classe posée sur <html>. Chaîne vide pour 'normal' (pas de classe à poser).
+// Map option → classe posée sur <html>. `normal` vaut une chaîne vide *volontairement* :
+// c'est la sentinelle « aucune classe à poser » (la taille par défaut vient du CSS racine).
+// Tout consommateur doit donc garder le réflexe de garder cette valeur (`if (cls) …`) avant
+// de l'ajouter/retirer — cf. applyFontSize (use-font-size.ts) et le boot script du layout.
 export const FONT_SIZE_CLASS: Record<FontSizeOption, string> = {
   normal: '',
   large:  'font-size-lg',

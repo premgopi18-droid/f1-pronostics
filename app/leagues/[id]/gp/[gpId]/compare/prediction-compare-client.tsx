@@ -61,8 +61,11 @@ const QUALITY_CLASSES: Record<'exact' | 'partial' | 'miss' | 'unknown', string> 
 const QUALITY_BAR_CLASSES: Record<'exact' | 'partial' | 'miss' | 'unknown', string> = {
   exact:   'bg-success',
   partial: 'bg-warning',
-  miss:    'bg-destructive',
-  unknown: 'bg-muted',
+  // miss : rouge atténué pour rester cohérent avec le texte gris (`text-text-muted`)
+  // et ne pas saturer la colonne tête-à-tête de barres vives.
+  miss:    'bg-destructive/60',
+  // unknown : rail neutre visible avant résultats (bg-muted se confond avec les surfaces).
+  unknown: 'bg-text-muted',
 }
 
 // ── Vue groupe ────────────────────────────────────────────────────────────────

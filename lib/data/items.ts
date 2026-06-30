@@ -69,11 +69,14 @@ export async function getItemsForGP(
   if (error) throw error
 
   return (data ?? []).map((row) => ({
-    id:            row.id as string,
-    userId:        row.user_id as string,
-    payload:       mapPayload(row.item_type as string, row.payload as Record<string, unknown>),
-    wasShielded:   (row.was_shielded as boolean | null) ?? false,
-    effectApplied: (row.effect_applied as boolean | null) ?? false,
+    id:                row.id as string,
+    userId:            row.user_id as string,
+    payload:           mapPayload(row.item_type as string, row.payload as Record<string, unknown>),
+    wasShielded:       (row.was_shielded as boolean | null) ?? false,
+    effectApplied:     (row.effect_applied as boolean | null) ?? false,
+    // Renseignés par applyItemEffects avant markItemsResolved.
+    pointsDeltaActor:  null,
+    pointsDeltaTarget: null,
   }))
 }
 
@@ -178,9 +181,11 @@ export async function markItemsResolved(items: PlayedItem[]): Promise<void> {
       const { error } = await supabase
         .from('items_played')
         .update({
-          was_shielded:   item.wasShielded,
-          effect_applied: item.effectApplied,
-          resolved_at:    new Date().toISOString(),
+          was_shielded:        item.wasShielded,
+          effect_applied:      item.effectApplied,
+          points_delta_actor:  item.pointsDeltaActor,
+          points_delta_target: item.pointsDeltaTarget,
+          resolved_at:         new Date().toISOString(),
           ...(payload ? { payload } : {}),
         })
         .eq('id', item.id)

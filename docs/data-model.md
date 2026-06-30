@@ -341,6 +341,8 @@ Historique de chaque item joué. Le champ `payload` stocke les données spécifi
 | resolved_at | TIMESTAMPTZ | null jusqu'après la course |
 | was_shielded | BOOLEAN | null pour items non offensifs |
 | effect_applied | BOOLEAN | false si annulé (bouclier actif, pilote DNS) |
+| points_delta_actor | INTEGER | nullable — effet en points sur le joueur qui a joué l'item (écrit par le moteur de résolution) |
+| points_delta_target | INTEGER | nullable — effet sur la cible (null pour items non offensifs ; historique pré-#151 à null) |
 
 **Contrainte :** `UNIQUE (user_id, league_id, gp_id) WHERE gp_id IS NOT NULL` — enforce "1 item GP par ligue par week-end". Les items saison (gp_id NULL) sont exclus de cette contrainte.
 

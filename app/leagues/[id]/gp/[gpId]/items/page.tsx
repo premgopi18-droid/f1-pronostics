@@ -5,19 +5,12 @@ import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import { getUserGPItems, getPlayedGPItemForUser } from '@/lib/data/items'
+import { allItemLabels } from '@/lib/items/catalog'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 import { PlayItemForm } from './play-item-form'
 
-const ITEM_LABELS: Record<string, { name: string; description: string; emoji: string }> = {
-  shield:         { name: 'Bouclier',                   description: 'Annule tous les items offensifs reçus ce week-end',                                            emoji: '🛡️' },
-  block_driver:   { name: 'Bloquer un pilote',          description: 'Un pilote rapporte 0 pt de position à un adversaire pour une session choisie',                emoji: '🚫' },
-  wild_card:      { name: 'Wild Card',                  description: 'Vole la moitié des points d\'un adversaire sur une session',                                  emoji: '🃏' },
-  double_points:  { name: 'Dernier tour de magie',      description: '×2 sur tes points de course ou de qualifications',                                            emoji: '✨' },
-  dnf_prediction: { name: 'On va trancher dans le vif !', description: 'Choisir un pilote qui ne finira pas la course — +8 pts s\'il abandonne',                   emoji: '💥' },
-  underdog_top5:  { name: 'Il est de retour !',         description: 'Un pilote qualifié hors top 10 finit dans le top 5 de la course — +8 pts',                   emoji: '🔥' },
-  no_points_team: { name: '"It must be the water !"',   description: 'Aucun des 2 pilotes d\'une écurie ne marque de point en course — +12 pts',                   emoji: '💧' },
-  fia_penalty:    { name: 'Move de la FIA',             description: 'Bientôt disponible — source de données en cours d\'intégration',                              emoji: '🚔' },
-}
+// Libellés centralisés (i18n approche A) — source unique lib/items/catalog.ts.
+const ITEM_LABELS = allItemLabels()
 
 export default async function ItemsPage({
   params,

@@ -45,6 +45,10 @@
   --gold: #F2C94C;
   --gold-soft: #F2C94C24; /* gold à ~14% */
 
+  /* Podium — argent & bronze (rangs 2 et 3) */
+  --silver: #CBD5E1;
+  --bronze: #D08B54;
+
   /* États (couleur pleine + variante « soft » ~15% pour les badges) */
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
@@ -142,6 +146,8 @@
 
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
+  --color-silver: var(--silver);
+  --color-bronze: var(--bronze);
 
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);

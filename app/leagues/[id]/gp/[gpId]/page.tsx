@@ -3,51 +3,20 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
-import { FASTEST_LAP_BONUS, POSITIONS_TO_SCORE, SCORE_TABLES } from '@/lib/scoring/constants'
+import { t } from '@/lib/i18n'
+import type { TranslationKey } from '@/lib/i18n'
+import { getHelmet, DEFAULT_HELMET } from '@/lib/profile/avatars'
+import { buildGPFacts, type PlayerIdentity, type ResolvedItem } from '@/lib/items/facts'
+import { buildMemberItemLines, buildSessionDetail } from '@/lib/scoring/gp-detail'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
+import {
+  GPResultsClient,
+  type MemberView,
+  type MemberSessionDetail,
+  type SessionView,
+} from './gp-results-client'
 
 const SESSION_ORDER: SessionType[] = ['sprint_qualifying', 'qualifying', 'sprint_race', 'race']
-
-const SESSION_LABELS: Record<SessionType, string> = {
-  qualifying:        'Qualifications',
-  race:              'Course',
-  sprint_qualifying: 'Sprint Qualifying',
-  sprint_race:       'Sprint Race',
-}
-
-// Ligne de classement partagée par « Total GP » et le détail par session.
-function ScoreRow({
-  rank,
-  pseudo,
-  points,
-  exactPositions,
-  isMe,
-  emphasis,
-}: {
-  rank:           number
-  pseudo:         string
-  points:         number
-  exactPositions: number
-  isMe:           boolean
-  emphasis:       boolean
-}) {
-  return (
-    <div
-      className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
-        isMe ? 'bg-zinc-800' : 'bg-zinc-900'
-      }`}
-    >
-      <span className="text-zinc-500 text-sm w-5 text-right">{rank}</span>
-      <span className={`flex-1 ${emphasis ? 'font-medium' : 'text-sm'} text-white`}>
-        {pseudo}
-      </span>
-      <span className="text-white font-semibold tabular-nums">{points} pts</span>
-      {exactPositions > 0 && (
-        <span className="text-zinc-500 text-xs tabular-nums ml-1">{exactPositions}✓</span>
-      )}
-    </div>
-  )
-}
 
 export default async function GPScoresPage({
   params,
@@ -75,11 +44,10 @@ export default async function GPScoresPage({
       .from('sessions')
       .select('id, type, results_confirmed_at')
       .eq('gp_id', gpId)
-      // Essais libres exclus : la vue ligue ne porte que sur les sessions scorées.
       .in('type', SCOREABLE_SESSION_TYPES),
     supabase
       .from('league_members')
-      .select('user_id, profiles!user_id(pseudo)')
+      .select('user_id, profiles!user_id(pseudo, avatar_key)')
       .eq('league_id', leagueId)
       .eq('season', season),
     supabase
@@ -92,16 +60,16 @@ export default async function GPScoresPage({
   if (!gp || !league || gp.season !== season) notFound()
 
   const sessionIds = (sessions ?? []).map((s) => s.id as string)
-  const confirmedSessionIds = (sessions ?? [])
-    .filter((s) => s.results_confirmed_at != null)
-    .map((s) => s.id as string)
+  const confirmedSessions = (sessions ?? []).filter((s) => s.results_confirmed_at != null)
+  const confirmedSessionIds = confirmedSessions.map((s) => s.id as string)
 
-  // Stage 2 — scores + pronostics + résultats en parallèle (était 2 étapes séquentielles)
+  // Stage 2 — scores + pronostics/FL/résultats de TOUS les membres + items résolus
   const [
     { data: scoreRows },
-    { data: predRowsData },
-    { data: flRowsData },
-    { data: resultRowsData },
+    { data: predRows },
+    { data: flRows },
+    { data: resultRows },
+    { data: itemRows },
   ] = await Promise.all([
     sessionIds.length > 0
       ? supabase
@@ -114,15 +82,13 @@ export default async function GPScoresPage({
     confirmedSessionIds.length > 0
       ? supabase
           .from('predictions')
-          .select('session_id, entries, is_valid')
-          .eq('user_id', userId)
+          .select('user_id, session_id, entries, is_valid')
           .in('session_id', confirmedSessionIds)
       : { data: [] },
     confirmedSessionIds.length > 0
       ? supabase
           .from('fastest_lap_predictions')
-          .select('session_id, drivers!driver_id(code)')
-          .eq('user_id', userId)
+          .select('user_id, session_id, drivers!driver_id(code)')
           .in('session_id', confirmedSessionIds)
       : { data: [] },
     confirmedSessionIds.length > 0
@@ -132,10 +98,24 @@ export default async function GPScoresPage({
           .in('session_id', confirmedSessionIds)
           .not('position', 'is', null)
       : { data: [] },
+    // Items résolus uniquement (resolved_at non null) → faits marquants après la course.
+    supabase
+      .from('items_played')
+      .select('user_id, item_type, payload, was_shielded, effect_applied, points_delta_actor, points_delta_target')
+      .eq('league_id', leagueId)
+      .eq('gp_id', gpId)
+      .not('resolved_at', 'is', null),
   ])
 
   const typeById = new Map((sessions ?? []).map((s) => [s.id as string, s.type as SessionType]))
 
+  // Sessions confirmées, dans l'ordre canonique
+  const orderedConfirmedTypes = SESSION_ORDER.filter((type) =>
+    confirmedSessions.some((s) => s.type === type),
+  )
+  const sessionIdByType = new Map(confirmedSessions.map((s) => [s.type as SessionType, s.id as string]))
+
+  // ── Maps ────────────────────────────────────────────────────────────────
   const scoreMap = new Map<string, { finalScore: number; exactPositions: number }>()
   for (const row of scoreRows ?? []) {
     const sessionType = typeById.get(row.session_id as string)
@@ -146,107 +126,146 @@ export default async function GPScoresPage({
     })
   }
 
-  const orderedSessionTypes = SESSION_ORDER.filter((t) =>
-    (sessions ?? []).some((s) => s.type === t),
-  )
-
-  type MemberScore = {
-    userId:     string
-    pseudo:     string
-    isMe:       boolean
-    total:      number
-    exactTotal: number
-    bySession:  Partial<Record<SessionType, { finalScore: number; exactPositions: number }>>
+  const predBySession    = new Map<string, string[]>()   // `${userId}:${sessionId}`
+  const invalidBySession = new Set<string>()
+  for (const row of predRows ?? []) {
+    const key = `${row.user_id}:${row.session_id}`
+    if (row.is_valid) predBySession.set(key, row.entries as string[])
+    else invalidBySession.add(key)
   }
 
-  const memberScores: MemberScore[] = (members ?? [])
-    .map((m) => {
-      const profile = (m.profiles as unknown) as { pseudo: string } | null
-      const memberId = m.user_id as string
-      const bySession: Partial<Record<SessionType, { finalScore: number; exactPositions: number }>> = {}
-      let total      = 0
-      let exactTotal = 0
-
-      for (const sType of orderedSessionTypes) {
-        const score = scoreMap.get(`${memberId}:${sType}`)
-        if (score) {
-          bySession[sType] = score
-          total      += score.finalScore
-          exactTotal += score.exactPositions
-        }
-      }
-
-      return {
-        userId:    memberId,
-        pseudo:    profile?.pseudo ?? '?',
-        isMe:      memberId === userId,
-        total,
-        exactTotal,
-        bySession,
-      }
-    })
-    .sort((a, b) => b.total - a.total || b.exactTotal - a.exactTotal)
-
-  // ── Pronostics vs résultats réels ────────────────────────────────────────
-
-  const userPredictionsBySession  = new Map<string, string[]>()
-  const invalidPredictionSessions = new Set<string>()
-  const userFLBySession           = new Map<string, string>()
-  const actualResultsBySession    = new Map<string, Map<string, number>>()
-  const actualFLBySession         = new Map<string, string>()
-
-  for (const row of predRowsData ?? []) {
-    const sid = row.session_id as string
-    if (row.is_valid) userPredictionsBySession.set(sid, row.entries as string[])
-    else invalidPredictionSessions.add(sid)
-  }
-
-  for (const row of flRowsData ?? []) {
+  const flBySession = new Map<string, string>()
+  for (const row of flRows ?? []) {
     const driver = (row.drivers as unknown) as { code: string } | null
-    if (driver) userFLBySession.set(row.session_id as string, driver.code)
+    if (driver) flBySession.set(`${row.user_id}:${row.session_id}`, driver.code)
   }
 
-  for (const row of resultRowsData ?? []) {
+  // Résultats officiels par session
+  const resultsByCode   = new Map<string, Map<string, number>>()  // sessionId → code → pos
+  const positionToCode  = new Map<string, Map<number, string>>()  // sessionId → pos → code
+  const actualFL        = new Map<string, string>()               // sessionId → code
+  for (const row of resultRows ?? []) {
     const driver = (row.drivers as unknown) as { code: string } | null
     if (!driver) continue
-    const sid      = row.session_id as string
-    const position = row.position as number
-    if (!actualResultsBySession.has(sid)) actualResultsBySession.set(sid, new Map())
-    actualResultsBySession.get(sid)!.set(driver.code, position)
-    if (row.fastest_lap) actualFLBySession.set(sid, driver.code)
+    const sid = row.session_id as string
+    const pos = row.position as number
+    if (!resultsByCode.has(sid))  resultsByCode.set(sid, new Map())
+    if (!positionToCode.has(sid)) positionToCode.set(sid, new Map())
+    resultsByCode.get(sid)!.set(driver.code, pos)
+    positionToCode.get(sid)!.set(pos, driver.code)
+    if (row.fastest_lap) actualFL.set(sid, driver.code)
   }
+
+  // Identité des joueurs (pseudo + couleur du casque)
+  const identity = new Map<string, PlayerIdentity>()
+  for (const m of members ?? []) {
+    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null } | null
+    identity.set(m.user_id as string, {
+      pseudo: profile?.pseudo ?? '?',
+      color:  (getHelmet(profile?.avatar_key) ?? DEFAULT_HELMET).color,
+    })
+  }
+
+  // Items résolus → faits marquants + lignes de détail
+  const resolvedItems: ResolvedItem[] = (itemRows ?? []).map((row) => ({
+    userId:            row.user_id as string,
+    itemType:          row.item_type as string,
+    payload:           (row.payload as Record<string, unknown>) ?? {},
+    wasShielded:       (row.was_shielded as boolean | null) ?? false,
+    effectApplied:     (row.effect_applied as boolean | null) ?? false,
+    pointsDeltaActor:  row.points_delta_actor as number | null,
+    pointsDeltaTarget: row.points_delta_target as number | null,
+  }))
+
+  const facts = buildGPFacts(resolvedItems, identity)
+
+  // ── Vues membres ──────────────────────────────────────────────────────────
+  const memberViews: MemberView[] = (members ?? []).map((m) => {
+    const memberId = m.user_id as string
+    const info     = identity.get(memberId)!
+    const itemLines = buildMemberItemLines(resolvedItems, memberId, identity)
+
+    const sessionsView: Partial<Record<SessionType, MemberSessionDetail>> = {}
+    let total = 0
+    let exactTotal = 0
+    let approxTotal = 0
+
+    for (const sessionType of orderedConfirmedTypes) {
+      const sid     = sessionIdByType.get(sessionType)!
+      const key     = `${memberId}:${sid}`
+      const score   = scoreMap.get(`${memberId}:${sessionType}`)
+      const detail  = buildSessionDetail(
+        sessionType,
+        predBySession.get(key),
+        invalidBySession.has(key),
+        resultsByCode.get(sid) ?? new Map(),
+        positionToCode.get(sid) ?? new Map(),
+        flBySession.get(key),
+        actualFL.get(sid),
+      )
+
+      const finalScore = score?.finalScore ?? 0
+      total       += finalScore
+      exactTotal  += detail.exactCount
+      approxTotal += detail.approxCount
+
+      sessionsView[sessionType] = {
+        finalScore,
+        rows:          detail.rows,
+        fl:            detail.fl,
+        items:         itemLines.get(sessionType) ?? [],
+        hasPrediction: detail.hasPrediction,
+        invalid:       detail.invalid,
+      }
+    }
+
+    return {
+      userId:      memberId,
+      pseudo:      info.pseudo,
+      color:       info.color,
+      isMe:        memberId === userId,
+      total,
+      exactTotal,
+      approxTotal,
+      sessions:    sessionsView,
+    }
+  })
+  .sort((a, b) => b.total - a.total || b.exactTotal - a.exactTotal)
+
+  const sessionViews: SessionView[] = orderedConfirmedTypes.map((type) => ({
+    type,
+    label: t(`predict.tab.${type}` as TranslationKey),
+  }))
 
   const hasScores   = (scoreRows ?? []).length > 0
   const isDefinitif = gp.scoring_finalized_at != null
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8">
-      <div className="max-w-lg mx-auto flex flex-col gap-8">
+    <main className="min-h-screen bg-background px-4 py-8">
+      <div className="mx-auto flex max-w-lg flex-col gap-8">
 
         {/* Header */}
         <div className="flex flex-col gap-1">
           <Link
             href={`/leagues/${leagueId}`}
-            className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             ← {league.name as string}
           </Link>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs text-zinc-500 uppercase tracking-wider">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
                 Round {gp.round} · {gp.country}
               </p>
-              <h1 className="text-2xl font-bold text-white">{gp.name as string}</h1>
+              <h1 className="text-2xl font-bold text-foreground">{gp.name as string}</h1>
             </div>
             {hasScores && (
               <span
-                className={`mt-1 shrink-0 text-xs px-2 py-1 rounded-full ${
-                  isDefinitif
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : 'bg-amber-500/10 text-amber-400'
+                className={`mt-1 shrink-0 rounded-full px-2 py-1 text-xs ${
+                  isDefinitif ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'
                 }`}
               >
-                {isDefinitif ? 'Définitif' : 'Provisoire'}
+                {isDefinitif ? t('gpResults.badgeDefinitif') : t('gpResults.badgeProvisoire')}
               </span>
             )}
           </div>
@@ -256,210 +275,26 @@ export default async function GPScoresPage({
         <div className="flex flex-col gap-2">
           <Link
             href={`/leagues/${leagueId}/gp/${gpId}/items`}
-            className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
+            className="flex items-center justify-between rounded-xl bg-card px-4 py-3 transition-colors hover:brightness-110"
           >
-            <span className="text-white text-sm font-medium">🎮 Jouer un item</span>
-            <span className="text-zinc-600 text-xs">→</span>
+            <span className="text-sm font-medium text-foreground">{t('gpResults.playItem')}</span>
+            <span className="text-xs text-muted-foreground">→</span>
           </Link>
           <Link
             href={`/leagues/${leagueId}/gp/${gpId}/compare`}
-            className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
+            className="flex items-center justify-between rounded-xl bg-card px-4 py-3 transition-colors hover:brightness-110"
           >
-            <span className="text-white text-sm font-medium">👀 Pronos comparés</span>
-            <span className="text-zinc-600 text-xs">→</span>
+            <span className="text-sm font-medium text-foreground">{t('gpResults.compareLink')}</span>
+            <span className="text-xs text-muted-foreground">→</span>
           </Link>
         </div>
 
         {/* Aucun score */}
-        {!hasScores && (
-          <p className="text-zinc-500 text-sm">
-            Aucun score pour ce GP. Les scores apparaissent dès qu&apos;une session est confirmée.
-          </p>
-        )}
+        {!hasScores && <p className="text-sm text-muted-foreground">{t('gpResults.noScores')}</p>}
 
-        {/* Total GP */}
+        {/* Classement + faits marquants + détail */}
         {hasScores && (
-          <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Total GP</h2>
-            <div className="flex flex-col gap-1">
-              {memberScores.map((m, i) => (
-                <ScoreRow
-                  key={m.userId}
-                  rank={i + 1}
-                  pseudo={m.pseudo}
-                  points={m.total}
-                  exactPositions={m.exactTotal}
-                  isMe={m.isMe}
-                  emphasis
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Par session */}
-        {hasScores && orderedSessionTypes.map((sessionType) => {
-          const membersWithScore = memberScores
-            .filter((m) => m.bySession[sessionType] != null)
-            .sort((a, b) => {
-              const sa = a.bySession[sessionType]!
-              const sb = b.bySession[sessionType]!
-              return sb.finalScore - sa.finalScore || sb.exactPositions - sa.exactPositions
-            })
-
-          if (membersWithScore.length === 0) return null
-
-          return (
-            <section key={sessionType} className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-                {SESSION_LABELS[sessionType]}
-              </h2>
-              <div className="flex flex-col gap-1">
-                {membersWithScore.map((m, i) => {
-                  const score = m.bySession[sessionType]!
-                  return (
-                    <ScoreRow
-                      key={m.userId}
-                      rank={i + 1}
-                      pseudo={m.pseudo}
-                      points={score.finalScore}
-                      exactPositions={score.exactPositions}
-                      isMe={m.isMe}
-                      emphasis={false}
-                    />
-                  )
-                })}
-              </div>
-            </section>
-          )
-        })}
-
-        {/* Mes pronostics vs résultats */}
-        {confirmedSessionIds.length > 0 && (
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-              Mes pronostics
-            </h2>
-            {orderedSessionTypes
-              .filter((type) =>
-                (sessions ?? []).some((s) => s.type === type && s.results_confirmed_at != null),
-              )
-              .map((sessionType) => {
-                const session = (sessions ?? []).find((s) => s.type === sessionType)
-                if (!session) return null
-
-                const sid              = session.id as string
-                const predictedEntries = userPredictionsBySession.get(sid)
-                const actualResults    = actualResultsBySession.get(sid) ?? new Map<string, number>()
-                const predictedFL      = userFLBySession.get(sid)
-                const actualFL         = actualFLBySession.get(sid)
-                const scoreTable       = SCORE_TABLES[sessionType] as Record<number, number>
-                const positionsToScore = POSITIONS_TO_SCORE[sessionType]
-
-                // position réelle → code pilote (pour afficher qui était là sur une miss)
-                const positionToDriver = new Map<number, string>()
-                for (const [code, pos] of actualResults) positionToDriver.set(pos, code)
-
-                if (!predictedEntries) {
-                  const wasInvalid = invalidPredictionSessions.has(sid)
-                  return (
-                    <div key={sessionType} className="flex flex-col gap-2">
-                      <h3 className="text-xs font-medium text-zinc-500">
-                        {SESSION_LABELS[sessionType]}
-                      </h3>
-                      <p className="text-zinc-600 text-xs px-1">
-                        {wasInvalid ? 'Pronostic invalide' : 'Aucun pronostic soumis'}
-                      </p>
-                    </div>
-                  )
-                }
-
-                return (
-                  <div key={sessionType} className="flex flex-col gap-2">
-                    <h3 className="text-xs font-medium text-zinc-500">
-                      {SESSION_LABELS[sessionType]}
-                    </h3>
-                    <div className="flex flex-col gap-0.5">
-                      {predictedEntries.slice(0, positionsToScore).map((predictedCode, i) => {
-                        const predictedPos = i + 1
-                        const actualPos    = actualResults.get(predictedCode)
-                        const delta        = actualPos !== undefined
-                          ? Math.abs(predictedPos - actualPos)
-                          : undefined
-                        const pts          = delta !== undefined ? (scoreTable[delta] ?? 0) : 0
-                        const actualAtPos  = positionToDriver.get(predictedPos)
-                        const isExact      = delta === 0
-                        const isPartial    = delta !== undefined && delta > 0 && pts > 0
-
-                        return (
-                          <div
-                            key={i}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 text-xs"
-                          >
-                            <span className="text-zinc-600 w-5 text-right tabular-nums">
-                              P{predictedPos}
-                            </span>
-                            <span className={`font-mono w-9 ${isExact ? 'text-white' : 'text-zinc-300'}`}>
-                              {predictedCode}
-                            </span>
-                            {isExact ? (
-                              <span className="text-emerald-400">✓</span>
-                            ) : isPartial ? (
-                              <span className="text-amber-400">±{delta}</span>
-                            ) : (
-                              <>
-                                <span className="text-zinc-600">✗</span>
-                                {actualAtPos && (
-                                  <span className="text-zinc-500 font-mono">{actualAtPos}</span>
-                                )}
-                              </>
-                            )}
-                            <span
-                              className={`ml-auto tabular-nums font-medium ${
-                                pts > 0 ? 'text-white' : 'text-zinc-700'
-                              }`}
-                            >
-                              {pts > 0 ? `+${pts}` : '—'}
-                            </span>
-                          </div>
-                        )
-                      })}
-
-                      {/* Meilleur tour — course uniquement */}
-                      {sessionType === 'race' && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 text-xs mt-0.5">
-                          <span className="text-zinc-600 w-5 text-right">FL</span>
-                          <span
-                            className={`font-mono w-9 ${
-                              predictedFL && predictedFL === actualFL ? 'text-white' : 'text-zinc-300'
-                            }`}
-                          >
-                            {predictedFL ?? '—'}
-                          </span>
-                          {predictedFL && predictedFL === actualFL ? (
-                            <span className="text-emerald-400">✓</span>
-                          ) : (
-                            <>
-                              <span className="text-zinc-600">✗</span>
-                              {actualFL && (
-                                <span className="text-zinc-500 font-mono">{actualFL}</span>
-                              )}
-                            </>
-                          )}
-                          <span
-                            className={`ml-auto tabular-nums font-medium ${
-                              predictedFL && predictedFL === actualFL ? 'text-white' : 'text-zinc-700'
-                            }`}
-                          >
-                            {predictedFL && predictedFL === actualFL ? `+${FASTEST_LAP_BONUS}` : '—'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-          </section>
+          <GPResultsClient members={memberViews} sessions={sessionViews} facts={facts} />
         )}
 
       </div>

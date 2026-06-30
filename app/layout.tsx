@@ -50,16 +50,20 @@ const inter = Inter({
   display: "swap",
 });
 
+// Titillium ne sert que de police d'affichage (`font-display`), toujours en bold ou
+// black dans l'UI → on ne charge que 700 et 900 (400/600 n'étaient jamais rendus).
 const titilliumWeb = Titillium_Web({
   variable: "--font-titillium",
-  weight: ["400", "600", "700", "900"],
+  weight: ["700", "900"],
   subsets: ["latin"],
   display: "swap",
 });
 
+// Rajdhani ne sert qu'aux chiffres (`font-numeric`) : 400 (poids par défaut), 600
+// (semibold) et 700 (bold) sont utilisés ; 500 ne l'était nulle part.
 const rajdhani = Rajdhani({
   variable: "--font-rajdhani",
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "600", "700"],
   subsets: ["latin"],
   display: "swap",
 });

@@ -49,18 +49,20 @@ function matchQuality(
   return classifyPositionDelta(Math.abs(position - actualPos), sessionType)
 }
 
+// Indicateurs de qualité : sémantique propre (exact/partial/miss), indépendante de
+// l'écurie → tokens d'état (success/warning/destructive), jamais surchargés par le thème.
 const QUALITY_CLASSES: Record<'exact' | 'partial' | 'miss' | 'unknown', string> = {
-  exact:   'text-emerald-400',
-  partial: 'text-amber-400',
-  miss:    'text-zinc-600',
-  unknown: 'text-zinc-400',
+  exact:   'text-success',
+  partial: 'text-warning',
+  miss:    'text-text-muted',
+  unknown: 'text-text-secondary',
 }
 
 const QUALITY_BAR_CLASSES: Record<'exact' | 'partial' | 'miss' | 'unknown', string> = {
-  exact:   'bg-emerald-500',
-  partial: 'bg-amber-500',
-  miss:    'bg-red-800',
-  unknown: 'bg-zinc-700',
+  exact:   'bg-success',
+  partial: 'bg-warning',
+  miss:    'bg-destructive',
+  unknown: 'bg-muted',
 }
 
 // ── Vue groupe ────────────────────────────────────────────────────────────────
@@ -88,14 +90,14 @@ function GroupView({
           <div key={position} className="flex flex-col gap-2">
             {/* Position header */}
             <div className="flex items-center gap-2">
-              <span className="text-zinc-500 text-xs w-6 tabular-nums">P{position}</span>
+              <span className="text-text-secondary text-xs w-6 tabular-nums">P{position}</span>
               {officialCode ? (
-                <span className="text-white font-mono text-sm font-medium">{officialCode}</span>
+                <span className="text-foreground font-mono text-sm font-medium">{officialCode}</span>
               ) : (
-                <span className="text-zinc-600 text-xs">{t('compare.predictionNone')}</span>
+                <span className="text-text-muted text-xs">{t('compare.predictionNone')}</span>
               )}
               {officialCode && (
-                <span className="text-zinc-600 text-xs">{t('compare.officiel')}</span>
+                <span className="text-text-muted text-xs">{t('compare.officiel')}</span>
               )}
             </div>
 
@@ -112,10 +114,10 @@ function GroupView({
                     key={member.userId}
                     className={cn(
                       'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs',
-                      member.isMe ? 'bg-zinc-800' : 'bg-zinc-900',
+                      member.isMe ? 'bg-secondary' : 'bg-card',
                     )}
                   >
-                    <span className="text-zinc-500">{member.pseudo}</span>
+                    <span className="text-text-secondary">{member.pseudo}</span>
                     <span className={cn('font-mono font-medium', QUALITY_CLASSES[quality])}>
                       {predicted ?? t('compare.predictionNone')}
                     </span>
@@ -149,9 +151,9 @@ function HeadToHeadView({
     <div className="flex flex-col gap-1">
       {/* Header colonnes */}
       <div className="grid grid-cols-[1fr_2rem_1fr] gap-2 px-1 pb-1">
-        <span className="text-xs text-zinc-500 text-left">{t('compare.toi')}</span>
+        <span className="text-xs text-text-secondary text-left">{t('compare.toi')}</span>
         <span />
-        <span className="text-xs text-zinc-500 text-right truncate">{opponent.pseudo}</span>
+        <span className="text-xs text-text-secondary text-right truncate">{opponent.pseudo}</span>
       </div>
 
       {Array.from({ length: count }, (_, i) => {
@@ -182,7 +184,7 @@ function HeadToHeadView({
             </div>
 
             {/* Position */}
-            <span className="text-zinc-600 text-xs tabular-nums text-center">
+            <span className="text-text-muted text-xs tabular-nums text-center">
               P{position}
             </span>
 
@@ -230,7 +232,7 @@ export function PredictionCompareClient({
 
       {/* Onglets sessions */}
       {sessions.length > 1 && (
-        <div className="flex gap-1 bg-zinc-900 p-1 rounded-xl" role="tablist">
+        <div className="flex gap-1 border border-border bg-card p-1 rounded-xl" role="tablist">
           {sessions.map((s) => (
             <button
               key={s.id}
@@ -240,8 +242,8 @@ export function PredictionCompareClient({
               className={cn(
                 'flex-1 text-xs py-1.5 px-2 rounded-lg transition-colors',
                 s.id === activeSessionId
-                  ? 'bg-zinc-700 text-white font-medium'
-                  : 'text-zinc-500 hover:text-zinc-300',
+                  ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                  : 'text-text-secondary hover:text-foreground',
               )}
             >
               {t(SESSION_TAB_LABEL_KEYS[s.type])}
@@ -251,7 +253,7 @@ export function PredictionCompareClient({
       )}
 
       {/* Toggle Vue groupe / Tête-à-tête */}
-      <div className="flex gap-0 bg-zinc-900 p-1 rounded-xl" role="tablist" aria-label={t('compare.modeLabel')}>
+      <div className="flex gap-0 border border-border bg-card p-1 rounded-xl" role="tablist" aria-label={t('compare.modeLabel')}>
         <button
           role="tab"
           aria-selected={view === 'group'}
@@ -259,8 +261,8 @@ export function PredictionCompareClient({
           className={cn(
             'flex-1 text-sm py-2 px-3 rounded-lg transition-colors',
             view === 'group'
-              ? 'bg-red-500 text-white font-medium'
-              : 'text-zinc-400 hover:text-zinc-200',
+              ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+              : 'text-text-secondary hover:text-foreground',
           )}
         >
           {t('compare.vueGroupe')}
@@ -272,8 +274,8 @@ export function PredictionCompareClient({
           className={cn(
             'flex-1 text-sm py-2 px-3 rounded-lg transition-colors',
             view === 'head-to-head'
-              ? 'bg-red-500 text-white font-medium'
-              : 'text-zinc-400 hover:text-zinc-200',
+              ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+              : 'text-text-secondary hover:text-foreground',
           )}
         >
           {t('compare.teteATete')}
@@ -293,7 +295,7 @@ export function PredictionCompareClient({
       {view === 'head-to-head' && (
         <div className="flex flex-col gap-4">
           {opponents.length === 0 ? (
-            <p className="text-zinc-500 text-sm">{t('compare.noOtherMembers')}</p>
+            <p className="text-text-secondary text-sm">{t('compare.noOtherMembers')}</p>
           ) : (
             <>
               {/* Sélecteur adversaire */}
@@ -302,21 +304,21 @@ export function PredictionCompareClient({
                   onClick={() =>
                     setOpponentIndex((prev) => (prev - 1 + opponents.length) % opponents.length)
                   }
-                  className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
+                  className="p-2 text-text-secondary hover:text-foreground transition-colors disabled:opacity-30"
                   disabled={opponents.length <= 1}
                   aria-label={t('compare.prevOpponent')}
                 >
                   ‹
                 </button>
                 <div className="text-center">
-                  <p className="text-xs text-zinc-500">{t('compare.toiVs')}</p>
-                  <p className="text-white font-semibold">{opponent?.pseudo ?? '?'}</p>
+                  <p className="text-xs text-text-secondary">{t('compare.toiVs')}</p>
+                  <p className="text-foreground font-semibold">{opponent?.pseudo ?? '?'}</p>
                 </div>
                 <button
                   onClick={() =>
                     setOpponentIndex((prev) => (prev + 1) % opponents.length)
                   }
-                  className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
+                  className="p-2 text-text-secondary hover:text-foreground transition-colors disabled:opacity-30"
                   disabled={opponents.length <= 1}
                   aria-label={t('compare.nextOpponent')}
                 >

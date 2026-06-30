@@ -42,7 +42,7 @@ export default async function GPScoresPage({
       .single(),
     supabase
       .from('sessions')
-      .select('id, type, results_confirmed_at')
+      .select('id, type, starts_at, results_confirmed_at')
       .eq('gp_id', gpId)
       .in('type', SCOREABLE_SESSION_TYPES),
     supabase
@@ -62,6 +62,17 @@ export default async function GPScoresPage({
   const sessionIds = (sessions ?? []).map((s) => s.id as string)
   const confirmedSessions = (sessions ?? []).filter((s) => s.results_confirmed_at != null)
   const confirmedSessionIds = confirmedSessions.map((s) => s.id as string)
+
+  // ── État des boutons d'action ──────────────────────────────────────────────
+  // Items jouables jusqu'au départ de la 1ère séance ; comparaison visible dès
+  // qu'une séance est verrouillée (cf. /items et /compare).
+  const nowMs = new Date().getTime()
+  const startTimes = (sessions ?? [])
+    .map((s) => s.starts_at as string | null)
+    .filter((v): v is string => v != null)
+    .map((v) => new Date(v).getTime())
+  const itemsDeadlinePassed = startTimes.length > 0 && Math.min(...startTimes) <= nowMs
+  const anySessionLocked    = startTimes.some((time) => time <= nowMs)
 
   // Stage 2 — scores + pronostics/FL/résultats de TOUS les membres + items résolus
   const [
@@ -278,20 +289,35 @@ export default async function GPScoresPage({
 
         {/* Liens actions */}
         <div className="flex flex-col gap-2">
+          {/* Items : toujours navigable (consultation après deadline), libellé selon l'état */}
           <Link
             href={`/leagues/${leagueId}/gp/${gpId}/items`}
             className="flex items-center justify-between rounded-xl bg-card px-4 py-3 transition-colors hover:brightness-110"
           >
-            <span className="text-sm font-medium text-foreground">{t('gpResults.playItem')}</span>
+            <span className="text-sm font-medium text-foreground">
+              {itemsDeadlinePassed ? t('gpResults.itemsWeekend') : t('gpResults.playItem')}
+            </span>
             <span className="text-xs text-muted-foreground">→</span>
           </Link>
-          <Link
-            href={`/leagues/${leagueId}/gp/${gpId}/compare`}
-            className="flex items-center justify-between rounded-xl bg-card px-4 py-3 transition-colors hover:brightness-110"
-          >
-            <span className="text-sm font-medium text-foreground">{t('gpResults.compareLink')}</span>
-            <span className="text-xs text-muted-foreground">→</span>
-          </Link>
+          {/* Comparaison : désactivée + hint tant qu'aucune séance n'est verrouillée */}
+          {anySessionLocked ? (
+            <Link
+              href={`/leagues/${leagueId}/gp/${gpId}/compare`}
+              className="flex items-center justify-between rounded-xl bg-card px-4 py-3 transition-colors hover:brightness-110"
+            >
+              <span className="text-sm font-medium text-foreground">{t('gpResults.compareLink')}</span>
+              <span className="text-xs text-muted-foreground">→</span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="flex w-full cursor-not-allowed items-center justify-between rounded-xl bg-card px-4 py-3 text-left opacity-50"
+            >
+              <span className="text-sm font-medium text-muted-foreground">{t('gpResults.compareLink')}</span>
+              <span className="text-[11px] text-muted-foreground">{t('gpResults.compareLockedHint')}</span>
+            </button>
+          )}
         </div>
 
         {/* Aucun score */}

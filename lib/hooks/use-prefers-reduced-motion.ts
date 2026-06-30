@@ -54,7 +54,14 @@ export function usePrefersReducedMotion(): boolean {
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const sync = () => setReduced(resolveReducedMotion())
+    // Re-applique la classe en plus de l'état React : sur un event `storage` (override
+    // changé dans un autre onglet), le DOM de cet onglet doit suivre, pas seulement le
+    // toggle. En same-tab c'est idempotent (déjà posée par setReduceMotionOverride).
+    const sync = () => {
+      const next = resolveReducedMotion()
+      setReduced(next)
+      applyReduceMotion(next)
+    }
 
     sync()
     mq.addEventListener('change', sync)

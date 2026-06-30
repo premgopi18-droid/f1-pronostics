@@ -36,7 +36,14 @@ export function useFontSize(): FontSizeOption {
   const [option, setOption] = useState<FontSizeOption>('normal')
 
   useEffect(() => {
-    const sync = () => setOption(getFontSizeOption())
+    // Re-applique la classe en plus de l'état React : sur un event `storage`
+    // (changement venu d'un autre onglet), le DOM de cet onglet doit suivre, pas
+    // seulement le sélecteur. En same-tab c'est idempotent (déjà posée par setFontSizeOption).
+    const sync = () => {
+      const next = getFontSizeOption()
+      setOption(next)
+      applyFontSize(next)
+    }
     sync()
     window.addEventListener('storage', sync)
     window.addEventListener(FONT_SIZE_EVENT, sync)

@@ -1,6 +1,9 @@
 import { t } from '@/lib/i18n'
 import type { TranslationKey } from '@/lib/i18n'
 import { itemEmoji, itemName } from '@/lib/items/catalog'
+import { formatSignedDelta, type DeltaKind } from '@/lib/scoring/delta'
+import { ITEM_RESOLUTION_ORDER } from '@/lib/scoring/resolve-items'
+import { sessionLabel } from '@/lib/scoring/session-label'
 import type { SessionType } from '@/lib/scoring/types'
 
 /**
@@ -14,7 +17,6 @@ export interface ResolvedItem {
   itemType:          string
   payload:           Record<string, unknown>   // JSON DB (snake_case)
   wasShielded:       boolean
-  effectApplied:     boolean
   pointsDeltaActor:  number | null
   pointsDeltaTarget: number | null
 }
@@ -23,8 +25,6 @@ export interface PlayerIdentity {
   pseudo: string
   color:  string
 }
-
-export type FactDeltaKind = 'pos' | 'neg' | 'nil'
 
 export interface Fact {
   key:          string
@@ -38,39 +38,19 @@ export interface Fact {
   prep?:        string
   sessionLabel?: string
   deltaText?:   string
-  deltaKind:    FactDeltaKind
+  deltaKind:    DeltaKind
   tag?:         string
   chain:        string[]
 }
 
-// Ordre d'affichage = ordre de résolution spec §3.5.
-const ITEM_ORDER: Record<string, number> = {
-  shield:         0,
-  block_driver:   1,
-  wild_card:      2,
-  double_points:  3,
-  dnf_prediction: 4,
-  underdog_top5:  4,
-  no_points_team: 4,
-}
-
-function fill(template: string, vars: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''))
+// Ordre d'affichage = ordre de résolution (source unique : resolve-items).
+function orderIndex(itemType: string): number {
+  const index = (ITEM_RESOLUTION_ORDER as readonly string[]).indexOf(itemType)
+  return index < 0 ? ITEM_RESOLUTION_ORDER.length : index
 }
 
 function chain(key: string, vars: Record<string, string | number> = {}): string {
-  return fill(t(`gpResults.${key}` as TranslationKey), vars)
-}
-
-function sessionLabel(type: SessionType | undefined): string | undefined {
-  if (!type) return undefined
-  return t(`predict.tab.${type}` as TranslationKey)
-}
-
-function fmtSigned(n: number): string {
-  if (n > 0) return `+${n}`
-  if (n < 0) return `−${Math.abs(n)}`
-  return '0'
+  return t(`gpResults.${key}` as TranslationKey, vars)
 }
 
 export function buildGPFacts(
@@ -92,9 +72,7 @@ export function buildGPFacts(
   const facts: Fact[] = []
 
   // Ordre de résolution spec §3.5.
-  const ordered = [...items].sort(
-    (a, b) => (ITEM_ORDER[a.itemType] ?? 9) - (ITEM_ORDER[b.itemType] ?? 9),
-  )
+  const ordered = [...items].sort((a, b) => orderIndex(a.itemType) - orderIndex(b.itemType))
 
   for (const item of ordered) {
     const actor   = who(item.userId)
@@ -139,7 +117,7 @@ export function buildGPFacts(
           })
         } else if (loss < 0) {
           facts.push({
-            ...common, deltaText: fmtSigned(loss), deltaKind: 'neg',
+            ...common, deltaText: formatSignedDelta(loss), deltaKind: 'neg',
             chain: [chain('chainBlockRemoved', { driver, session: sLabel ?? '', pts: Math.abs(loss) })],
           })
         } else {
@@ -176,7 +154,7 @@ export function buildGPFacts(
         } else {
           facts.push({
             ...common,
-            deltaText: stolen > 0 ? fmtSigned(stolen) : undefined,
+            deltaText: stolen > 0 ? formatSignedDelta(stolen) : undefined,
             deltaKind: stolen > 0 ? 'pos' : 'nil',
             chain: [
               chain('chainWildSteal', { actor: actor.pseudo, session: sLabel ?? '', target: target.pseudo }),
@@ -195,7 +173,7 @@ export function buildGPFacts(
           actorPseudo: actor.pseudo, actorColor: actor.color,
           verb: t('gpResults.factPlays'), object: itemName('double_points'),
           sessionLabel: sLabel,
-          deltaText: gain > 0 ? fmtSigned(gain) : undefined,
+          deltaText: gain > 0 ? formatSignedDelta(gain) : undefined,
           deltaKind: gain > 0 ? 'pos' : 'nil',
           chain: [gain > 0
             ? chain('chainDoubleApplied', { session: sLabel ?? '', pts: gain })
@@ -212,7 +190,7 @@ export function buildGPFacts(
           key: baseKey, emoji,
           actorPseudo: actor.pseudo, actorColor: actor.color,
           verb: t('gpResults.factPlays'), object: itemName(item.itemType),
-          deltaText: gain > 0 ? fmtSigned(gain) : undefined,
+          deltaText: gain > 0 ? formatSignedDelta(gain) : undefined,
           deltaKind: gain > 0 ? 'pos' : 'nil',
           chain: [gain > 0
             ? chain('chainBonusApplied', { pts: gain })

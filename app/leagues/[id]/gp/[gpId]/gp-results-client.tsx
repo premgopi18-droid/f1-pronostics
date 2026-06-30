@@ -18,7 +18,7 @@ export interface SessionView {
 export interface MemberSessionDetail {
   finalScore:    number
   rows:          DetailRow[]
-  fl:            FastestLapRow | null
+  fastestLap:    FastestLapRow | null
   items:         ItemLine[]
   hasPrediction: boolean
   invalid:       boolean
@@ -109,15 +109,40 @@ function Gain({ pts }: { pts: number }) {
   )
 }
 
+function ItemLines({ items }: { items: ItemLine[] }) {
+  return (
+    <>
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className="mt-0.5 flex items-center gap-2 rounded-lg border border-accent/20 bg-accent-soft px-3 py-1.5 text-xs"
+        >
+          <span className="text-sm">{item.emoji}</span>
+          <span className="text-muted-foreground">{item.text}</span>
+          <span className={cn('ml-auto font-bold tabular-nums', DELTA_CLASS[item.deltaKind])}>
+            {item.deltaText}
+          </span>
+        </div>
+      ))}
+    </>
+  )
+}
+
 function SessionDetailBody({ detail }: { detail: MemberSessionDetail | undefined }) {
   if (!detail) {
     return <p className="px-1 py-2 text-sm text-muted-foreground">{t('gpResults.emptyNoPredictionSession')}</p>
   }
+
+  // Pas de prono : on affiche quand même l'impact des items joués/subis sur cette
+  // session, sinon un Wild Card ou un bonus qui a bougé le score serait invisible.
   if (!detail.hasPrediction) {
     return (
-      <p className="px-1 py-2 text-sm text-muted-foreground">
-        {detail.invalid ? t('gpResults.emptyInvalid') : t('gpResults.emptyNotSubmitted')}
-      </p>
+      <div className="flex flex-col gap-0.5">
+        <p className="px-1 py-2 text-sm text-muted-foreground">
+          {detail.invalid ? t('gpResults.emptyInvalid') : t('gpResults.emptyNotSubmitted')}
+        </p>
+        <ItemLines items={detail.items} />
+      </div>
     )
   }
 
@@ -135,41 +160,34 @@ function SessionDetailBody({ detail }: { detail: MemberSessionDetail | undefined
       ))}
 
       {/* Meilleur tour — ligne séparée, bonus distinct (course uniquement) */}
-      {detail.fl && (
+      {detail.fastestLap && (
         <div className="mt-1 flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-1.5 text-xs border-t border-border">
           <span className="pr-1 text-[11px] font-bold uppercase tracking-wide text-warning">
             {t('gpResults.meilleurTour')}
           </span>
-          <span className={cn('w-9 font-mono', detail.fl.isExact ? 'text-foreground' : 'text-text-secondary')}>
-            {detail.fl.code ?? '—'}
+          <span className={cn('w-9 font-mono', detail.fastestLap.isExact ? 'text-foreground' : 'text-text-secondary')}>
+            {detail.fastestLap.code ?? '—'}
           </span>
-          {detail.fl.isExact ? (
+          {!detail.fastestLap.played ? (
+            <span className="text-muted-foreground" aria-label={t('gpResults.flNotPlayed')}>
+              {t('gpResults.flNotPlayed')}
+            </span>
+          ) : detail.fastestLap.isExact ? (
             <span className="font-bold text-success" aria-label={t('gpResults.a11yExact')}>●</span>
           ) : (
             <>
               <span className="font-bold text-muted-foreground" aria-label={t('gpResults.a11yMiss')}>✗</span>
-              {detail.fl.actualCode && (
-                <span className="font-mono text-muted-foreground">{detail.fl.actualCode}</span>
+              {detail.fastestLap.actualCode && (
+                <span className="font-mono text-muted-foreground">{detail.fastestLap.actualCode}</span>
               )}
             </>
           )}
-          <Gain pts={detail.fl.pts} />
+          <Gain pts={detail.fastestLap.pts} />
         </div>
       )}
 
       {/* Impact des items */}
-      {detail.items.map((item, i) => (
-        <div
-          key={i}
-          className="mt-0.5 flex items-center gap-2 rounded-lg border border-accent/20 bg-accent-soft px-3 py-1.5 text-xs"
-        >
-          <span className="text-sm">{item.emoji}</span>
-          <span className="text-muted-foreground">{item.text}</span>
-          <span className={cn('ml-auto font-bold tabular-nums', DELTA_CLASS[item.deltaKind])}>
-            {item.deltaText}
-          </span>
-        </div>
-      ))}
+      <ItemLines items={detail.items} />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { itemName } from "@/lib/items/catalog";
 import { GP_ITEM_EMOJI, type GpItemType } from "@/lib/leagues/league-list";
 
 export function ItemBubble({
@@ -13,7 +14,7 @@ export function ItemBubble({
   return (
     <div
       className={cn("flex flex-col items-center gap-0.5", exhausted && "opacity-35")}
-      aria-label={`${t(`leagues.items.${itemType}` as Parameters<typeof t>[0])} — ${usesRemaining} ${usesRemaining > 1 ? t("leagues.remainingPlural") : t("leagues.remaining")}`}
+      aria-label={`${itemName(itemType)} — ${usesRemaining} ${usesRemaining > 1 ? t("leagues.remainingPlural") : t("leagues.remaining")}`}
     >
       <span className="text-xl leading-none" aria-hidden>
         {GP_ITEM_EMOJI[itemType]}

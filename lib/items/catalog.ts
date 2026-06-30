@@ -20,17 +20,6 @@ export const GP_ITEM_TYPES = [
   'fia_penalty',
 ] as const
 
-/** Items GP dont l'effet est réellement résolu par le moteur (exclut fia_penalty). */
-export const RESOLVED_GP_ITEM_TYPES = [
-  'shield',
-  'block_driver',
-  'wild_card',
-  'double_points',
-  'dnf_prediction',
-  'underdog_top5',
-  'no_points_team',
-] as const
-
 export const ITEM_EMOJI: Record<string, string> = {
   shield:         '🛡️',
   block_driver:   '🚫',

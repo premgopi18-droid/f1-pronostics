@@ -8,6 +8,23 @@ import type {
 } from './types'
 
 // ============================================================
+// Ordre de résolution (spec §3.5) — source unique.
+// applyItemEffects applique les resolvers dans cet ordre ; les faits marquants
+// (lib/items/facts.ts) s'en servent pour ordonner l'affichage. Un seul endroit à
+// modifier si la séquence change.
+// ============================================================
+
+export const ITEM_RESOLUTION_ORDER = [
+  'shield',
+  'block_driver',
+  'wild_card',
+  'double_points',
+  'dnf_prediction',
+  'underdog_top5',
+  'no_points_team',
+] as const
+
+// ============================================================
 // Helpers
 // ============================================================
 

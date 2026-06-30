@@ -1,6 +1,7 @@
 import { t } from '@/lib/i18n'
-import type { TranslationKey } from '@/lib/i18n'
 import { itemEmoji, itemName } from '@/lib/items/catalog'
+import { deltaKind, formatSignedDelta, type DeltaKind } from './delta'
+import { classifyPositionDelta, type PositionMark } from './position-mark'
 import { FASTEST_LAP_BONUS, POSITIONS_TO_SCORE, SCORE_TABLES } from './constants'
 import type { SessionType } from './types'
 import type { ResolvedItem, PlayerIdentity } from '@/lib/items/facts'
@@ -10,7 +11,7 @@ import type { ResolvedItem, PlayerIdentity } from '@/lib/items/facts'
  * Comparaison pronostic vs résultat officiel par position + lignes d'impact des items.
  */
 
-export type PositionMark = 'exact' | 'partial' | 'miss'
+export type { PositionMark }
 
 export interface DetailRow {
   predictedPos: number
@@ -23,6 +24,7 @@ export interface DetailRow {
 
 export interface FastestLapRow {
   code:       string | null
+  played:     boolean           // false = aucun meilleur tour pronostiqué (≠ raté)
   isExact:    boolean
   actualCode: string | null
   pts:        number
@@ -30,7 +32,7 @@ export interface FastestLapRow {
 
 export interface SessionDetail {
   rows:          DetailRow[]
-  fl:            FastestLapRow | null   // course uniquement
+  fastestLap:    FastestLapRow | null   // course uniquement
   exactCount:    number
   approxCount:   number
   hasPrediction: boolean
@@ -41,29 +43,13 @@ export interface ItemLine {
   emoji:     string
   text:      string
   deltaText: string
-  deltaKind: 'pos' | 'neg' | 'nil'
-}
-
-function fmtSigned(n: number): string {
-  if (n > 0) return `+${n}`
-  if (n < 0) return `−${Math.abs(n)}`
-  return '0'
-}
-
-function deltaKind(n: number): 'pos' | 'neg' | 'nil' {
-  if (n > 0) return 'pos'
-  if (n < 0) return 'neg'
-  return 'nil'
-}
-
-function fill(template: string, vars: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''))
+  deltaKind: DeltaKind
 }
 
 /** Session d'affichage d'un item dans le détail (les bonus & boucliers se rattachent à la course). */
-export function itemDisplaySession(item: ResolvedItem): SessionType {
-  const s = item.payload.session_type as SessionType | undefined
-  return s ?? 'race'
+function itemDisplaySession(item: ResolvedItem): SessionType {
+  const session = item.payload.session_type as SessionType | undefined
+  return session ?? 'race'
 }
 
 export function buildSessionDetail(
@@ -76,7 +62,7 @@ export function buildSessionDetail(
   actualFL:         string | undefined,
 ): SessionDetail {
   if (!predictedEntries) {
-    return { rows: [], fl: null, exactCount: 0, approxCount: 0, hasPrediction: false, invalid }
+    return { rows: [], fastestLap: null, exactCount: 0, approxCount: 0, hasPrediction: false, invalid }
   }
 
   const scoreTable       = SCORE_TABLES[sessionType] as Record<number, number>
@@ -88,36 +74,37 @@ export function buildSessionDetail(
   const rows: DetailRow[] = predictedEntries.slice(0, positionsToScore).map((code, i) => {
     const predictedPos = i + 1
     const actualPos    = resultsByCode.get(code)
-    const delta        = actualPos !== undefined ? Math.abs(predictedPos - actualPos) : undefined
-    const pts          = delta !== undefined ? (scoreTable[delta] ?? 0) : 0
+    const delta        = actualPos !== undefined ? Math.abs(predictedPos - actualPos) : null
+    const pts          = delta !== null ? (scoreTable[delta] ?? 0) : 0
+    const mark         = classifyPositionDelta(delta, sessionType)
 
-    let mark: PositionMark
-    if (delta === 0) { mark = 'exact'; exactCount++ }
-    else if (delta !== undefined && pts > 0) { mark = 'partial'; approxCount++ }
-    else mark = 'miss'
+    if (mark === 'exact')   exactCount++
+    if (mark === 'partial') approxCount++
 
     return {
       predictedPos,
       code,
       mark,
-      delta:      mark === 'partial' ? delta! : null,
+      delta:      mark === 'partial' ? delta : null,
       actualCode: mark === 'miss' ? (positionToCode.get(predictedPos) ?? null) : null,
       pts,
     }
   })
 
-  let fl: FastestLapRow | null = null
+  let fastestLap: FastestLapRow | null = null
   if (sessionType === 'race' && (predictedFL || actualFL)) {
-    const isExact = !!predictedFL && predictedFL === actualFL
-    fl = {
+    const played  = !!predictedFL
+    const isExact = played && predictedFL === actualFL
+    fastestLap = {
       code:       predictedFL ?? null,
+      played,
       isExact,
       actualCode: isExact ? null : (actualFL ?? null),
       pts:        isExact ? FASTEST_LAP_BONUS : 0,
     }
   }
 
-  return { rows, fl, exactCount, approxCount, hasPrediction: true, invalid: false }
+  return { rows, fastestLap, exactCount, approxCount, hasPrediction: true, invalid: false }
 }
 
 /**
@@ -138,11 +125,11 @@ export function buildMemberItemLines(
   const pseudoOf = (userId: string) => identity.get(userId)?.pseudo ?? '?'
 
   for (const item of items) {
-    const session   = itemDisplaySession(item)
+    const session     = itemDisplaySession(item)
     const isOffensive = item.itemType === 'block_driver' || item.itemType === 'wild_card'
-    const targetId  = item.payload.target_user_id as string | undefined
-    const emoji     = itemEmoji(item.itemType)
-    const label     = item.itemType === 'block_driver'
+    const targetId    = item.payload.target_user_id as string | undefined
+    const emoji       = itemEmoji(item.itemType)
+    const label       = item.itemType === 'block_driver'
       ? `${itemName('block_driver')} ${item.payload.driver_code as string}`
       : itemName(item.itemType)
 
@@ -151,25 +138,23 @@ export function buildMemberItemLines(
       const delta = item.pointsDeltaActor ?? 0
       let text: string
       if (isOffensive && targetId) {
-        text = fill(t('gpResults.detailItemOwnOffensive' as TranslationKey), { item: label, target: pseudoOf(targetId) })
+        text = t('gpResults.detailItemOwnOffensive', { item: label, target: pseudoOf(targetId) })
       } else if (item.itemType === 'shield') {
         const blocked = countShielded(items, memberId)
-        text = label + (blocked > 0
-          ? fill(t('gpResults.detailShieldNeutralized' as TranslationKey), { pts: blocked })
-          : '')
+        text = label + (blocked > 0 ? t('gpResults.detailShieldNeutralized', { pts: blocked }) : '')
       } else {
-        text = fill(t('gpResults.detailItemOwn' as TranslationKey), { item: label })
+        text = t('gpResults.detailItemOwn', { item: label })
       }
       if (isOffensive && item.wasShielded) text += t('gpResults.detailCancelledSuffix')
-      push(session, { emoji, text, deltaText: fmtSigned(delta), deltaKind: deltaKind(delta) })
+      push(session, { emoji, text, deltaText: formatSignedDelta(delta), deltaKind: deltaKind(delta) })
     }
 
     // Item offensif ciblant le membre (joué par un autre)
     if (isOffensive && targetId === memberId && item.userId !== memberId) {
       const delta = item.pointsDeltaTarget ?? 0
-      let text = fill(t('gpResults.detailItemIncoming' as TranslationKey), { item: label, actor: pseudoOf(item.userId) })
+      let text = t('gpResults.detailItemIncoming', { item: label, actor: pseudoOf(item.userId) })
       if (item.wasShielded) text += t('gpResults.detailCancelledSuffix')
-      push(session, { emoji, text, deltaText: fmtSigned(delta), deltaKind: deltaKind(delta) })
+      push(session, { emoji, text, deltaText: formatSignedDelta(delta), deltaKind: deltaKind(delta) })
     }
   }
 

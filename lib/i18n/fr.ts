@@ -209,7 +209,8 @@ export const fr = {
     totalGpSub:      "total GP",
     pts:             "pts",
     meilleurTour:    "Meilleur tour",
-    loading:         "Chargement…",
+    round:           "Round",
+    flNotPlayed:     "Non joué",
     // États vides
     emptyNoPredictionSession: "Pas de pronostic pour cette session.",
     emptyInvalid:             "Pronostic invalide",
@@ -267,16 +268,6 @@ export const fr = {
     remaining: "restant",
     remainingPlural: "restants",
     itemsAvailable: "Items disponibles",
-    items: {
-      shield: "Bouclier",
-      block_driver: "Bloquer un pilote",
-      wild_card: "Wild Card",
-      double_points: "Dernier tour de magie",
-      dnf_prediction: "On va trancher",
-      underdog_top5: "Il est de retour",
-      no_points_team: "It must be the water !",
-      fia_penalty: "Move de la FIA",
-    },
   },
   leagueDetail: {
     season: "Saison",

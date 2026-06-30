@@ -166,16 +166,19 @@ export default async function GPScoresPage({
     })
   }
 
-  // Items résolus → faits marquants + lignes de détail
-  const resolvedItems: ResolvedItem[] = (itemRows ?? []).map((row) => ({
-    userId:            row.user_id as string,
-    itemType:          row.item_type as string,
-    payload:           (row.payload as Record<string, unknown>) ?? {},
-    wasShielded:       (row.was_shielded as boolean | null) ?? false,
-    effectApplied:     (row.effect_applied as boolean | null) ?? false,
-    pointsDeltaActor:  row.points_delta_actor as number | null,
-    pointsDeltaTarget: row.points_delta_target as number | null,
-  }))
+  // Items résolus → faits marquants + lignes de détail.
+  // On exclut l'historique antérieur à la migration #151 (points_delta_* à null) : sans
+  // delta fiable, on n'afficherait que des « 0 » trompeurs. (Backfill OK avant lancement.)
+  const resolvedItems: ResolvedItem[] = (itemRows ?? [])
+    .filter((row) => row.points_delta_actor != null)
+    .map((row) => ({
+      userId:            row.user_id as string,
+      itemType:          row.item_type as string,
+      payload:           (row.payload as Record<string, unknown>) ?? {},
+      wasShielded:       (row.was_shielded as boolean | null) ?? false,
+      pointsDeltaActor:  row.points_delta_actor as number,
+      pointsDeltaTarget: row.points_delta_target as number | null,
+    }))
 
   const facts = buildGPFacts(resolvedItems, identity)
 
@@ -212,7 +215,7 @@ export default async function GPScoresPage({
       sessionsView[sessionType] = {
         finalScore,
         rows:          detail.rows,
-        fl:            detail.fl,
+        fastestLap:    detail.fastestLap,
         items:         itemLines.get(sessionType) ?? [],
         hasPrediction: detail.hasPrediction,
         invalid:       detail.invalid,
@@ -255,7 +258,7 @@ export default async function GPScoresPage({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                Round {gp.round} · {gp.country}
+                {t('gpResults.round')} {gp.round} · {gp.country}
               </p>
               <h1 className="text-2xl font-bold text-foreground">{gp.name as string}</h1>
             </div>

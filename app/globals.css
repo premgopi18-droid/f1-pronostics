@@ -32,8 +32,9 @@
   --primary-foreground: #FFFFFF;
   /* Variante du primaire lisible EN TEXTE sur fond sombre : le primaire « plein »
      (fond de bouton) est trop sombre pour servir de couleur de texte sur #15151E/
-     #1E1E2A. text-primary-text vise 4.5:1 en texte. Surchargé par thème ci-dessous. */
-  --primary-text: #FF4A38;
+     #1E1E2A. text-primary-text vise ≥ 4.5:1 sur les trois fonds, y compris la
+     surface la plus claire #252533 (ici 4.77:1). Surchargé par thème ci-dessous. */
+  --primary-text: #FF5546;
 
   /* Surfaces secondaires */
   --secondary: #2A2A3A;

@@ -58,6 +58,7 @@ GitHub Flow : `main` toujours deployable, une branche par feature.
 - Branche : `feat/<nom-court>` (ex: `feat/lib-data`, `feat/scoring-trigger`)
 - Ne jamais pousser directement sur `main`
 - PR pour merger, même en solo
+- **Si la PR contient un fichier dans `supabase/migrations/` → appliquer la migration sur le projet Supabase prod (`oegnropofqlzkuwleqtt`) via MCP avant ou au moment du merge** (Vercel ne déploie que le code, jamais les migrations)
 
 ## Naming conventions
 

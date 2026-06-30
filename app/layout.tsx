@@ -9,6 +9,7 @@ import {
   REDUCE_MOTION_STORAGE_KEY,
   REDUCE_MOTION_CLASS,
 } from "@/lib/a11y/reduce-motion";
+import { FONT_SIZE_STORAGE_KEY, FONT_SIZE_CLASS } from "@/lib/a11y/font-size";
 import { THEME_STORAGE_KEY, THEME_PRIMARY_COLORS } from "@/lib/theme/themes";
 import {
   SPLASH_SESSION_STORAGE_KEY,
@@ -20,6 +21,10 @@ import {
 // préférence système, elle, est gérée en pur CSS (`@media prefers-reduced-motion`),
 // donc le script n'a à traiter que l'override explicite.
 const reduceMotionBootScript = `try{if(localStorage.getItem('${REDUCE_MOTION_STORAGE_KEY}')==='true')document.documentElement.classList.add('${REDUCE_MOTION_CLASS}')}catch(e){}`;
+
+// Applique la taille de police choisie avant le premier paint (anti-FOUC).
+const fontSizeClassMap = JSON.stringify(FONT_SIZE_CLASS);
+const fontSizeBootScript = `try{var _f=localStorage.getItem('${FONT_SIZE_STORAGE_KEY}');var _m=${fontSizeClassMap};if(_f&&_m[_f])document.documentElement.classList.add(_m[_f])}catch(e){}`;
 
 // Pose data-theme sur <html> et met à jour theme-color avant le premier paint.
 // Le thème 'boxbox' est le défaut (pas d'attribut) — on ne pose l'attribut que
@@ -98,6 +103,7 @@ export default function RootLayout({
             tout paint du contenu. */}
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: reduceMotionBootScript }} />
+        <script dangerouslySetInnerHTML={{ __html: fontSizeBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: installPromptBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: splashBootScript }} />
         <SwRegister />

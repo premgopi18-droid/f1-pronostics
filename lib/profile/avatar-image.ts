@@ -6,6 +6,9 @@ import type { TranslationKey } from "@/lib/i18n";
  * des fonctions dépendantes du DOM (canvas/Image — navigateur uniquement).
  */
 
+/** Nom du bucket Storage des photos d'avatar (source unique, réutilisée client + serveur). */
+export const AVATARS_BUCKET = "avatars";
+
 /** Taille maximale du fichier d'ENTRÉE accepté (avant compression). */
 export const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 Mo
 /** Côté du carré final stocké (px). */

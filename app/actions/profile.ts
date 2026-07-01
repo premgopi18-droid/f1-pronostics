@@ -5,10 +5,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { HELMET_IDS, DEFAULT_HELMET } from '@/lib/profile/avatars'
 import { validatePseudo } from '@/lib/profile/pseudo'
-import { objectPathFromPublicUrl } from '@/lib/profile/avatar-image'
+import { objectPathFromPublicUrl, AVATARS_BUCKET } from '@/lib/profile/avatar-image'
 import type { TranslationKey } from '@/lib/i18n'
-
-const AVATARS_BUCKET = 'avatars'
 
 // `error` est une clé i18n (résolue côté form via `t()`), pas un texte en dur.
 export type ProfileActionState = { error?: TranslationKey; success?: boolean }
@@ -73,7 +71,14 @@ export async function updateProfile(
   const previousUrl = (current?.avatar_url as string | null) ?? null
   if (previousUrl && previousUrl !== avatarUrl) {
     const previousPath = objectPathFromPublicUrl(previousUrl)
-    if (previousPath) await supabase.storage.from(AVATARS_BUCKET).remove([previousPath])
+    if (previousPath) {
+      try {
+        await supabase.storage.from(AVATARS_BUCKET).remove([previousPath])
+      } catch {
+        // best-effort : la DB pointe déjà vers la nouvelle valeur ; un orphelin
+        // Storage est négligeable et ne doit pas faire échouer la sauvegarde.
+      }
+    }
   }
 
   revalidatePath('/')
@@ -88,6 +93,20 @@ export async function deleteAccount(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'profile.errorAuth' }
+
+  // Nettoyage des photos d'avatar AVANT le RPC (après, l'utilisateur est déconnecté
+  // et anonymisé). On passe par la Storage API pour libérer réellement les octets —
+  // le RPC ne supprime que les lignes de métadonnées `storage.objects`. Best-effort.
+  try {
+    const { data: files } = await supabase.storage.from(AVATARS_BUCKET).list(user.id)
+    if (files?.length) {
+      await supabase.storage
+        .from(AVATARS_BUCKET)
+        .remove(files.map((file) => `${user.id}/${file.name}`))
+    }
+  } catch {
+    // best-effort : ne doit pas bloquer la suppression du compte
+  }
 
   // Tout (transfert d'admin toutes saisons, retrait des ligues, anonymisation du
   // profil, effacement des données d'auth) est encapsulé dans le RPC transactionnel

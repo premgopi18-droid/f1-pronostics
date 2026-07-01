@@ -105,6 +105,33 @@ export async function sendPushToSubscription(
   await deliverToSubs([sub], payload)
 }
 
+// Diffuse une ANNONCE PRODUIT (« Nouveautés ») aux utilisateurs ayant gardé l'opt-in
+// `notif_announcements` (défaut true). Broadcast éditorial déclenché manuellement par
+// l'équipe (endpoint admin), jamais par un cron. Même patron que `sendImminencePush` :
+// on filtre d'abord les profils sur la préférence, puis on récupère leurs abonnements.
+export async function sendAnnouncement(payload: PushPayload): Promise<void> {
+  if (!configureVapid()) return
+  const supabase = createServiceClient()
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('notif_announcements', true)
+
+  if (!profiles || profiles.length === 0) return
+  const userIds = profiles.map((p) => p.id as string)
+
+  const { data: subs } = await supabase
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth_key')
+    .in('user_id', userIds)
+
+  await deliverToSubs(
+    (subs ?? []).map((s) => ({ endpoint: s.endpoint as string, p256dh: s.p256dh as string, auth_key: s.auth_key as string })),
+    payload,
+  )
+}
+
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
   if (!configureVapid()) return
   const supabase = createServiceClient()

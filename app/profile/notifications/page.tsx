@@ -9,11 +9,18 @@ export default async function NotificationsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('notif_imminence_scope')
+    .select('notif_imminence_scope, notif_announcements')
     .eq('id', userId)
     .single()
 
   const imminenceScope = (profile?.notif_imminence_scope as ImminenceScope | null) ?? 'stakes-only'
+  // Défaut true : aligné sur la colonne DB et sur « toutes activées par défaut ».
+  const announcementsOptIn = (profile?.notif_announcements as boolean | null) ?? true
 
-  return <NotificationsContent defaultImminenceScope={imminenceScope} />
+  return (
+    <NotificationsContent
+      defaultImminenceScope={imminenceScope}
+      defaultAnnouncementsOptIn={announcementsOptIn}
+    />
+  )
 }

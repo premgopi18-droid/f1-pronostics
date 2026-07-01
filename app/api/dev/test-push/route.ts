@@ -2,6 +2,7 @@ import 'server-only'
 import { createServiceClient } from '@/lib/supabase'
 import { isCronAuthorized } from '@/lib/api/cron'
 import { isPushConfigured, sendPushToAll, sendPushToUser } from '@/lib/push/send'
+import { toInternalPath } from '@/lib/push/internal-path'
 
 // Endpoint de diagnostic : envoie une notification push de test À LA DEMANDE, sans
 // dépendre des crons ni des conditions de dédup (flags notified_*). Sert à vérifier
@@ -46,9 +47,8 @@ async function handler(request: Request): Promise<Response> {
 
   // Le SW fait `clients.openWindow(data.url)` au clic : on n'accepte qu'un chemin
   // interne pour qu'un appelant (même muni du secret) ne puisse pas ouvrir un
-  // domaine externe (phishing). On refuse l'absolu et le protocol-relative (`//`).
-  const rawUrl = url.searchParams.get('url') ?? '/'
-  const target = rawUrl.startsWith('/') && !rawUrl.startsWith('//') ? rawUrl : '/'
+  // domaine externe (phishing). Cf. toInternalPath.
+  const target = toInternalPath(url.searchParams.get('url'))
 
   try {
     // Compte les abonnements ciblés (diagnostic : 0 ⇒ personne d'abonné côté base).

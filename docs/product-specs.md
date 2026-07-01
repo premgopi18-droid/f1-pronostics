@@ -306,10 +306,27 @@ Les notifications sont envoyées via Web Push (standard ouvert, compatible iOS 1
 | Résultats définitifs publiés | Après la course du dimanche — scores finaux avec items résolus |
 | Item joué contre vous | Après la course, en même temps que les résultats définitifs — surprise révélée avec les scores |
 | Classement mis à jour | Après chaque calcul de score (provisoire ou définitif) — fusionné dans la catégorie "Résultats & scores" dans les réglages utilisateur |
+| Annonce produit / nouvelle feature | **Envoi manuel** (admin) — annonce d'une nouvelle feature, d'un correctif notable ou d'un message produit. Opt-in dédié, indépendant du calendrier F1 — voir §Annonces produit ci-dessous. |
 
 > **Préférence « Session imminente »** : l'utilisateur choisit le périmètre de cette notif dans ses réglages — **toutes les sessions** / **sessions à enjeu uniquement** (Sprint Qualifying, Qualifications, Sprint Race, Course — celles où un prono/item se verrouille) / **aucune**. Par défaut : sessions à enjeu. Raison : une notif avant *chaque* session (EL1/2/3 inclus) peut atteindre 6 notifs/week-end dont 3 purement informatives — le choix évite la fatigue tout en couvrant ceux qui veulent tout suivre.
 >
 > ⚠️ **Prérequis infra** : la page de préférences notif actuelle est un MVP à **toggle global** (tous les types partagent un seul interrupteur d'abonnement, cf. `app/profile/notifications/page.tsx`). Cette préférence par-périmètre suppose un **vrai stockage de préférences notif par utilisateur** (colonne/table dédiée + lecture côté envoi). À construire avec cette feature, ou à mutualiser avec un futur chantier « préférences notif par catégorie ».
+
+#### Annonces produit (« Nouveautés ») — décision 2026-07-01
+
+Canal **manuel** pour annoncer une nouvelle feature, un correctif notable ou un message produit à l'ensemble des utilisateurs — **push Web Push + surface in-app**. Distinct des notifs automatiques du calendrier F1 : c'est l'équipe qui décide quand et quoi envoyer.
+
+**Périmètre v1** :
+
+- **Opt-in dédié** — nouvelle préférence `profiles.notif_announcements` (bool, défaut `true`), **indépendante** de `notif_imminence_scope`. Un utilisateur qui a coupé les rappels de session peut garder (ou couper) les annonces produit, et inversement. Réglable dans la page notifications du profil.
+- **Push + page « Nouveautés »** — chaque annonce est poussée en Web Push **et** listée sur une page in-app `/whats-new`, alimentée par la même source. La page rattrape ceux qui n'ont pas reçu le push (iOS non installé, opt-out, appareil hors ligne). Le push ouvre l'`url` de l'annonce (feature concernée ou `/whats-new`).
+- **Historique & dédup** — table `announcements` (source de vérité) : chaque annonce y est enregistrée **une fois** puis diffusée. L'envoi est **idempotent par annonce** (un flag `sent_at` empêche le double broadcast si le déclencheur est rejoué), même principe que les colonnes `notified_*` de `grands_prix`.
+- **Déclenchement manuel** — endpoint admin protégé par le secret `CRON_SECRET` (même modèle que `/api/dev/test-push`), prenant `title` / `body` / `url` : il crée la ligne `announcements` puis broadcast via un nouveau `sendAnnouncement()` filtrant sur `notif_announcements = true`. **Pas d'UI de composition en v1** (un `curl` suffit).
+- **Forme** — titre court + une phrase ; emoji ludique pour une feature (🆕 / 🏁), ton sobre pour un correctif ; **toujours** une `url` interne cliquable. Regrouper les petits correctifs pour éviter le spam.
+
+**Hors v1 (différé)** : UI admin de composition/programmation, ciblage par ligue, badge « non lu » sur l'entrée Nouveautés, catégorisation des annonces.
+
+> **Cohérence infra** : `sendAnnouncement()` suit le patron de `sendImminencePush` (`lib/push/send.ts`) — sélection des `profiles` filtrés sur la préférence, puis jointure `push_subscriptions`. La colonne `notif_announcements` **mutualise** le chantier « vrai stockage de préférences notif par utilisateur » déjà noté pour la préférence « Session imminente » ci-dessus. L'endpoint `/api/dev/test-push` (déjà actif en prod, broadcast à tous via `sendPushToAll`) reste le **fallback niveau 0** pour un envoi ponctuel avant la livraison de ce chantier.
 
 ### 3.7 Installation (PWA)
 

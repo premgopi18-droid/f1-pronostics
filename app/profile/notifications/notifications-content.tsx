@@ -2,10 +2,14 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Clock, BarChart2, Gift, Flag, Bell } from 'lucide-react'
+import { ChevronLeft, Clock, BarChart2, Gift, Flag, Bell, Megaphone } from 'lucide-react'
 import { usePushSubscription } from '@/lib/push/client'
 import { t } from '@/lib/i18n'
-import { updateImminenceScope, type ImminenceScope } from '@/app/actions/notification-preferences'
+import {
+  updateImminenceScope,
+  updateAnnouncementsOptIn,
+  type ImminenceScope,
+} from '@/app/actions/notification-preferences'
 
 const NOTIFICATION_ROWS = [
   {
@@ -36,9 +40,16 @@ const IMMINENCE_SCOPE_OPTIONS: { value: ImminenceScope; labelKey: 'notifications
   { value: 'none',        labelKey: 'notifications.imminenceScopeNone' },
 ]
 
-export function NotificationsContent({ defaultImminenceScope }: { defaultImminenceScope: ImminenceScope }) {
+export function NotificationsContent({
+  defaultImminenceScope,
+  defaultAnnouncementsOptIn,
+}: {
+  defaultImminenceScope: ImminenceScope
+  defaultAnnouncementsOptIn: boolean
+}) {
   const { status, pending, toggle } = usePushSubscription()
   const [imminenceScope, setImminenceScope] = useState<ImminenceScope>(defaultImminenceScope)
+  const [announcementsOptIn, setAnnouncementsOptIn] = useState(defaultAnnouncementsOptIn)
   const [saveError, setSaveError] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -56,6 +67,20 @@ export function NotificationsContent({ defaultImminenceScope }: { defaultImminen
       const result = await updateImminenceScope(scope)
       if (result.error) {
         setImminenceScope(previous)
+        setSaveError(true)
+      }
+    })
+  }
+
+  function handleAnnouncementsToggle() {
+    // Même stratégie optimiste que le périmètre imminence : bascule immédiate, rollback si échec.
+    const previous = announcementsOptIn
+    setSaveError(false)
+    setAnnouncementsOptIn(!previous)
+    startTransition(async () => {
+      const result = await updateAnnouncementsOptIn(!previous)
+      if (result.error) {
+        setAnnouncementsOptIn(previous)
         setSaveError(true)
       }
     })
@@ -161,6 +186,40 @@ export function NotificationsContent({ defaultImminenceScope }: { defaultImminen
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Annonces produit (« Nouveautés ») — opt-in dédié, indépendant du reste */}
+          <div className="mt-6 overflow-hidden rounded-2xl bg-card">
+            <button
+              type="button"
+              onClick={handleAnnouncementsToggle}
+              disabled={isPending}
+              aria-pressed={announcementsOptIn}
+              className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/50 active:bg-muted disabled:opacity-60"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted">
+                <Megaphone size={18} className="text-muted-foreground" aria-hidden />
+              </span>
+              <span className="flex flex-1 flex-col gap-0.5">
+                <span className="text-sm font-medium text-foreground">{t('notifications.announcements')}</span>
+                <span className="text-xs text-muted-foreground">{t('notifications.announcementsSub')}</span>
+              </span>
+              {/* Toggle pill */}
+              <span
+                className={[
+                  'relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200',
+                  announcementsOptIn ? 'bg-primary' : 'bg-muted',
+                ].join(' ')}
+                aria-hidden
+              >
+                <span
+                  className={[
+                    'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform duration-200',
+                    announcementsOptIn ? 'translate-x-5' : 'translate-x-0',
+                  ].join(' ')}
+                />
+              </span>
+            </button>
           </div>
 
           {isPending && (

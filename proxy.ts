@@ -50,6 +50,9 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/api/auth') ||
     path.startsWith('/api/f1') ||
     path.startsWith('/api/scores') ||
+    // Endpoint d'annonce produit : auth par CRON_SECRET (pas de session user) — ne doit
+    // pas être redirigé vers /login. Cf. app/api/admin/announce/route.ts.
+    path.startsWith('/api/admin') ||
     path.startsWith('/api/dev')
 
   if (!user && !isPublicPath) {

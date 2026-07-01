@@ -65,7 +65,9 @@ const PAGE_SIZE = 1000
 const USER_ID_BATCH_SIZE = 300
 
 // Lit TOUTES les lignes d'une requête paginable, page par page. `page` doit reconstruire
-// la requête à chaque appel (filtres inclus) et y appliquer `.range(from, to)`.
+// la requête à chaque appel (filtres inclus), appliquer un `.order()` sur une colonne
+// STABLE et UNIQUE (sinon des lignes pourraient être sautées/dupliquées entre pages) puis
+// `.range(from, to)`.
 async function fetchAllPaged<T>(
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
 ): Promise<T[]> {
@@ -102,6 +104,7 @@ async function fetchSubscriptionsForUsers(userIds: string[]) {
         .from('push_subscriptions')
         .select('endpoint, p256dh, auth_key')
         .in('user_id', batch)
+        .order('endpoint')
         .range(from, to),
     )
     rows.push(...batchRows)
@@ -113,7 +116,7 @@ export async function sendPushToAll(payload: PushPayload): Promise<void> {
   if (!configureVapid()) return
   const supabase = createServiceClient()
   const subs = await fetchAllPaged<RawRow>((from, to) =>
-    supabase.from('push_subscriptions').select('endpoint, p256dh, auth_key').range(from, to),
+    supabase.from('push_subscriptions').select('endpoint, p256dh, auth_key').order('endpoint').range(from, to),
   )
   await deliverToSubs(toSubscriptionRows(subs), payload)
 }
@@ -129,7 +132,7 @@ export async function sendImminencePush(payload: PushPayload, isStakesSession: b
   const scopes = isStakesSession ? ['all', 'stakes-only'] : ['all']
 
   const profiles = await fetchAllPaged<RawRow>((from, to) =>
-    supabase.from('profiles').select('id').in('notif_imminence_scope', scopes).range(from, to),
+    supabase.from('profiles').select('id').in('notif_imminence_scope', scopes).order('id').range(from, to),
   )
   const userIds = profiles.map((p) => p.id as string)
 
@@ -156,7 +159,7 @@ export async function sendAnnouncement(payload: PushPayload): Promise<void> {
   const supabase = createServiceClient()
 
   const profiles = await fetchAllPaged<RawRow>((from, to) =>
-    supabase.from('profiles').select('id').eq('notif_announcements', true).range(from, to),
+    supabase.from('profiles').select('id').eq('notif_announcements', true).order('id').range(from, to),
   )
   const userIds = profiles.map((p) => p.id as string)
 

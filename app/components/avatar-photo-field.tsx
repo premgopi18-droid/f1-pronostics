@@ -35,7 +35,7 @@ export function AvatarPhotoField({
 }) {
   const [supabase] = useState(createBrowserSupabaseClient)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const confirmButtonRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   const [error, setError] = useState<TranslationKey | null>(null)
   const [busy, setBusy] = useState(false)
@@ -57,11 +57,12 @@ export function AvatarPhotoField({
     }
   }, [imageSrc])
 
-  // A11y modale : focus initial sur « Valider » à l'ouverture + fermeture au clavier
-  // (Escape) écoutée au niveau document (une <div> non focusable ne recevrait pas la touche).
+  // A11y modale : focus initial déplacé dans la modale (le conteneur, focusable via
+  // tabIndex=-1 — « Valider » est désactivé tant que le crop n'est pas prêt) + fermeture
+  // au clavier (Escape) écoutée au niveau document (une <div> ne reçoit pas la touche sinon).
   useEffect(() => {
     if (!imageSrc) return
-    confirmButtonRef.current?.focus()
+    dialogRef.current?.focus()
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape' && !busy) setImageSrc(null) // ferme (objectURL révoqué par l'effet dédié)
     }
@@ -159,10 +160,12 @@ export function AvatarPhotoField({
 
       {imageSrc && (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label={t('avatar.photo.cropTitle')}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 outline-none"
         >
           <div className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border bg-card p-5">
             <h3 className="text-base font-semibold text-foreground">
@@ -202,7 +205,7 @@ export function AvatarPhotoField({
               <Button variant="ghost" size="sm" className="flex-1" onClick={closeCropper} disabled={busy}>
                 {t('avatar.photo.cropCancel')}
               </Button>
-              <Button ref={confirmButtonRef} variant="accent" size="sm" className="flex-1" onClick={confirmCrop} disabled={busy || !areaPixels}>
+              <Button variant="accent" size="sm" className="flex-1" onClick={confirmCrop} disabled={busy || !areaPixels}>
                 {busy ? t('profile.saving') : t('avatar.photo.cropConfirm')}
               </Button>
             </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight, Pencil, Palette, Paintbrush, Bell, Accessibility, Volume2, Smartphone, Share, Type } from 'lucide-react'
+import { ChevronRight, Pencil, Palette, Paintbrush, Bell, Megaphone, Accessibility, Volume2, Smartphone, Share, Type } from 'lucide-react'
 import {
   usePrefersReducedMotion,
   setReduceMotionOverride,
@@ -88,6 +88,19 @@ export function ProfileSettings() {
             <Bell size={18} className="shrink-0 text-muted-foreground" aria-hidden />
             <span className="flex-1 text-sm font-medium text-foreground">
               {t('profile.notifications')}
+            </span>
+            <ChevronRight size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+          </Link>
+        </li>
+
+        <li>
+          <Link
+            href="/whats-new"
+            className="flex items-center gap-3 px-4 py-4 transition-colors hover:bg-muted/50 active:bg-muted"
+          >
+            <Megaphone size={18} className="shrink-0 text-muted-foreground" aria-hidden />
+            <span className="flex-1 text-sm font-medium text-foreground">
+              {t('profile.whatsNew')}
             </span>
             <ChevronRight size={16} className="shrink-0 text-muted-foreground" aria-hidden />
           </Link>

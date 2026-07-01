@@ -17,3 +17,18 @@ export async function updateImminenceScope(scope: ImminenceScope): Promise<{ err
   if (error) return { error: 'generic' }
   return {}
 }
+
+// Opt-in des annonces produit (« Nouveautés ») — indépendant de `notif_imminence_scope`.
+export async function updateAnnouncementsOptIn(enabled: boolean): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'auth' }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ notif_announcements: enabled, updated_at: new Date().toISOString() })
+    .eq('id', user.id)
+
+  if (error) return { error: 'generic' }
+  return {}
+}

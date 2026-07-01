@@ -53,16 +53,72 @@ async function deliverToSubs(
   )
 }
 
+// PostgREST plafonne le nombre de lignes renvoyées par requête (souvent 1000). Pour les
+// envois de masse (broadcast, imminence, annonces), on lit donc les lignes par pages
+// successives jusqu'à épuisement — sinon les abonnés au-delà du plafond seraient
+// SILENCIEUSEMENT ignorés (aucune erreur, juste un envoi tronqué).
+const PAGE_SIZE = 1000
+
+// Taille de lot du filtre `.in('user_id', …)` : borne la longueur de l'URL PostgREST
+// quand la liste d'utilisateurs opt-in devient grande (nécessaire dès qu'on pagine
+// les profils au-delà d'une page).
+const USER_ID_BATCH_SIZE = 300
+
+// Lit TOUTES les lignes d'une requête paginable, page par page. `page` doit reconstruire
+// la requête à chaque appel (filtres inclus), appliquer un `.order()` sur une colonne
+// STABLE et UNIQUE (sinon des lignes pourraient être sautées/dupliquées entre pages) puis
+// `.range(from, to)`.
+async function fetchAllPaged<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data } = await page(from, from + PAGE_SIZE - 1)
+    if (!data || data.length === 0) break
+    rows.push(...data)
+    if (data.length < PAGE_SIZE) break
+  }
+  return rows
+}
+
+type RawRow = Record<string, unknown>
+
+function toSubscriptionRows(rows: RawRow[]): { endpoint: string; p256dh: string; auth_key: string }[] {
+  return rows.map((s) => ({
+    endpoint: s.endpoint as string,
+    p256dh:   s.p256dh   as string,
+    auth_key: s.auth_key as string,
+  }))
+}
+
+// Récupère tous les abonnements d'un ensemble d'utilisateurs, par lots (`.in`) et par
+// pages, pour ne rien tronquer même à grande échelle.
+async function fetchSubscriptionsForUsers(userIds: string[]) {
+  if (userIds.length === 0) return []
+  const supabase = createServiceClient()
+  const rows: RawRow[] = []
+  for (let i = 0; i < userIds.length; i += USER_ID_BATCH_SIZE) {
+    const batch = userIds.slice(i, i + USER_ID_BATCH_SIZE)
+    const batchRows = await fetchAllPaged<RawRow>((from, to) =>
+      supabase
+        .from('push_subscriptions')
+        .select('endpoint, p256dh, auth_key')
+        .in('user_id', batch)
+        .order('endpoint')
+        .range(from, to),
+    )
+    rows.push(...batchRows)
+  }
+  return toSubscriptionRows(rows)
+}
+
 export async function sendPushToAll(payload: PushPayload): Promise<void> {
   if (!configureVapid()) return
   const supabase = createServiceClient()
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth_key')
-  await deliverToSubs(
-    (subs ?? []).map((s) => ({ endpoint: s.endpoint as string, p256dh: s.p256dh as string, auth_key: s.auth_key as string })),
-    payload,
+  const subs = await fetchAllPaged<RawRow>((from, to) =>
+    supabase.from('push_subscriptions').select('endpoint, p256dh, auth_key').order('endpoint').range(from, to),
   )
+  await deliverToSubs(toSubscriptionRows(subs), payload)
 }
 
 // Envoie la notif "session imminente" aux utilisateurs dont la préférence
@@ -75,23 +131,12 @@ export async function sendImminencePush(payload: PushPayload, isStakesSession: b
 
   const scopes = isStakesSession ? ['all', 'stakes-only'] : ['all']
 
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id')
-    .in('notif_imminence_scope', scopes)
-
-  if (!profiles || profiles.length === 0) return
+  const profiles = await fetchAllPaged<RawRow>((from, to) =>
+    supabase.from('profiles').select('id').in('notif_imminence_scope', scopes).order('id').range(from, to),
+  )
   const userIds = profiles.map((p) => p.id as string)
 
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth_key')
-    .in('user_id', userIds)
-
-  await deliverToSubs(
-    (subs ?? []).map((s) => ({ endpoint: s.endpoint as string, p256dh: s.p256dh as string, auth_key: s.auth_key as string })),
-    payload,
-  )
+  await deliverToSubs(await fetchSubscriptionsForUsers(userIds), payload)
 }
 
 // Envoie à UN abonnement précis (clés déjà en main, sans relire la base). Utile
@@ -105,15 +150,23 @@ export async function sendPushToSubscription(
   await deliverToSubs([sub], payload)
 }
 
-export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
+// Diffuse une ANNONCE PRODUIT (« Nouveautés ») aux utilisateurs ayant gardé l'opt-in
+// `notif_announcements` (défaut true). Broadcast éditorial déclenché manuellement par
+// l'équipe (endpoint admin), jamais par un cron. Même patron que `sendImminencePush` :
+// on filtre d'abord les profils sur la préférence, puis on récupère leurs abonnements.
+export async function sendAnnouncement(payload: PushPayload): Promise<void> {
   if (!configureVapid()) return
   const supabase = createServiceClient()
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth_key')
-    .eq('user_id', userId)
-  await deliverToSubs(
-    (subs ?? []).map((s) => ({ endpoint: s.endpoint as string, p256dh: s.p256dh as string, auth_key: s.auth_key as string })),
-    payload,
+
+  const profiles = await fetchAllPaged<RawRow>((from, to) =>
+    supabase.from('profiles').select('id').eq('notif_announcements', true).order('id').range(from, to),
   )
+  const userIds = profiles.map((p) => p.id as string)
+
+  await deliverToSubs(await fetchSubscriptionsForUsers(userIds), payload)
+}
+
+export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
+  if (!configureVapid()) return
+  await deliverToSubs(await fetchSubscriptionsForUsers([userId]), payload)
 }

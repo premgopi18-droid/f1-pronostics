@@ -128,6 +128,7 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 | pseudo | TEXT UNIQUE | |
 | avatar_key | TEXT | identifiant de l'avatar prédéfini |
 | notif_imminence_scope | TEXT | `'all'` / `'stakes-only'` / `'none'` — défaut `'stakes-only'` |
+| notif_announcements | BOOLEAN | opt-in annonces produit (« Nouveautés ») — défaut `true`, opt-out par l'utilisateur |
 | is_deleted | BOOLEAN | défaut false |
 | deleted_at | TIMESTAMPTZ | null si actif |
 | created_at | TIMESTAMPTZ | |
@@ -155,7 +156,29 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 
 **RLS :** accessible uniquement par le propriétaire
 
-> Pas de table `notifications` en v1 — envoi cron fire-and-forget via push_subscriptions. Décision consciente.
+> Pas de table `notifications` en v1 — envoi cron fire-and-forget via push_subscriptions. Décision consciente. (Les **annonces produit** font exception : elles ont une table `announcements` dédiée, car éditoriales et rejouables — voir ci-dessous.)
+
+---
+
+### `announcements`
+
+Canal d'annonces produit (« Nouveautés ») — source de vérité éditoriale + historique alimentant `/whats-new`. Voir [product-specs §3.6](product-specs.md).
+
+| Colonne | Type | Notes |
+|---|---|---|
+| id | UUID PK | |
+| title | TEXT | titre du push / de l'entrée Nouveautés |
+| body | TEXT | corps (une phrase) |
+| url | TEXT | chemin **interne** ouvert au clic — défaut `/whats-new` |
+| dedup_key | TEXT UNIQUE | clé d'idempotence optionnelle (retry de l'envoi sans doublon) |
+| created_at | TIMESTAMPTZ | |
+| sent_at | TIMESTAMPTZ | renseigné à la diffusion ; `NULL` = brouillon jamais poussé |
+
+**RLS :**
+- **Lecture** : tout utilisateur authentifié voit les annonces **déjà diffusées** (`sent_at IS NOT NULL`) — alimente `/whats-new`.
+- **Écriture** : aucune policy → réservée au **service-role** (endpoint `/api/admin/announce`, protégé par `CRON_SECRET`).
+
+> **Envoi idempotent** : l'endpoint crée la ligne puis **claim atomique** de `sent_at` (`UPDATE … WHERE sent_at IS NULL`) avant de pousser — une même annonce n'est jamais diffusée deux fois (même principe que les colonnes `notified_*`). Un retry réseau peut fournir la même `dedup_key` pour retomber sur la même ligne. Diffusion filtrée sur `profiles.notif_announcements = true`.
 
 ---
 

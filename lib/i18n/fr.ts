@@ -450,6 +450,7 @@ export const fr = {
     editAvatar: "Changer d'avatar",
     theme: "Thème",
     notifications: "Notifications",
+    whatsNew: "Nouveautés",
     accessibility: "Mode accessibilité",
     fontSize: "Taille du texte",
     fontSizeNormal: "Normal",
@@ -508,8 +509,15 @@ export const fr = {
     imminenceScopeNone: "Aucune",
     imminenceScopeSaving: "Enregistrement…",
     imminenceScopeError: "Échec de l'enregistrement, réessaie.",
+    announcements: "Nouveautés & annonces",
+    announcementsSub: "Nouvelles features et mises à jour",
     back: "Profil",
     unsupported: "Notifications push non supportées sur cet appareil.",
     denied: "Notifications bloquées dans les réglages de ton navigateur.",
+  },
+  whatsNew: {
+    title: "Nouveautés",
+    back: "Profil",
+    empty: "Rien de neuf pour l'instant — reviens bientôt !",
   },
 } as const;

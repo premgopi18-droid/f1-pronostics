@@ -4,6 +4,11 @@ import { isCronAuthorized } from '@/lib/api/cron'
 import { isPushConfigured, sendAnnouncement } from '@/lib/push/send'
 import { toInternalPath } from '@/lib/push/internal-path'
 
+// Bornes de contenu — cadre la « forme » recommandée dans la spec (titre court + une
+// phrase) et évite de stocker/pousser un payload aberrant même muni du secret.
+const MAX_TITLE_LENGTH = 80
+const MAX_BODY_LENGTH  = 200
+
 // Diffuse une ANNONCE PRODUIT (« Nouveautés ») à tous les abonnés ayant gardé l'opt-in
 // `notif_announcements`. Déclenché MANUELLEMENT par l'équipe (pas de cron) : annonce d'une
 // nouvelle feature, d'un correctif notable ou d'un message produit.
@@ -39,9 +44,17 @@ async function handler(request: Request): Promise<Response> {
     )
   }
 
-  const { title, body, url, key } = await readParams(request)
+  const { title: rawTitle, body: rawBody, url, key } = await readParams(request)
+  const title = rawTitle?.trim()
+  const body  = rawBody?.trim()
   if (!title || !body) {
     return Response.json({ error: 'Paramètres requis : title, body' }, { status: 400 })
+  }
+  if (title.length > MAX_TITLE_LENGTH || body.length > MAX_BODY_LENGTH) {
+    return Response.json(
+      { error: `Trop long : title ≤ ${MAX_TITLE_LENGTH}, body ≤ ${MAX_BODY_LENGTH} caractères` },
+      { status: 400 },
+    )
   }
   // url interne uniquement (le SW ouvre l'URL au clic) ; défaut = page Nouveautés.
   const target = toInternalPath(url, '/whats-new')

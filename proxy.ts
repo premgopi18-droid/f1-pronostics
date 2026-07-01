@@ -50,8 +50,10 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/api/auth') ||
     path.startsWith('/api/f1') ||
     path.startsWith('/api/scores') ||
-    // Endpoint d'annonce produit : auth par CRON_SECRET (pas de session user) — ne doit
-    // pas être redirigé vers /login. Cf. app/api/admin/announce/route.ts.
+    // Endpoints admin : auth par CRON_SECRET (pas de session user) — ne doivent pas être
+    // redirigés vers /login. ⚠️ Ce préfixe exempte TOUT `/api/admin/*` du gating de session :
+    // tout endpoint ajouté ici DOIT s'authentifier lui-même (cf. isCronAuthorized dans
+    // app/api/admin/announce/route.ts), sinon il est exposé sans session.
     path.startsWith('/api/admin') ||
     path.startsWith('/api/dev')
 

@@ -19,7 +19,7 @@ export default async function HomePage() {
   const userId = (await headers()).get('x-user-id')!
 
   const [{ data: profile }, { data: memberships }, { data: nextGP }, previousGp] = await Promise.all([
-    supabase.from('profiles').select('pseudo, avatar_key').eq('id', userId).single(),
+    supabase.from('profiles').select('pseudo, avatar_key, avatar_url').eq('id', userId).single(),
     supabase
       .from('league_members')
       .select('league_id, leagues!league_id ( name )')
@@ -62,7 +62,7 @@ export default async function HomePage() {
           aria-label={t('nav.profile')}
           className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <UserAvatar avatarKey={profile?.avatar_key ?? null} size={40} label={pseudo} />
+          <UserAvatar avatarKey={profile?.avatar_key ?? null} avatarUrl={profile?.avatar_url ?? null} size={40} label={pseudo} />
         </Link>
       </div>
 

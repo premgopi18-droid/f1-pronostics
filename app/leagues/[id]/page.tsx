@@ -49,7 +49,7 @@ export default async function LeaguePage({
       .single(),
     supabase
       .from('league_members')
-      .select('user_id, is_admin, profiles!user_id ( pseudo, avatar_key )')
+      .select('user_id, is_admin, profiles!user_id ( pseudo, avatar_key, avatar_url )')
       .eq('league_id', id)
       .eq('season', season),
     supabase
@@ -96,11 +96,15 @@ export default async function LeaguePage({
 
   // --- Classement ---
   const members: MemberRow[] = (rawMembers ?? []).map((m) => {
-    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null } | null
+    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; avatar_url: string | null } | null
     return {
       user_id: m.user_id as string,
       is_admin: m.is_admin as boolean,
-      profile: { pseudo: profile?.pseudo ?? '?', avatarKey: profile?.avatar_key ?? null },
+      profile: {
+        pseudo: profile?.pseudo ?? '?',
+        avatarKey: profile?.avatar_key ?? null,
+        avatarUrl: profile?.avatar_url ?? null,
+      },
     }
   })
   const normalizedSeasonScores: SeasonScoreRow[] = (seasonRows ?? []).map((r) => ({

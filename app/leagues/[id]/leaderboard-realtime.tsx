@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { createBrowserSupabaseClient } from '@/lib/supabase-browser'
 import { buildStandings } from '@/lib/leagues/standings'
 import { getHelmet, DEFAULT_HELMET } from '@/lib/profile/avatars'
-import { AvatarHelmet } from '@/app/ui/avatar-helmet'
+import { UserAvatar } from '@/app/components/user-avatar'
 import { Badge } from '@/app/ui/badge'
 import { t } from '@/lib/i18n'
 import type { Standing, MemberRow, ScoreRow, SeasonScoreRow } from '@/lib/leagues/standings'
@@ -93,8 +93,9 @@ export function LeaderboardRealtime({
       <div className="flex flex-col gap-1.5" role="list">
         {standings.map((member, index) => {
           const isCurrentUser = member.user_id === currentUserId
-          const helmet = getHelmet(member.profile.avatarKey) ?? DEFAULT_HELMET
           const barPercent = Math.round((member.total / maxScore) * 100)
+          // Couleur du joueur (barre de progression) — dérivée du casque, indépendante de l'avatar photo.
+          const barColor = (getHelmet(member.profile.avatarKey) ?? DEFAULT_HELMET).color
 
           return (
             <div
@@ -109,11 +110,13 @@ export function LeaderboardRealtime({
                 {index + 1}
               </span>
 
-              <AvatarHelmet
-                color={helmet.color}
+              {/* Marqueur « moi » = fond teinté de la ligne (pas d'anneau ajouté :
+                  l'avatar porte déjà son anneau de couleur). */}
+              <UserAvatar
+                avatarKey={member.profile.avatarKey}
+                avatarUrl={member.profile.avatarUrl}
                 size={32}
                 label={member.profile.pseudo}
-                className={cn(isCurrentUser && 'ring-2 ring-primary ring-offset-1 ring-offset-transparent')}
               />
 
               <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -131,7 +134,7 @@ export function LeaderboardRealtime({
                 <div className="h-0.5 w-full rounded-full bg-white/5" aria-hidden>
                   <div
                     className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${barPercent}%`, backgroundColor: helmet.color }}
+                    style={{ width: `${barPercent}%`, backgroundColor: barColor }}
                   />
                 </div>
               </div>

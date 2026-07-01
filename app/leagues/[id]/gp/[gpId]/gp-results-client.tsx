@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { t } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { AvatarHelmet } from '@/app/ui/avatar-helmet'
+import { UserAvatar } from '@/app/components/user-avatar'
 import type { SessionType } from '@/lib/scoring/types'
 import type { DetailRow, FastestLapRow, ItemLine } from '@/lib/scoring/gp-detail'
 import type { Fact } from '@/lib/items/facts'
@@ -27,7 +27,8 @@ export interface MemberSessionDetail {
 export interface MemberView {
   userId:      string
   pseudo:      string
-  color:       string
+  avatarKey:   string | null
+  avatarUrl:   string | null
   isMe:        boolean
   total:       number
   exactTotal:  number
@@ -245,7 +246,7 @@ export function GPResultsClient({ members, sessions, facts, revealed }: Props) {
               <span className={cn('w-5 text-right text-sm font-bold tabular-nums', RANK_COLOR[i] ?? 'text-muted-foreground')}>
                 {i + 1}
               </span>
-              <AvatarHelmet color={m.color} size={22} label={m.pseudo} />
+              <UserAvatar avatarKey={m.avatarKey} avatarUrl={m.avatarUrl} size={22} label={m.pseudo} />
               <span className="flex min-w-0 flex-1 items-baseline gap-1.5 font-semibold text-foreground">
                 <span className="truncate">{m.pseudo}</span>
                 {m.isMe && <MeTag />}
@@ -320,7 +321,7 @@ export function GPResultsClient({ members, sessions, facts, revealed }: Props) {
         {selected && (
           <div className="flex flex-col gap-2.5 rounded-2xl bg-card p-3.5">
             <div className="flex items-center gap-2.5">
-              <AvatarHelmet color={selected.color} size={28} label={selected.pseudo} />
+              <UserAvatar avatarKey={selected.avatarKey} avatarUrl={selected.avatarUrl} size={28} label={selected.pseudo} />
               <span className="flex items-baseline gap-1.5 text-base font-bold text-foreground">
                 {selected.pseudo}
                 {selected.isMe && <MeTag />}

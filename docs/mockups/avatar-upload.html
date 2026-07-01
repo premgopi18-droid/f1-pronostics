@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maquette — Avatar (couleur + photo perso)</title>
+<style>
+  :root{
+    --bg:#15151E; --card:#1E1E2A; --card2:#191922; --line:#2A2A3A;
+    --text:#FAFAFA; --muted:#A1A1AA; --dim:#71717A;
+    --primary:#E10600; --primary-text:#FF5546; --on-primary:#FFFFFF;
+    --success:#22C55E;
+    /* couleur du casque sélectionné (= couleur/anneau du joueur), pilotée en JS */
+    --ring:#E10600;
+    /* épaisseur d'anneau proportionnelle : ratio appliqué au diamètre */
+    --ring-ratio:0.075;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0c0c12;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .page{max-width:1000px;margin:0 auto;padding:28px 16px 72px}
+  .page > h1{font-size:20px;font-weight:800;margin:0 0 4px}
+  .page > p.lead{color:var(--muted);font-size:13px;margin:0 0 24px;line-height:1.5}
+  .screens{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start;justify-content:center}
+  .screen{display:flex;flex-direction:column;gap:10px;align-items:center}
+  .screen .cap{font-size:12px;color:var(--dim);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+
+  /* Cadre téléphone */
+  .phone{width:390px;max-width:92vw;height:760px;background:var(--bg);border-radius:34px;
+    border:1px solid var(--line);overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .phone .body{flex:1;overflow-y:auto;padding:22px 20px 28px;display:flex;flex-direction:column}
+
+  /* ---- éléments partagés ---- */
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--primary-text)}
+  h2.title{font-size:26px;font-weight:800;margin:8px 0 0;line-height:1.15}
+  .subtitle{margin:8px 0 0;font-size:14px;color:var(--muted);line-height:1.55}
+  .spacer{flex:1;min-height:20px}
+
+  .btn{width:100%;height:52px;border:0;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;
+    background:var(--primary);color:var(--on-primary);transition:filter .12s,opacity .12s}
+  .btn:hover{filter:brightness(1.08)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);height:46px;font-weight:600}
+  .btn.ghost:hover{color:var(--text);background:var(--card)}
+
+  .progress{display:flex;gap:6px;margin-bottom:26px}
+  .progress span{height:4px;flex:1;border-radius:999px;background:var(--line)}
+  .progress span.on{background:var(--primary)}
+
+  /* ---- Casque (fidèle au composant AvatarHelmet) ---- */
+  .helmet{--hs:56px;display:block;position:relative;flex:none;overflow:hidden;border-radius:50%;
+    width:var(--hs);height:var(--hs);
+    box-shadow:inset 0 calc(var(--hs) * -0.15) calc(var(--hs) * 0.3) rgba(0,0,0,.35)}
+  .helmet::before{content:"";position:absolute;left:14%;right:14%;top:38%;height:24%;background:rgba(0,0,0,.45);border-radius:14%}
+  .helmet::after{content:"";position:absolute;left:0;right:0;top:14%;height:18%;background:rgba(255,255,255,.18)}
+
+  /* ---- Avatar rendu (photo circulaire + anneau couleur casque) ---- */
+  /* L'anneau = padding proportionnel rempli par la couleur ; la photo est le disque intérieur. */
+  .avatar{--as:120px;width:var(--as);height:var(--as);border-radius:50%;flex:none;position:relative;
+    padding:calc(var(--as) * var(--ring-ratio));background:var(--ring)}
+  .avatar .photo{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;background:var(--card2)}
+  /* même géométrie de casque, dimensionnée sur le diamètre de l'avatar */
+  .avatar .helmet{--hs:var(--as);width:100%;height:100%}
+  .avatar.mini{--as:40px}
+
+  /* Bloc central de l'aperçu */
+  .preview{display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:26px}
+  .preview .name{font-weight:700;font-size:16px}
+  .preview .hint{font-size:12px;color:var(--dim)}
+
+  /* ---- Zone photo ---- */
+  .photobar{display:flex;gap:10px;margin-top:22px}
+  .photobar .btn{height:46px;font-size:14px}
+  .photobar .btn.add{background:var(--card);color:var(--text);border:1px solid var(--line)}
+  .photobar .btn.add:hover{border-color:#3a3a4d;filter:none;background:#23232f}
+  .file{display:none}
+  .err{color:#f87171;font-size:12px;margin-top:8px;min-height:16px}
+
+  /* ---- Sélecteur de couleur (HelmetPicker) ---- */
+  .section-label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.03em;
+    text-transform:uppercase;margin:26px 0 12px;display:flex;align-items:center;gap:8px}
+  .section-label .req{color:var(--primary-text);font-size:10px;border:1px solid rgba(225,6,0,.4);
+    border-radius:999px;padding:1px 7px;letter-spacing:.06em}
+  .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+  .swatch{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:50%;
+    background:none;border:0;padding:0;cursor:pointer;transition:transform .1s}
+  .swatch:hover{transform:scale(1.06)}
+  .swatch .helmet{--hs:44px}
+  .swatch[aria-checked="true"]{outline:2px solid var(--sel);outline-offset:3px}
+
+  /* ---- Modale de crop ---- */
+  .overlay{position:absolute;inset:0;background:rgba(6,6,10,.82);display:none;align-items:center;
+    justify-content:center;padding:24px;z-index:20}
+  .overlay.open{display:flex}
+  .modal{width:100%;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;
+    display:flex;flex-direction:column;gap:16px}
+  .modal h3{margin:0;font-size:16px;font-weight:700}
+  .cropwrap{position:relative;width:100%;aspect-ratio:1;border-radius:16px;overflow:hidden;background:#0a0a0f;
+    touch-action:none;cursor:grab}
+  .cropwrap.drag{cursor:grabbing}
+  .cropwrap canvas{display:block;width:100%;height:100%}
+  /* masque circulaire : assombrit hors du cercle de recadrage */
+  .cropmask{position:absolute;inset:0;pointer-events:none;
+    box-shadow:0 0 0 999px rgba(10,10,15,.55) inset;border-radius:50%}
+  .cropmask::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid rgba(255,255,255,.5)}
+  .zoom{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
+  .zoom input[type=range]{flex:1;accent-color:var(--primary)}
+  .modal .actions{display:flex;gap:10px}
+  .modal .actions .btn{height:46px;font-size:14px}
+
+  /* ---- Aperçu « en petit » ---- */
+  .mini-demo{margin-top:26px;border:1px solid var(--line);border-radius:14px;padding:14px}
+  .mini-title{font-size:11px;color:var(--dim);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
+  .lb{display:flex;flex-direction:column;gap:4px}
+  .lb-row{display:flex;align-items:center;gap:11px;background:var(--card2);border-radius:11px;padding:8px 12px;
+    border-left:3px solid transparent}
+  .lb-row.me{background:#23233a;border-left-color:var(--ring)}
+  .lb-rank{width:16px;text-align:right;font-size:13px;font-weight:700;color:var(--dim);font-variant-numeric:tabular-nums}
+  .lb-name{flex:1;font-weight:600;font-size:14px}
+  .lb-name em{font-style:normal;font-size:12px;color:var(--dim);font-weight:500}
+  .lb-pts{font-weight:700;font-variant-numeric:tabular-nums;font-size:14px}
+
+  .note{max-width:640px;margin:30px auto 0;font-size:12px;color:var(--dim);line-height:1.6;
+    border:1px dashed var(--line);border-radius:12px;padding:14px 16px}
+  .note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Avatar — couleur obligatoire + photo perso optionnelle</h1>
+  <p class="lead">Le casque (couleur) est toujours choisi = identité couleur du joueur. La photo est un habillage optionnel :
+  disque circulaire cerclé de la couleur du casque. Upload → crop carré interactif → 256×256 → WebP, 100&nbsp;% côté navigateur.</p>
+
+  <div class="screens">
+
+    <!-- ============ ÉCRAN 1 — ONBOARDING (étape 2) ============ -->
+    <div class="screen">
+      <span class="cap">Onboarding · étape 2</span>
+      <div class="phone" id="phone-onb">
+        <div class="body">
+          <div class="progress"><span class="on"></span><span class="on"></span></div>
+          <span class="eyebrow">Ton avatar</span>
+          <h2 class="title">Choisis ta couleur</h2>
+          <p class="subtitle">Elle t'identifie dans les classements et les duels. Tu peux aussi ajouter une photo.</p>
+
+          <div class="preview">
+            <div class="avatar" data-avatar></div>
+            <div class="hint" data-hint>Casque « Rouge »</div>
+          </div>
+
+          <div class="photobar">
+            <button class="btn add" data-add>📷 Ajouter une photo</button>
+            <button class="btn ghost" data-remove style="display:none">Retirer</button>
+          </div>
+          <input type="file" accept="image/*" class="file" data-file />
+          <div class="err" data-err></div>
+
+          <div class="section-label">Couleur du casque <span class="req">requis</span></div>
+          <div class="grid" role="radiogroup" aria-label="Couleur du casque" data-grid></div>
+
+          <div class="spacer"></div>
+          <button class="btn">C'est parti !</button>
+        </div>
+
+        <!-- modale crop -->
+        <div class="overlay" data-overlay>
+          <div class="modal">
+            <h3>Recadre ta photo</h3>
+            <div class="cropwrap" data-cropwrap>
+              <canvas data-canvas></canvas>
+              <div class="cropmask"></div>
+            </div>
+            <div class="zoom">🔍
+              <input type="range" min="1" max="3" step="0.01" value="1" data-zoom />
+            </div>
+            <div class="actions">
+              <button class="btn ghost" data-cancel>Annuler</button>
+              <button class="btn" data-confirm>Valider</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ ÉCRAN 2 — PROFIL (édition avatar) ============ -->
+    <div class="screen">
+      <span class="cap">Profil · modifier l'avatar</span>
+      <div class="phone" id="phone-prof">
+        <div class="body">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span style="color:var(--muted);font-size:22px">‹</span>
+            <span style="font-weight:800;font-size:19px">Mon avatar</span>
+          </div>
+
+          <div class="preview">
+            <div class="avatar" data-avatar></div>
+            <div class="name">Charlo_37</div>
+            <div class="hint" data-hint>Casque « Bleu »</div>
+          </div>
+
+          <!-- Aperçu « en petit » : rendu réel en nav / classement -->
+          <div class="mini-demo">
+            <div class="mini-title">Aperçu en petit (nav & classement)</div>
+            <div class="lb">
+              <div class="lb-row me">
+                <span class="lb-rank">1</span>
+                <span class="avatar mini" data-avatar-mini></span>
+                <span class="lb-name">Charlo_37 <em>(moi)</em></span>
+                <span class="lb-pts">248</span>
+              </div>
+              <div class="lb-row">
+                <span class="lb-rank">2</span>
+                <span class="avatar mini" style="--ring:#FF8000"><img class="photo" alt="" src="" data-demo2></span>
+                <span class="lb-name">Maxou</span>
+                <span class="lb-pts">231</span>
+              </div>
+              <div class="lb-row">
+                <span class="lb-rank">3</span>
+                <span class="avatar mini" style="--ring:#22C55E"><span class="helmet" style="background:#22C55E"></span></span>
+                <span class="lb-name">Lea_16</span>
+                <span class="lb-pts">219</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="photobar">
+            <button class="btn add" data-add>📷 Ajouter une photo</button>
+            <button class="btn ghost" data-remove style="display:none">Retirer la photo</button>
+          </div>
+          <input type="file" accept="image/*" class="file" data-file />
+          <div class="err" data-err></div>
+
+          <div class="section-label">Couleur du casque <span class="req">requis</span></div>
+          <div class="grid" role="radiogroup" aria-label="Couleur du casque" data-grid></div>
+
+          <div class="spacer"></div>
+          <button class="btn">Enregistrer</button>
+        </div>
+
+        <div class="overlay" data-overlay>
+          <div class="modal">
+            <h3>Recadre ta photo</h3>
+            <div class="cropwrap" data-cropwrap>
+              <canvas data-canvas></canvas>
+              <div class="cropmask"></div>
+            </div>
+            <div class="zoom">🔍
+              <input type="range" min="1" max="3" step="0.01" value="1" data-zoom />
+            </div>
+            <div class="actions">
+              <button class="btn ghost" data-cancel>Annuler</button>
+              <button class="btn" data-confirm>Valider</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <b>Ce que le proto reproduit fidèlement :</b> validation à l'input (rejet des non-images et fichiers &gt; 5&nbsp;Mo),
+    crop carré interactif (glisser + zoom), export réel en <b>256×256</b> via <code>canvas.toBlob</code> (WebP si supporté, sinon repli JPEG pour Safari/iOS), aperçu circulaire
+    avec anneau de la couleur du casque (épaisseur proportionnelle au diamètre). En prod : le blob part vers Supabase Storage
+    (bucket public <code>avatars</code>), le chemin est stocké dans <code>profiles.avatar_url</code>, la couleur dans <code>avatar_key</code>.
+  </div>
+</div>
+
+<script>
+// Palette des 12 casques — miroir de lib/profile/avatars.ts
+const HELMETS = [
+  {id:"red",color:"#E10600",label:"Rouge"},   {id:"orange",color:"#FF8000",label:"Orange"},
+  {id:"amber",color:"#F2C94C",label:"Ambre"}, {id:"green",color:"#22C55E",label:"Vert"},
+  {id:"teal",color:"#00D2BE",label:"Turquoise"},{id:"cyan",color:"#29B6F6",label:"Cyan"},
+  {id:"blue",color:"#1E5BFF",label:"Bleu"},   {id:"indigo",color:"#6C5CE7",label:"Indigo"},
+  {id:"purple",color:"#9B51E0",label:"Violet"},{id:"pink",color:"#FF4F8B",label:"Rose"},
+  {id:"white",color:"#E6E6E6",label:"Blanc"}, {id:"slate",color:"#8792A2",label:"Ardoise"},
+];
+const MAX_BYTES = 5 * 1024 * 1024; // 5 Mo
+const OUTPUT_SIZE = 256;           // px du fichier stocké
+const OUTPUT_QUALITY = 0.8;
+
+// WebP si l'encodage canvas est supporté (échoue silencieusement sur vieux Safari/iOS),
+// sinon repli JPEG (universel). À reproduire côté prod.
+const OUTPUT_TYPE = (function(){
+  const c = document.createElement("canvas");
+  return c.toDataURL("image/webp").indexOf("data:image/webp") === 0 ? "image/webp" : "image/jpeg";
+})();
+
+function byId(id){return document.getElementById(id);}
+
+// Portrait de démo autonome (SVG en data-URI) — évite toute dépendance réseau, marche hors-ligne
+function demoPortrait(bg, skin, hair){
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'+
+    '<rect width="100" height="100" fill="'+bg+'"/>'+
+    '<circle cx="50" cy="86" r="34" fill="'+hair+'"/>'+
+    '<circle cx="50" cy="80" r="26" fill="'+skin+'"/>'+
+    '<path d="M24 44a26 26 0 0 1 52 0v6a26 26 0 0 1-52 0z" fill="'+hair+'"/>'+
+    '<circle cx="50" cy="52" r="20" fill="'+skin+'"/>'+
+    '</svg>';
+  return "data:image/svg+xml;base64,"+btoa(svg);
+}
+const DEMO_ME = demoPortrait("#3a2f5e","#e7b98f","#2a2340");
+const DEMO_2  = demoPortrait("#274d3a","#d9a877","#3a2a1e");
+
+// Un écran = un cadre téléphone autonome (état + handlers isolés)
+function initScreen(phone, defaultHelmetId, startPhoto){
+  const state = { helmetId: defaultHelmetId, photo: startPhoto || null };
+  const miniAva = phone.querySelector("[data-avatar-mini]");
+  const demo2   = phone.querySelector("[data-demo2]");
+  if(demo2) demo2.src = DEMO_2;
+
+  const grid    = phone.querySelector("[data-grid]");
+  const avatar  = phone.querySelector("[data-avatar]");
+  const hint    = phone.querySelector("[data-hint]");
+  const addBtn  = phone.querySelector("[data-add]");
+  const rmBtn   = phone.querySelector("[data-remove]");
+  const fileIn  = phone.querySelector("[data-file]");
+  const errEl   = phone.querySelector("[data-err]");
+  const overlay = phone.querySelector("[data-overlay]");
+  const cropwrap= phone.querySelector("[data-cropwrap]");
+  const canvas  = phone.querySelector("[data-canvas]");
+  const zoomIn  = phone.querySelector("[data-zoom]");
+  const cancelB = phone.querySelector("[data-cancel]");
+  const confirmB= phone.querySelector("[data-confirm]");
+
+  function selectedHelmet(){ return HELMETS.find(h => h.id === state.helmetId); }
+
+  // Rend l'aperçu : couleur d'anneau + photo OU casque
+  function render(){
+    const h = selectedHelmet();
+    phone.style.setProperty("--ring", h.color);
+    phone.style.setProperty("--sel", h.color);
+    if(state.photo){
+      avatar.innerHTML = '<img class="photo" alt="Aperçu de l\'avatar" src="'+state.photo+'">';
+      hint.textContent = "Photo · anneau « "+h.label+" »";
+      rmBtn.style.display = "";
+      addBtn.textContent = "📷 Changer la photo";
+    }else{
+      avatar.innerHTML = '<span class="helmet" style="background:'+h.color+'"></span>';
+      hint.textContent = "Casque « "+h.label+" »";
+      rmBtn.style.display = "none";
+      addBtn.textContent = "📷 Ajouter une photo";
+    }
+    grid.querySelectorAll("[data-hid]").forEach(el=>{
+      el.setAttribute("aria-checked", el.dataset.hid === state.helmetId ? "true":"false");
+    });
+    // Mini-avatar « moi » dans le classement : reflète l'état en direct.
+    // L'anneau est TOUJOURS présent (diamètre homogène) ; sans photo il prend la
+    // couleur du casque → raccord invisible, la rangée garde la même structure.
+    if(miniAva){
+      miniAva.innerHTML = state.photo
+        ? '<img class="photo" alt="" src="'+state.photo+'">'
+        : '<span class="helmet" style="background:'+h.color+'"></span>';
+    }
+  }
+
+  // Grille de couleurs
+  HELMETS.forEach(h=>{
+    const b = document.createElement("button");
+    b.type="button"; b.className="swatch"; b.setAttribute("role","radio");
+    b.dataset.hid=h.id; b.setAttribute("aria-label",h.label);
+    b.innerHTML = '<span class="helmet" style="background:'+h.color+'"></span>';
+    b.addEventListener("click",()=>{ state.helmetId=h.id; render(); });
+    grid.appendChild(b);
+  });
+
+  // ---- Upload + validation ----
+  addBtn.addEventListener("click",()=>fileIn.click());
+  rmBtn.addEventListener("click",()=>{ state.photo=null; errEl.textContent=""; render(); });
+
+  fileIn.addEventListener("change",()=>{
+    errEl.textContent="";
+    const file = fileIn.files && fileIn.files[0];
+    fileIn.value=""; // permet de re-sélectionner le même fichier
+    if(!file) return;
+    if(!file.type.startsWith("image/")){ errEl.textContent="Ce fichier n'est pas une image."; return; }
+    if(file.size > MAX_BYTES){ errEl.textContent="Image trop lourde (max 5 Mo)."; return; }
+    const reader = new FileReader();
+    reader.onload = e => openCropper(e.target.result);
+    reader.readAsDataURL(file);
+  });
+
+  // ---- Crop interactif ----
+  const crop = { img:null, base:1, scale:1, x:0, y:0, box:0 };
+  const ctx = canvas.getContext("2d");
+
+  function drawCrop(){
+    const b = crop.box;
+    const w = crop.img.width * crop.scale;
+    const h = crop.img.height * crop.scale;
+    ctx.clearRect(0,0,b,b);
+    ctx.drawImage(crop.img, crop.x, crop.y, w, h);
+  }
+  function clamp(){
+    const b = crop.box;
+    const w = crop.img.width * crop.scale;
+    const h = crop.img.height * crop.scale;
+    crop.x = Math.min(0, Math.max(b - w, crop.x));
+    crop.y = Math.min(0, Math.max(b - h, crop.y));
+  }
+  function openCropper(dataUrl){
+    const img = new Image();
+    img.onload = ()=>{
+      // taille du viewport de crop en px réels (carré)
+      const b = Math.round(cropwrap.clientWidth);
+      crop.box=b; canvas.width=b; canvas.height=b; crop.img=img;
+      // "cover" à zoom 1
+      crop.base = b / Math.min(img.width, img.height);
+      zoomIn.value="1"; crop.scale=crop.base;
+      // centre
+      crop.x = (b - img.width*crop.scale)/2;
+      crop.y = (b - img.height*crop.scale)/2;
+      drawCrop();
+      overlay.classList.add("open");
+    };
+    img.src = dataUrl;
+  }
+
+  zoomIn.addEventListener("input",()=>{
+    const b=crop.box, cx=b/2, cy=b/2;
+    // zoom centré sur le milieu du viewport
+    const prev=crop.scale;
+    crop.scale = crop.base * parseFloat(zoomIn.value);
+    const k = crop.scale/prev;
+    crop.x = cx - (cx - crop.x)*k;
+    crop.y = cy - (cy - crop.y)*k;
+    clamp(); drawCrop();
+  });
+
+  // drag (souris + tactile via Pointer Events)
+  let dragging=false, px=0, py=0;
+  cropwrap.addEventListener("pointerdown",e=>{
+    dragging=true; px=e.clientX; py=e.clientY; cropwrap.classList.add("drag");
+    cropwrap.setPointerCapture(e.pointerId);
+  });
+  cropwrap.addEventListener("pointermove",e=>{
+    if(!dragging) return;
+    crop.x += e.clientX-px; crop.y += e.clientY-py; px=e.clientX; py=e.clientY;
+    clamp(); drawCrop();
+  });
+  function endDrag(){ dragging=false; cropwrap.classList.remove("drag"); }
+  cropwrap.addEventListener("pointerup",endDrag);
+  cropwrap.addEventListener("pointercancel",endDrag);
+
+  cancelB.addEventListener("click",()=>overlay.classList.remove("open"));
+  confirmB.addEventListener("click",()=>{
+    // export réel : 256×256, WebP si supporté sinon JPEG (cf. OUTPUT_TYPE)
+    const out=document.createElement("canvas");
+    out.width=OUTPUT_SIZE; out.height=OUTPUT_SIZE;
+    out.getContext("2d").drawImage(canvas,0,0,crop.box,crop.box,0,0,OUTPUT_SIZE,OUTPUT_SIZE);
+    out.toBlob(blob=>{
+      state.photo = URL.createObjectURL(blob);
+      overlay.classList.remove("open");
+      render();
+    }, OUTPUT_TYPE, OUTPUT_QUALITY);
+  });
+
+  render();
+}
+
+initScreen(byId("phone-onb"),  "red");
+initScreen(byId("phone-prof"), "blue", DEMO_ME); // profil pré-rempli avec une photo
+</script>
+</body>
+</html>

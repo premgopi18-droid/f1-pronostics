@@ -52,16 +52,22 @@ export async function completeOnboarding(
 
   const pseudo = ((formData.get('pseudo') as string | null) ?? '').trim()
   const avatarKey = (formData.get('avatar_key') as string | null) ?? ''
+  const rawAvatarUrl = (formData.get('avatar_url') as string | null) || null
 
   const formatError = validatePseudo(pseudo)
   if (formatError) return { error: formatError }
   if (!HELMET_IDS.includes(avatarKey)) return { error: 'avatar' }
+
+  // Photo optionnelle : on n'accepte qu'une URL du bucket public `avatars`.
+  const publicPrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/`
+  const avatarUrl = rawAvatarUrl && rawAvatarUrl.startsWith(publicPrefix) ? rawAvatarUrl : null
 
   const { error } = await supabase
     .from('profiles')
     .update({
       pseudo,
       avatar_key: avatarKey,
+      avatar_url: avatarUrl,
       onboarding_completed: true,
       updated_at: new Date().toISOString(),
     })

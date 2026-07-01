@@ -12,7 +12,7 @@ export default async function EditAvatarPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('pseudo, avatar_key')
+    .select('pseudo, avatar_key, avatar_url')
     .eq('id', userId)
     .single()
 
@@ -35,8 +35,10 @@ export default async function EditAvatarPage() {
       </div>
 
       <EditAvatarForm
+        userId={userId}
         pseudo={profile.pseudo as string}
         avatarKey={profile.avatar_key as string | null}
+        avatarUrl={profile.avatar_url as string | null}
       />
     </main>
   )

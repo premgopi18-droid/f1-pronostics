@@ -47,7 +47,7 @@ export default async function GPScoresPage({
       .in('type', SCOREABLE_SESSION_TYPES),
     supabase
       .from('league_members')
-      .select('user_id, profiles!user_id(pseudo, avatar_key)')
+      .select('user_id, profiles!user_id(pseudo, avatar_key, avatar_url)')
       .eq('league_id', leagueId)
       .eq('season', season),
     supabase
@@ -167,13 +167,19 @@ export default async function GPScoresPage({
     if (row.fastest_lap) actualFL.set(sid, driver.code)
   }
 
-  // Identité des joueurs (pseudo + couleur du casque)
+  // Identité des joueurs (pseudo + couleur du casque pour les faits marquants) +
+  // avatar (clé casque + photo) pour l'affichage via UserAvatar côté client.
   const identity = new Map<string, PlayerIdentity>()
+  const avatarByUser = new Map<string, { avatarKey: string | null; avatarUrl: string | null }>()
   for (const m of members ?? []) {
-    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null } | null
+    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; avatar_url: string | null } | null
     identity.set(m.user_id as string, {
       pseudo: profile?.pseudo ?? '?',
       color:  (getHelmet(profile?.avatar_key) ?? DEFAULT_HELMET).color,
+    })
+    avatarByUser.set(m.user_id as string, {
+      avatarKey: profile?.avatar_key ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
     })
   }
 
@@ -235,10 +241,12 @@ export default async function GPScoresPage({
       }
     }
 
+    const avatar = avatarByUser.get(memberId) ?? { avatarKey: null, avatarUrl: null }
     return {
       userId:      memberId,
       pseudo:      info.pseudo,
-      color:       info.color,
+      avatarKey:   avatar.avatarKey,
+      avatarUrl:   avatar.avatarUrl,
       isMe:        memberId === userId,
       total,
       exactTotal,

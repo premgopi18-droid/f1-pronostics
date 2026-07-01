@@ -18,7 +18,7 @@ export default async function ProfilePage() {
     { data: leagueMemberships },
     { data: scores },
   ] = await Promise.all([
-    supabase.from('profiles').select('pseudo, avatar_key').eq('id', userId).single(),
+    supabase.from('profiles').select('pseudo, avatar_key, avatar_url').eq('id', userId).single(),
     supabase.from('league_members').select('league_id').eq('user_id', userId).eq('season', season),
     supabase.from('scores').select('session_id, base_score').eq('user_id', userId).eq('season', season),
   ])
@@ -45,6 +45,7 @@ export default async function ProfilePage() {
       <div className="mb-8 flex flex-col items-center gap-3">
         <UserAvatar
           avatarKey={profile.avatar_key as string | null}
+          avatarUrl={profile.avatar_url as string | null}
           size={80}
           label={profile.pseudo as string}
         />

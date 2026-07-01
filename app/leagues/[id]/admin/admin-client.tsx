@@ -4,8 +4,7 @@ import { useState, useTransition, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { toggleInvites, regenerateInviteCode, transferAdmin } from '@/app/actions/league-admin'
-import { getHelmet, DEFAULT_HELMET } from '@/lib/profile/avatars'
-import { AvatarHelmet } from '@/app/ui/avatar-helmet'
+import { UserAvatar } from '@/app/components/user-avatar'
 import { Badge } from '@/app/ui/badge'
 import { Button } from '@/app/ui/button'
 import { t } from '@/lib/i18n'
@@ -221,7 +220,6 @@ export function AdminClient({
         <div className="flex flex-col gap-1.5">
           {members.map((member) => {
             const isCurrentUser = member.userId === currentUserId
-            const helmet = getHelmet(member.avatarKey) ?? DEFAULT_HELMET
             const isPromoting = promoteTarget === member.userId
 
             return (
@@ -232,11 +230,11 @@ export function AdminClient({
                     isCurrentUser ? 'bg-accent-soft' : 'bg-card',
                   )}
                 >
-                  <AvatarHelmet
-                    color={helmet.color}
+                  <UserAvatar
+                    avatarKey={member.avatarKey}
+                    avatarUrl={member.avatarUrl}
                     size={32}
                     label={member.pseudo}
-                    className={cn(isCurrentUser && 'ring-2 ring-white ring-offset-1 ring-offset-transparent')}
                   />
                   <span className="flex-1 text-sm font-semibold text-foreground">
                     {member.pseudo}

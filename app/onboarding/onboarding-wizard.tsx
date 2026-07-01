@@ -8,6 +8,7 @@ import {
   type OnboardingError,
 } from "@/app/actions/onboarding";
 import { HelmetPicker } from "@/app/components/helmet-picker";
+import { AvatarPhotoField } from "@/app/components/avatar-photo-field";
 import { Button } from "@/app/ui/button";
 import { cn } from "@/lib/utils";
 import { t, type TranslationKey } from "@/lib/i18n";
@@ -28,10 +29,11 @@ type Availability =
   | { status: "ok" }
   | { status: "error"; error: OnboardingError };
 
-export function OnboardingWizard() {
+export function OnboardingWizard({ userId }: { userId: string }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [pseudo, setPseudo] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [rawAvailability, setRawAvailability] = useState<Availability>({ status: "idle" });
   const [state, formAction, isSubmitting] = useActionState(completeOnboarding, {});
 
@@ -148,6 +150,7 @@ export function OnboardingWizard() {
         <form action={formAction} className="flex flex-1 flex-col">
           <input type="hidden" name="pseudo" value={pseudo} />
           <input type="hidden" name="avatar_key" value={avatar ?? ""} />
+          <input type="hidden" name="avatar_url" value={photoUrl ?? ""} />
 
           <p className="text-xs font-bold uppercase tracking-wider text-primary-text">
             {t("onboarding.avatarStep")}
@@ -158,6 +161,15 @@ export function OnboardingWizard() {
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
             {t("onboarding.avatarSubtitle")}
           </p>
+
+          <div className="mt-7">
+            <AvatarPhotoField
+              userId={userId}
+              avatarKey={avatar}
+              avatarUrl={photoUrl}
+              onAvatarUrlChange={setPhotoUrl}
+            />
+          </div>
 
           <div className="mt-7">
             <HelmetPicker value={avatar} onChange={setAvatar} />

@@ -39,7 +39,7 @@ Application web (PWA) de pronostics Formula 1 entre amis. Les utilisateurs rejoi
 - Historique personnel des pronostics et scores
 - **Pseudo** : modifiable (sous réserve de disponibilité)
 - **Email** : non modifiable après inscription
-- **Avatar** : choix parmi une sélection d'avatars prédéfinis (v1) — upload d'image personnalisée en v2
+- **Avatar** : choix parmi une sélection d'avatars prédéfinis (casques F1) — **upload d'image personnalisée optionnelle** (les casques restent le défaut/fallback), cf. §Avatar
 - **Suppression de compte** : possible à tout moment (conformité RGPD). **L'utilisateur est immédiatement retiré de toutes ses ligues** (toutes saisons confondues) — son slot est libéré et un nouveau membre peut rejoindre. Ses scores et pronostics passés sont conservés en base (liés à l'UUID anonymisé) pour l'intégrité des calculs passés, mais il n'apparaît plus dans les classements actifs. **Anonymisation** : le pseudo est écrasé par une valeur neutre (et l'avatar retiré), et toutes les données d'authentification (email, identité Google, métadonnées OAuth) sont effacées — il n'y a pas de hard-delete du compte car les scores conservés y référencent encore. L'email d'origine est libéré : l'utilisateur peut se ré-inscrire avec la même adresse (nouveau compte, repartant de zéro) et rejoindre de nouveau les mêmes ligues sans conflit. Si le joueur supprimé était admin, le rôle est automatiquement transféré au membre le plus ancien (par date d'entrée dans la ligue) dont le compte est encore actif ; si aucun membre actif n'existe, la ligue reste sans admin actif jusqu'à la fin de saison.
 
 ### 3.2 Ligues
@@ -306,10 +306,27 @@ Les notifications sont envoyées via Web Push (standard ouvert, compatible iOS 1
 | Résultats définitifs publiés | Après la course du dimanche — scores finaux avec items résolus |
 | Item joué contre vous | Après la course, en même temps que les résultats définitifs — surprise révélée avec les scores |
 | Classement mis à jour | Après chaque calcul de score (provisoire ou définitif) — fusionné dans la catégorie "Résultats & scores" dans les réglages utilisateur |
+| Annonce produit / nouvelle feature | **Envoi manuel** (admin) — annonce d'une nouvelle feature, d'un correctif notable ou d'un message produit. Opt-in dédié, indépendant du calendrier F1 — voir §Annonces produit ci-dessous. |
 
 > **Préférence « Session imminente »** : l'utilisateur choisit le périmètre de cette notif dans ses réglages — **toutes les sessions** / **sessions à enjeu uniquement** (Sprint Qualifying, Qualifications, Sprint Race, Course — celles où un prono/item se verrouille) / **aucune**. Par défaut : sessions à enjeu. Raison : une notif avant *chaque* session (EL1/2/3 inclus) peut atteindre 6 notifs/week-end dont 3 purement informatives — le choix évite la fatigue tout en couvrant ceux qui veulent tout suivre.
 >
 > ⚠️ **Prérequis infra** : la page de préférences notif actuelle est un MVP à **toggle global** (tous les types partagent un seul interrupteur d'abonnement, cf. `app/profile/notifications/page.tsx`). Cette préférence par-périmètre suppose un **vrai stockage de préférences notif par utilisateur** (colonne/table dédiée + lecture côté envoi). À construire avec cette feature, ou à mutualiser avec un futur chantier « préférences notif par catégorie ».
+
+#### Annonces produit (« Nouveautés ») — décision 2026-07-01
+
+Canal **manuel** pour annoncer une nouvelle feature, un correctif notable ou un message produit à l'ensemble des utilisateurs — **push Web Push + surface in-app**. Distinct des notifs automatiques du calendrier F1 : c'est l'équipe qui décide quand et quoi envoyer.
+
+**Périmètre v1** :
+
+- **Opt-in dédié** — nouvelle préférence `profiles.notif_announcements` (bool, défaut `true`), **indépendante** de `notif_imminence_scope`. Un utilisateur qui a coupé les rappels de session peut garder (ou couper) les annonces produit, et inversement. Réglable dans la page notifications du profil.
+- **Push + page « Nouveautés »** — chaque annonce est poussée en Web Push **et** listée sur une page in-app `/whats-new`, alimentée par la même source. La page rattrape ceux qui n'ont pas reçu le push (iOS non installé, opt-out, appareil hors ligne). Le push ouvre l'`url` de l'annonce (feature concernée ou `/whats-new`).
+- **Historique & dédup** — table `announcements` (source de vérité) : chaque annonce y est enregistrée **une fois** puis diffusée. L'envoi est **idempotent par annonce** (un flag `sent_at` empêche le double broadcast si le déclencheur est rejoué), même principe que les colonnes `notified_*` de `grands_prix`.
+- **Déclenchement manuel** — endpoint admin protégé par le secret `CRON_SECRET` (même modèle que `/api/dev/test-push`), prenant `title` / `body` / `url` : il crée la ligne `announcements` puis broadcast via un nouveau `sendAnnouncement()` filtrant sur `notif_announcements = true`. **Pas d'UI de composition en v1** (un `curl` suffit).
+- **Forme** — titre court + une phrase ; emoji ludique pour une feature (🆕 / 🏁), ton sobre pour un correctif ; **toujours** une `url` interne cliquable. Regrouper les petits correctifs pour éviter le spam.
+
+**Hors v1 (différé)** : UI admin de composition/programmation, ciblage par ligue, badge « non lu » sur l'entrée Nouveautés, catégorisation des annonces.
+
+> **Cohérence infra** : `sendAnnouncement()` suit le patron de `sendImminencePush` (`lib/push/send.ts`) — sélection des `profiles` filtrés sur la préférence, puis jointure `push_subscriptions`. La colonne `notif_announcements` **mutualise** le chantier « vrai stockage de préférences notif par utilisateur » déjà noté pour la préférence « Session imminente » ci-dessus. L'endpoint `/api/dev/test-push` (déjà actif en prod, broadcast à tous via `sendPushToAll`) reste le **fallback niveau 0** pour un envoi ponctuel avant la livraison de ce chantier.
 
 ### 3.7 Installation (PWA)
 
@@ -528,8 +545,23 @@ Login Google
 
 - **Style** : casques F1 stylisés (illustration flat) — ~12-16 options en v1
 - **Implémentation** (décision 2026-06-22, remplace l'ancien système d'emojis) : `avatar_key` stocke l'`id` d'un casque du catalogue `lib/profile/avatars.ts` (couleur). Rendu via `AvatarHelmet` / `UserAvatar`. Sélection via `HelmetPicker` (partagé onboarding + profil).
-- **Upload perso** : disponible rapidement après v1 (pas une évolution lointaine) — les deux options coexisteront
-- **Stockage** : Supabase Storage pour les uploads personnalisés
+- **Casque = couleur obligatoire** (décision 2026-07-01) : le choix d'un casque est **toujours requis** (onboarding + profil) → `avatar_key` est **toujours renseigné** (plus de `null`). La couleur du casque est l'**identité couleur du joueur** (cf. page GP Résultats, « couleur de l'avatar = couleur du joueur ») → garantie pour 100 % des joueurs, même ceux qui mettent une photo.
+- **Upload perso** (décision 2026-07-01) : photo personnalisée **optionnelle**, posée **par-dessus** la couleur — l'avatar est **circulaire avec un anneau de la couleur du casque**. Ordre de rendu résolu par `UserAvatar` (source unique) : si `avatar_url` → photo circulaire + anneau `avatar_key` ; sinon → casque `avatar_key`. La photo est un habillage, jamais un remplacement de la couleur.
+  - **Anneau toujours présent** (décision 2026-07-01, homogénéité) : l'avatar porte **toujours** l'anneau, même sans photo — dans ce cas l'anneau prend la couleur du casque (raccord invisible). Résultat : diamètre et structure identiques pour tous les avatars d'une liste (classement), qu'ils aient une photo ou non.
+  - **Avec photo, la forme du casque (visière/reflet) n'est pas affichée** — seule la **couleur** subsiste, via l'anneau (compromis validé explicitement le 2026-07-01 : l'identité joueur = la couleur, pas la forme). Le casque complet reste visible pour les utilisateurs sans photo.
+  - **Anneau proportionnel à la taille** (ratio, comme les ombres de `AvatarHelmet`) : lisible aussi bien en nav (~40px) que sur le profil (~96px).
+  - **Nouvelle colonne** `profiles.avatar_url` (TEXT, nullable) — chemin/URL de la photo dans Storage ; `avatar_key` toujours présent en parallèle (couleur/anneau + fallback si la photo est retirée).
+  - **Traitement 100 % côté client** avant upload (zéro coût serveur, zéro impact perf) : rejet à l'input des non-images ou fichiers **> 5 Mo** → **crop carré interactif** (`react-easy-crop`, glisser/zoomer) → **resize 256×256** → **compression** (`canvas.toBlob`). Résultat : quelques dizaines de Ko max quelle que soit la photo d'origine.
+  - **Format de sortie WebP, repli JPEG** (cross-browser) : l'encodage WebP via `canvas.toBlob` n'est pas garanti sur les anciens Safari/iOS (repli silencieux en PNG = plus lourd). **Détecter le support WebP et retomber sur JPEG** sinon. Adapter aussi l'extension du fichier stocké au format réellement produit.
+  - **UI d'édition** : sélecteur de couleur (`HelmetPicker`, choix de base toujours visible) + zone photo optionnelle par-dessus (upload + preview + « retirer la photo »). Disponible **onboarding (étape 2) ET profil** (décision 2026-07-01) → l'éditeur photo (upload + crop + compression) est un **composant réutilisable partagé** entre les deux, jamais dupliqué.
+  - **`UserAvatar` = vraie source unique d'affichage** (décision 2026-07-01) : constat d'archi — aujourd'hui plusieurs écrans (leaderboard, admin, GP résultats) rendent `AvatarHelmet` **en direct** et ne passeraient donc jamais par la photo. Le ticket #167 doit **migrer ces écrans sur `UserAvatar`** (qui reçoit `avatarKey` + `avatarUrl` et arbitre photo+anneau | casque). `AvatarHelmet` reste la **primitive « casque coloré » pure** (couleur/taille), `UserAvatar` la compose. Là où la **couleur joueur** est utilisée pour autre chose que l'avatar (barres d'accent GP résultats), on continue de la dériver via `getHelmet`.
+  - **Flux d'upload** : le navigateur compresse puis **upload le blob dans Storage** (client browser, RLS) sous un **nom unique** (`{user_id}/<uuid>.<ext>`) → cache-busting gratuit (l'URL change à chaque photo, pas de CDN périmé) → l'action serveur persiste l'URL dans `avatar_url` (+ authz) → **l'ancien fichier est supprimé** (au remplacement comme au « retirer »).
+  - **Préservation croisée pseudo/avatar** : `updateProfile` écrit pseudo **et** avatar ensemble ; chaque formulaire doit **réémettre les champs qu'il ne modifie pas** (edit-pseudo réémet `avatar_key` **et** `avatar_url` ; edit-avatar réémet `pseudo`) — sinon modifier le pseudo effacerait la photo.
+  - **Marqueur « moi » vs anneau couleur** : l'avatar portant désormais toujours un anneau de couleur, le marqueur « moi » ne doit **pas** ajouter un 2e anneau (`ring-primary`) autour de l'avatar → distinguer « moi » via le fond teinté + `pseudo (moi)` déjà en place (cf. §GP résultats), pas via un anneau redondant. **Point de départ retenu (2026-07-01)** ; à réévaluer après coup si la distinction « moi » manque de force (autre canal possible : liseré externe avec offset).
+  - **Cross-browser** : le proto et l'implémentation doivent fonctionner sur tous les navigateurs, **Safari/WebKit inclus** (repli JPEG ci-dessus ; jamais de `var(--x)` dans un attribut SVG `fill`/`stroke`).
+  - **Proto de référence** : `docs/mockups/avatar-upload.html` (onboarding étape 2 + édition profil, crop + compression fonctionnels, aperçu nav/classement).
+- **Stockage** : Supabase Storage — bucket dédié `avatars`, chemin `{user_id}/…`, **écriture protégée par RLS** (chaque utilisateur n'écrit/écrase/supprime que son propre fichier). **Lecture publique** (décision 2026-07-01 : URL directe + cache CDN, simple et rapide ; un avatar n'est pas une donnée sensible). **Limite de taille au niveau du bucket** en backstop serveur si le client est contourné. Plan **free** suffisant (avatars de quelques dizaines de Ko). Migrable sans lock-in (Storage open source + compatible S3).
+  - **Suppression de compte** : l'anonymisation doit aussi effacer le fichier Storage + remettre `avatar_url` à null (cf. RPC `delete_own_account`).
 - **Règle pseudo** : modifiable 1 fois par mois, maximum 5 fois par saison
 - **Validation pseudo** : 3-20 caractères, lettres/chiffres/underscore uniquement
 - L'avatar est affiché : dans la nav, dans les classements de ligue, dans la révélation des items, dans la comparaison des pronostics

@@ -1,7 +1,9 @@
+export type ProfileSummary = { pseudo: string; avatarKey: string | null; avatarUrl: string | null }
+
 export type Standing = {
   user_id:  string
   is_admin: boolean
-  profile:  { pseudo: string; avatarKey: string | null }
+  profile:  ProfileSummary
   total:    number
   exact:    number
 }
@@ -9,7 +11,7 @@ export type Standing = {
 export type MemberRow = {
   user_id:  string
   is_admin: boolean
-  profile:  { pseudo: string; avatarKey: string | null }
+  profile:  ProfileSummary
 }
 
 export type ScoreRow = {

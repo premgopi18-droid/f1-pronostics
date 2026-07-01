@@ -10,9 +10,11 @@ const initialState: ProfileActionState = {}
 export function EditPseudoForm({
   pseudo,
   avatarKey,
+  avatarUrl,
 }: {
   pseudo:    string
   avatarKey: string | null
+  avatarUrl: string | null
 }) {
   const [state, action, isPending] = useActionState(updateProfile, initialState)
 
@@ -20,8 +22,9 @@ export function EditPseudoForm({
     <div className="flex flex-1 flex-col gap-8">
       {/* Formulaire pseudo */}
       <form action={action} className="flex flex-col gap-4">
-        {/* Conserve l'avatar existant tel quel */}
+        {/* Conserve l'avatar existant tel quel (casque + photo) — sinon la sauvegarde du pseudo les effacerait */}
         <input type="hidden" name="avatar_key" value={avatarKey ?? ''} />
+        <input type="hidden" name="avatar_url" value={avatarUrl ?? ''} />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="pseudo" className="text-sm text-muted-foreground">

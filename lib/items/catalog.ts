@@ -20,6 +20,25 @@ export const GP_ITEM_TYPES = [
   'fia_penalty',
 ] as const
 
+/**
+ * Palier de verrouillage d'un item GP (cf. product-specs §3.5 « Deadline items — deux paliers ») :
+ * - `pre_qualifying` : jouable jusqu'au début de la 1ʳᵉ session scorée (Q1, ou Sprint Qualifying) ;
+ * - `pre_race`       : jouable jusqu'au départ de la course principale.
+ * Source unique — consommé par l'action serveur, la page et le module `availability`.
+ */
+export type ItemLockPhase = 'pre_qualifying' | 'pre_race'
+
+export const ITEM_LOCK_PHASE: Record<string, ItemLockPhase> = {
+  shield:         'pre_qualifying',
+  wild_card:      'pre_qualifying',
+  double_points:  'pre_qualifying',
+  block_driver:   'pre_race',
+  dnf_prediction: 'pre_race',
+  underdog_top5:  'pre_race',
+  no_points_team: 'pre_race',
+  fia_penalty:    'pre_race',
+}
+
 export const ITEM_EMOJI: Record<string, string> = {
   shield:         '🛡️',
   block_driver:   '🚫',

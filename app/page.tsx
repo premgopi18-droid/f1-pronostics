@@ -10,6 +10,7 @@ import { Countdown } from '@/app/components/countdown'
 import { PreviousGpCard } from '@/app/components/previous-gp-card'
 import { GpWeekendCard } from '@/app/components/gp-weekend-card'
 import { getPreviousGpCard, getCurrentGpView } from '@/lib/data/home'
+import { getCurrentGp } from '@/lib/data/current-gp'
 import { cn } from '@/lib/utils'
 import { t } from '@/lib/i18n'
 
@@ -18,22 +19,14 @@ export default async function HomePage() {
   const season = getCurrentSeason()
   const userId = (await headers()).get('x-user-id')!
 
-  const [{ data: profile }, { data: memberships }, { data: nextGP }, previousGp] = await Promise.all([
+  const [{ data: profile }, { data: memberships }, nextGP, previousGp] = await Promise.all([
     supabase.from('profiles').select('pseudo, avatar_key, avatar_url').eq('id', userId).single(),
     supabase
       .from('league_members')
       .select('league_id, leagues!league_id ( name )')
       .eq('user_id', userId)
       .eq('season', season),
-    supabase
-      .from('grands_prix')
-      .select('id, name, country, round, weekend_starts_at')
-      .eq('season', season)
-      .eq('is_cancelled', false)
-      .is('scoring_finalized_at', null)
-      .order('round', { ascending: true })
-      .limit(1)
-      .maybeSingle(),
+    getCurrentGp(season),
     getPreviousGpCard(userId, season),
   ])
 
@@ -45,7 +38,7 @@ export default async function HomePage() {
 
   // Phase du GP courant (countdown / week-end / live / calcul) + ses sessions.
   const gpView = nextGP
-    ? await getCurrentGpView(nextGP.id as string, (nextGP.weekend_starts_at as string | null) ?? null)
+    ? await getCurrentGpView(nextGP.id, nextGP.weekendStartsAt)
     : null
   const phase = gpView?.phase ?? 'upcoming'
 
@@ -93,17 +86,17 @@ export default async function HomePage() {
               <div className="text-2xs font-bold uppercase tracking-wider text-primary">
                 {t('home.nextGpLabel')}
               </div>
-              <CardTitle className="mt-2 text-2xl">{nextGP.name as string}</CardTitle>
+              <CardTitle className="mt-2 text-2xl">{nextGP.name}</CardTitle>
               <div className="mt-1 text-sm text-text-secondary">
-                {t('home.round')} {nextGP.round as number} · {nextGP.country as string}
+                {t('home.round')} {nextGP.round} · {nextGP.country}
               </div>
-              {nextGP.weekend_starts_at && (
+              {nextGP.weekendStartsAt && (
                 <div className="mt-4">
-                  <Countdown targetIso={nextGP.weekend_starts_at as string} />
+                  <Countdown targetIso={nextGP.weekendStartsAt} />
                 </div>
               )}
               <Link
-                href={`/predictions/${nextGP.id as string}`}
+                href={`/predictions/${nextGP.id}`}
                 className={cn(buttonVariants({ size: 'block' }), 'mt-4')}
               >
                 {t('home.predict')} <span aria-hidden="true">→</span>
@@ -112,7 +105,7 @@ export default async function HomePage() {
                   (EL confirmées) → consulter les EL avant le verrou Q1. */}
               {gpView?.hasResults && (
                 <Link
-                  href={`/results/${nextGP.id as string}`}
+                  href={`/results/${nextGP.id}`}
                   className="mt-3 inline-flex w-full justify-center text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                 >
                   {t('home.viewResults')} <span aria-hidden="true">›</span>
@@ -123,8 +116,8 @@ export default async function HomePage() {
             // En week-end/live, des sessions restent ouvertes → card sessions (CTA pertinent).
             // En processing, tout est verrouillé → seule la bannière « Calcul » ci-dessus s'affiche.
             <GpWeekendCard
-              name={nextGP.name as string}
-              gpId={nextGP.id as string}
+              name={nextGP.name}
+              gpId={nextGP.id}
               sessions={gpView?.sessions ?? []}
               hasResults={gpView?.hasResults ?? false}
             />

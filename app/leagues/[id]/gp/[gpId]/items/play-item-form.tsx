@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { BottomSheet } from '@/app/ui/bottom-sheet'
 import { playItemAction, type PlayItemInput } from '@/app/actions/items'
 import { ALLOWED_SESSIONS, SESSION_TYPES } from '@/app/actions/items-payload'
+import type { ItemAvailability, ItemUnavailableReason } from '@/lib/items/availability'
 import type { SessionType } from '@/lib/scoring/types'
 
 interface Driver {
@@ -41,6 +42,7 @@ interface Props {
   gpId:           string
   leagueId:       string
   userItems:      UserItem[]
+  availability:   Record<string, ItemAvailability>
   members:        Member[]
   drivers:        Driver[]
   constructors:   Constructor[]
@@ -54,6 +56,13 @@ const PLAYABLE_ITEMS = new Set([
   'shield', 'block_driver', 'wild_card', 'double_points',
   'dnf_prediction', 'underdog_top5', 'no_points_team',
 ])
+
+// Motif de grisage d'un item indisponible (product-specs §3.5 — états d'indisponibilité).
+const UNAVAILABLE_LABELS: Record<ItemUnavailableReason, string> = {
+  weekly_slot_taken: 'Déjà joué ce week-end',
+  exhausted:         'Épuisé pour la saison',
+  phase_locked:      'Verrouillé — deadline passée',
+}
 
 const SESSION_LABELS: Record<SessionType, string> = {
   qualifying:        'Qualifications',
@@ -72,7 +81,7 @@ type Draft = {
 }
 
 export function PlayItemForm({
-  gpId, leagueId, userItems, members, drivers, constructors,
+  gpId, leagueId, userItems, availability, members, drivers, constructors,
   sessionTypes, itemLabels,
 }: Props) {
   const router = useRouter()
@@ -141,6 +150,24 @@ export function PlayItemForm({
           <div className="flex flex-col gap-2">
             {playableUserItems.map((item) => {
               const label = itemLabels[item.itemType]
+              const state = availability[item.itemType]
+
+              // Item indisponible → grisé + motif, non cliquable (cf. product-specs §3.5).
+              if (state && !state.available) {
+                return (
+                  <div
+                    key={item.itemType}
+                    className="flex items-start gap-3 px-4 py-3 rounded-xl bg-zinc-900 opacity-40 cursor-not-allowed"
+                  >
+                    <span className="text-2xl shrink-0 mt-0.5">{label?.emoji ?? '🎮'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium text-sm">{label?.name ?? item.itemType}</p>
+                      <p className="text-zinc-500 text-xs mt-0.5">{UNAVAILABLE_LABELS[state.reason]}</p>
+                    </div>
+                  </div>
+                )
+              }
+
               return (
                 <button
                   key={item.itemType}

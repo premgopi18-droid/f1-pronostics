@@ -12,7 +12,6 @@ import {
   computeDirectionMarker,
   type GeoCoordinate,
 } from '@/lib/f1/circuit-svg'
-import { getLapsForCircuit, getTurnsForCircuit } from '@/lib/f1/circuit-static-data'
 
 // ── Dimensions & style (aucune valeur magique) ──────────────────────────────
 export const CIRCUIT_TRACK_VIEWBOX_WIDTH = 300
@@ -38,10 +37,14 @@ interface CircuitTrackProps {
   geojson: CircuitFeature
   bacingerId: string
   circuitName: string
+  /** Tours de course (dérivé des résultats F1) — `null` si inconnu. */
+  laps: number | null
+  /** Virages (table curée) — `null` si inconnu. */
+  turns: number | null
   className?: string
 }
 
-export function CircuitTrack({ geojson, bacingerId, circuitName, className }: CircuitTrackProps) {
+export function CircuitTrack({ geojson, bacingerId, circuitName, laps, turns, className }: CircuitTrackProps) {
   const coordinates = geojson?.geometry?.coordinates ?? []
   const points = normalizeCoordinates(
     coordinates,
@@ -58,8 +61,6 @@ export function CircuitTrack({ geojson, bacingerId, circuitName, className }: Ci
   const directionMarker = computeDirectionMarker(points, DIRECTION_ARROW_FRACTION)
 
   const lengthMeters = geojson.properties?.length ?? null
-  const laps = getLapsForCircuit(bacingerId)
-  const turns = getTurnsForCircuit(bacingerId)
 
   const stats: { label: string; value: string }[] = []
   if (lengthMeters != null && lengthMeters > 0) {

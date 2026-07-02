@@ -7,6 +7,7 @@ import {
   fetchDrivers,
   fetchQualifyingResults,
   fetchRaceResults,
+  fetchRaceLaps,
   fetchSprintRaceResults,
 } from '@/lib/f1/jolpica'
 import { fetchSprintQualifyingResults, fetchPracticeResults } from '@/lib/f1/openf1'
@@ -17,6 +18,7 @@ import {
   upsertDrivers,
   upsertGrandsPrix,
   upsertSessions,
+  setRaceLaps,
 } from '@/lib/data/f1-sync'
 import { upsertSessionResults } from '@/lib/data/session-results'
 import { createServiceClient } from '@/lib/supabase'
@@ -83,7 +85,7 @@ async function handler(request: Request): Promise<Response> {
     const supabase = createServiceClient()
     const { data: pending, error: pendingError } = await supabase
       .from('sessions')
-      .select('id, type, season, starts_at, grands_prix!gp_id(round)')
+      .select('id, type, season, starts_at, gp_id, grands_prix!gp_id(round)')
       .is('results_confirmed_at', null)
       .lt('starts_at', now)
 
@@ -137,6 +139,18 @@ async function handler(request: Request): Promise<Response> {
       } catch (error) {
         console.error('[api/f1/sync] écriture résultats session', row.id, error)
         writeErrors++
+      }
+
+      // Nombre de tours de la course (pour la page de pronostic, #174) : capturé à la
+      // confirmation — la session ne sera plus revisitée ensuite. Isolé : un échec ici
+      // n'est pas une erreur de scoring (pas de writeError), on logue et on continue.
+      if (sessionType === 'race') {
+        try {
+          const raceLaps = await fetchRaceLaps(rowSeason, round)
+          if (raceLaps != null) await setRaceLaps(row.gp_id as string, raceLaps)
+        } catch (error) {
+          console.error('[api/f1/sync] tours course', row.id, error)
+        }
       }
     }
 

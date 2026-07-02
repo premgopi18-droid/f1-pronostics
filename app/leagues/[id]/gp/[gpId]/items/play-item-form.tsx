@@ -148,7 +148,9 @@ export function PlayItemForm({
       {/* Étape 1 — Choisir un item */}
       {step === 'choose' && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Tes items disponibles</h2>
+          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+            {playedItemType ? 'Tes items' : 'Tes items disponibles'}
+          </h2>
           {playableUserItems.length === 0 && (
             <p className="text-zinc-500 text-sm">Plus d&apos;items disponibles pour cette saison.</p>
           )}

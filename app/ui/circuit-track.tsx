@@ -75,6 +75,10 @@ export function CircuitTrack({ geojson, bacingerId, circuitName, className }: Ci
   if (laps != null) stats.push({ label: t('predict.circuit.lapsLabel'), value: String(laps) })
   if (turns != null) stats.push({ label: t('predict.circuit.turnsLabel'), value: String(turns) })
 
+  // Id de filtre unique par circuit (les id SVG sont globaux au document) : évite toute
+  // collision si plusieurs tracés coexistaient un jour sur la même page.
+  const glowFilterId = `circuit-track-glow-${bacingerId}`
+
   return (
     <div
       className={cn(
@@ -89,7 +93,7 @@ export function CircuitTrack({ geojson, bacingerId, circuitName, className }: Ci
         className="block w-full"
       >
         <defs>
-          <filter id="circuit-track-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <filter id={glowFilterId} x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation={GLOW_BLUR_DEVIATION} />
           </filter>
         </defs>
@@ -102,7 +106,7 @@ export function CircuitTrack({ geojson, bacingerId, circuitName, className }: Ci
           strokeWidth={GLOW_STROKE_WIDTH}
           strokeLinecap="round"
           strokeLinejoin="round"
-          filter="url(#circuit-track-glow)"
+          filter={`url(#${glowFilterId})`}
           className="text-primary opacity-60"
         />
 

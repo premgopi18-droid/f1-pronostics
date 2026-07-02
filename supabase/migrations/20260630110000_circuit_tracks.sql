@@ -11,5 +11,6 @@ create table if not exists public.circuit_tracks (
 
 alter table public.circuit_tracks enable row level security;
 
+drop policy if exists "public read" on public.circuit_tracks;
 create policy "public read" on public.circuit_tracks
   for select using (true);

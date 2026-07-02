@@ -143,6 +143,13 @@ export const fr = {
       sprint_qualifying: "Sprint Qualifs",
       sprint_race: "Sprint",
     },
+    circuit: {
+      alt: "Tracé du circuit — {name}",
+      lengthLabel: "Longueur",
+      lengthUnit: "km",
+      lapsLabel: "Tours",
+      turnsLabel: "Virages",
+    },
   },
   recap: {
     back: "Mes pronos",

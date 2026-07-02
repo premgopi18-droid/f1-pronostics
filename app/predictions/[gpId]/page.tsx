@@ -10,6 +10,8 @@ import { t } from '@/lib/i18n'
 import { PredictionTabs, type SessionData } from './prediction-tabs'
 import type { Driver } from './prediction-form'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
+import { getBacingerId } from '@/lib/f1/circuit-mapping'
+import { CircuitTrack, type CircuitFeature } from '@/app/ui/circuit-track'
 
 export default async function PredictPage({
   params,
@@ -24,7 +26,7 @@ export default async function PredictPage({
   const [{ data: gp }, { data: sessions }, driversRaw, constructorsRaw] = await Promise.all([
     supabase
       .from('grands_prix')
-      .select('id, name, country, round')
+      .select('id, name, country, round, circuit')
       .eq('id', gpId)
       .single(),
     supabase
@@ -40,6 +42,19 @@ export default async function PredictPage({
   ])
 
   if (!gp) notFound()
+
+  // Tracé du circuit (optionnel) : lookup nom Jolpica → id bacinger, puis lecture publique
+  // de `circuit_tracks`. Tout échec de mapping/lecture → pas de tracé (fallback gracieux).
+  const bacingerId = getBacingerId(gp.circuit as string)
+  let circuitFeature: CircuitFeature | null = null
+  if (bacingerId) {
+    const { data: track } = await supabase
+      .from('circuit_tracks')
+      .select('geojson')
+      .eq('id', bacingerId)
+      .single()
+    circuitFeature = (track?.geojson as CircuitFeature | undefined) ?? null
+  }
 
   const constructorByCode = new Map(
     constructorsRaw.map((c) => [c.id as string, { code: c.code as string, name: c.name as string }]),
@@ -123,6 +138,15 @@ export default async function PredictPage({
             {gp.country as string} · {t('home.round')} {gp.round as number} · {season}
           </p>
         </div>
+
+        {/* Tracé du circuit (si cartographié et présent en base) */}
+        {circuitFeature && bacingerId && (
+          <CircuitTrack
+            geojson={circuitFeature}
+            bacingerId={bacingerId}
+            circuitName={gp.circuit as string}
+          />
+        )}
 
         {/* Tabs + forms */}
         <PredictionTabs sessions={sessionList} drivers={drivers} />

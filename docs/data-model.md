@@ -116,6 +116,21 @@ Seuls les résultats officiels Jolpica sont stockés — pas de flag `is_officia
 
 ---
 
+### `circuit_tracks`
+
+Tracés SVG des circuits (source `bacinger/f1-circuits`, indépendante de Jolpica). Alimentée par `POST /api/admin/sync-circuits`. Voir [product-specs §3.3](product-specs.md).
+
+| Colonne | Type | Notes |
+|---|---|---|
+| id | TEXT PK | id bacinger, ex. `mc-1929` |
+| circuit_name | TEXT UNIQUE | `Name` bacinger, ex. `Circuit de Monaco` |
+| geojson | JSONB | *Feature* GeoJSON complète (geometry + properties : coordonnées, `length`…) |
+| updated_at | TIMESTAMPTZ | |
+
+**RLS :** lecture publique. Écriture réservée au service-role (endpoint sync, `CRON_SECRET`). Jointure avec `grands_prix.circuit` via le mapping `lib/f1/circuit-mapping.ts` (nom Jolpica → id bacinger).
+
+---
+
 ## 2. Utilisateurs
 
 ### `profiles`
@@ -573,7 +588,7 @@ Contrairement aux autres RPC, **`SECURITY INVOKER`** (défaut) : l'écriture est
 
 ---
 
-## Récapitulatif des 17 tables
+## Récapitulatif des 19 tables
 
 | # | Table | Domaine |
 |---|---|---|
@@ -582,15 +597,17 @@ Contrairement aux autres RPC, **`SECURITY INVOKER`** (défaut) : l'écriture est
 | 3 | `grands_prix` | F1 Data |
 | 4 | `sessions` | F1 Data |
 | 5 | `session_results` | F1 Data |
-| 6 | `profiles` | Utilisateurs |
-| 7 | `push_subscriptions` | Utilisateurs |
-| 8 | `leagues` | Ligues |
-| 9 | `league_members` | Ligues |
-| 10 | `predictions` | Prédictions |
-| 11 | `fastest_lap_predictions` | Prédictions |
-| 12 | `season_predictions` | Prédictions |
-| 13 | `user_items` | Items |
-| 14 | `user_season_items` | Items |
-| 15 | `items_played` | Items |
-| 16 | `scores` | Scores |
-| 17 | `season_scores` | Scores |
+| 6 | `circuit_tracks` | F1 Data |
+| 7 | `profiles` | Utilisateurs |
+| 8 | `push_subscriptions` | Utilisateurs |
+| 9 | `announcements` | Utilisateurs |
+| 10 | `leagues` | Ligues |
+| 11 | `league_members` | Ligues |
+| 12 | `predictions` | Prédictions |
+| 13 | `fastest_lap_predictions` | Prédictions |
+| 14 | `season_predictions` | Prédictions |
+| 15 | `user_items` | Items |
+| 16 | `user_season_items` | Items |
+| 17 | `items_played` | Items |
+| 18 | `scores` | Scores |
+| 19 | `season_scores` | Scores |

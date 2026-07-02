@@ -231,6 +231,13 @@ body {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 0.9; }
 }
+/* Tracé de circuit qui se dessine au chargement (stroke-dashoffset). Le path pose
+   pathLength=1 + stroke-dasharray:1 : l'état de base (offset:0) est le tracé complet
+   visible → si l'animation est coupée (reduced-motion), le circuit reste affiché. */
+@keyframes bx-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
 
 /* Réduction des animations/transitions. Deux déclencheurs :
    - préférence système `prefers-reduced-motion` : appliquée automatiquement (spec §7),

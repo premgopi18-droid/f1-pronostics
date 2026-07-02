@@ -54,20 +54,11 @@ export async function playItemAction(
 
   const season = getCurrentSeason()
 
-  // GP valide et appartient à la saison courante
-  const { data: gp } = await supabase
-    .from('grands_prix')
-    .select('id, season, is_cancelled')
-    .eq('id', gpId)
-    .single()
-
-  if (!gp)                       return { error: 'GP introuvable' }
-  if (gp.season !== season)      return { error: 'GP hors saison courante' }
-  if (gp.is_cancelled)           return { error: 'GP annulé' }
-
   // Items jouables uniquement sur le GP courant (product-specs §3.5) : on ne peut pas
   // jouer d'item sur un GP futur tant qu'un GP est en cours. Défense en profondeur —
   // l'UI verrouille déjà, mais l'action est un endpoint public.
+  // `getCurrentGp` filtre déjà saison courante + non annulé : si l'id correspond, le GP
+  // est valide, dans la bonne saison et non annulé → pas de 2ᵉ lecture de `grands_prix`.
   const currentGp = await getCurrentGp(season)
   if (!currentGp || currentGp.id !== gpId) {
     return { error: 'Les items ne sont jouables que sur le GP en cours' }

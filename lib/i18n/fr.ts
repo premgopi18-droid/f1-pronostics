@@ -194,6 +194,12 @@ export const fr = {
     underdog_top5:  { name: "Il est de retour !",           description: "Un pilote qualifié hors top 10 finit dans le top 5 de la course — +8 pts" },
     no_points_team: { name: "\"It must be the water !\"",    description: "Aucun des 2 pilotes d'une écurie ne marque de point en course — +12 pts" },
     fia_penalty:    { name: "Move de la FIA",               description: "Bientôt disponible — source de données en cours d'intégration" },
+    // Motifs de grisage d'un item indisponible (product-specs §3.5 — états d'indisponibilité).
+    unavailable: {
+      weekly_slot_taken: "Déjà joué ce week-end",
+      exhausted:         "Épuisé pour la saison",
+      phase_locked:      "Verrouillé — deadline passée",
+    },
   },
   gpResults: {
     badgeDefinitif:  "Définitif",

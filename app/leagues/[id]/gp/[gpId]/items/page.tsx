@@ -201,13 +201,15 @@ export default async function ItemsPage({
           </div>
         )}
 
-        {/* Formulaire — GP courant, slot libre */}
-        {playability === 'open' && !playedItem && (
+        {/* Liste des items — GP courant. Slot libre : items jouables + indisponibles grisés.
+            Slot pris : l'item joué est affiché ci-dessus, les autres apparaissent grisés. */}
+        {playability === 'open' && (
           <PlayItemForm
             gpId={gpId}
             leagueId={leagueId}
             userItems={userItems}
             availability={availability}
+            playedItemType={playedItem?.itemType ?? null}
             members={otherMembers}
             drivers={driverList}
             constructors={constructorList}

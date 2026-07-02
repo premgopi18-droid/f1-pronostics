@@ -60,9 +60,14 @@ async function handler(request: Request): Promise<Response> {
         // Revendiquer l'envoi avant de pousser : dédup inter-run + pas de re-push si l'envoi échoue.
         if (!(await claimSessionDeadlineNotification(session.id))) continue
         const label = SESSION_TYPE_LABELS[session.type] ?? session.type
+        // La deadline course verrouille aussi les items « avant la course » (Bloquer, bonus
+        // de prédiction — product-specs §3.5) : on le rappelle explicitement sur la course.
+        const body = session.type === 'race'
+          ? `${session.gpName} · Dépose tes pronostics et joue ton item avant le départ !`
+          : `${session.gpName} · Dépose tes pronostics avant le départ !`
         await sendPushToAll({
           title: `⏰ Deadline dans 1h — ${label}`,
-          body:  `${session.gpName} · Dépose tes pronostics avant le départ !`,
+          body,
           url:   `/predictions/${session.gpId}`,
         })
         deadlineNotified++

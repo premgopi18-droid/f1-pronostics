@@ -3,7 +3,10 @@
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { insertPlayedItem } from '@/lib/data/items'
-import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
+import { getCurrentGp } from '@/lib/data/current-gp'
+import { ITEM_LOCK_PHASE } from '@/lib/items/catalog'
+import { isPhaseLocked, type SessionTiming } from '@/lib/items/availability'
+import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 import {
   OFFENSIVE_ITEMS,
   toDBPayload,
@@ -12,6 +15,18 @@ import {
   type PlayItemInput,
   type WildCardPayload,
 } from './items-payload'
+
+// Session ciblée par l'item, ou null pour les items sans session (bouclier, bonus de prédiction).
+function sessionTypeOf(input: PlayItemInput): SessionType | null {
+  switch (input.itemType) {
+    case 'block_driver':
+    case 'wild_card':
+    case 'double_points':
+      return input.payload.sessionType as SessionType
+    default:
+      return null
+  }
+}
 
 export type { PlayItemInput } from './items-payload'
 
@@ -39,33 +54,48 @@ export async function playItemAction(
 
   const season = getCurrentSeason()
 
-  // GP valide et appartient à la saison courante
-  const { data: gp } = await supabase
-    .from('grands_prix')
-    .select('id, season, is_cancelled')
-    .eq('id', gpId)
-    .single()
+  // Items jouables uniquement sur le GP courant (product-specs §3.5) : on ne peut pas
+  // jouer d'item sur un GP futur tant qu'un GP est en cours. Défense en profondeur —
+  // l'UI verrouille déjà, mais l'action est un endpoint public.
+  // `getCurrentGp` filtre déjà saison courante + non annulé : si l'id correspond, le GP
+  // est valide, dans la bonne saison et non annulé → pas de 2ᵉ lecture de `grands_prix`.
+  const currentGp = await getCurrentGp(season)
+  if (!currentGp || currentGp.id !== gpId) {
+    return { error: 'Les items ne sont jouables que sur le GP en cours' }
+  }
 
-  if (!gp)                       return { error: 'GP introuvable' }
-  if (gp.season !== season)      return { error: 'GP hors saison courante' }
-  if (gp.is_cancelled)           return { error: 'GP annulé' }
-
-  // Deadline : avant la première session SCORÉE de ce GP (qualifs, ou Sprint
-  // Qualifying en week-end sprint), conforme à la deadline items de product-specs §211.
-  // On exclut explicitement les essais libres (FP1-3) : depuis #117/#122 la table
-  // `sessions` les contient aussi, et sans ce filtre la deadline tomberait sur l'EL1.
-  const { data: sessions } = await supabase
+  // Sessions scorées du GP (type + horaire) — base des deux verrous ci-dessous.
+  // Essais libres (FP1-3) exclus : depuis #117/#122 la table `sessions` les contient
+  // aussi, et sans ce filtre les paliers tomberaient sur l'EL1.
+  const { data: rawSessions } = await supabase
     .from('sessions')
-    .select('starts_at')
+    .select('type, starts_at')
     .eq('gp_id', gpId)
     .in('type', SCOREABLE_SESSION_TYPES)
     .order('starts_at', { ascending: true })
-    .limit(1)
 
-  const firstSession = sessions?.[0]
-  if (!firstSession) return { error: 'Aucune session trouvée pour ce GP' }
-  if (new Date(firstSession.starts_at as string) <= new Date()) {
-    return { error: 'Deadline passée — items verrouillés pour ce GP' }
+  const scoredSessions: SessionTiming[] = (rawSessions ?? []).map((s) => ({
+    type:     s.type as SessionType,
+    startsAt: s.starts_at as string,
+  }))
+  if (scoredSessions.length === 0) return { error: 'Aucune session trouvée pour ce GP' }
+
+  // Deadline dure selon le palier de l'item (product-specs §3.5 — deux paliers).
+  const phase = ITEM_LOCK_PHASE[input.itemType]
+  if (!phase) return { error: 'Type d\'item non supporté' }
+  if (isPhaseLocked(phase, scoredSessions, Date.now())) {
+    return { error: 'Deadline passée — cet item est verrouillé pour ce GP' }
+  }
+
+  // Gating par session : une session déjà démarrée n'est plus ciblable, même si la
+  // deadline dure du palier n'est pas atteinte (cf. Bloquer un pilote joué le dimanche).
+  const chosenSession = sessionTypeOf(input)
+  if (chosenSession) {
+    const session = scoredSessions.find((s) => s.type === chosenSession)
+    if (!session) return { error: 'Session indisponible pour ce GP' }
+    if (new Date(session.startsAt).getTime() <= Date.now()) {
+      return { error: 'Session déjà démarrée — trop tard pour la cibler' }
+    }
   }
 
   // Membership

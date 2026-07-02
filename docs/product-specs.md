@@ -231,7 +231,26 @@ Les items sont des actions stratégiques qu'un utilisateur peut jouer contre (ou
 - Exception : le **bouclier est utilisable 3 fois par ligue par saison**
 - Maximum **1 item joué par ligue par week-end de GP** par utilisateur (chaque ligue est indépendante — un joueur dans plusieurs ligues peut agir dans chacune)
 - Plusieurs utilisateurs peuvent cibler le même utilisateur sur un même week-end (1 item par attaquant)
-- **Deadline items GP** : tout item GP (offensif ou défensif) doit être joué avant le début des qualifications (Q1) — ou avant la Sprint Qualifying sur les week-ends sprint. Même verrouillage que les pronostics de première session.
+- **Items jouables uniquement sur le GP courant** (décidé 2026-07-01) : on ne peut pas jouer d'item sur un GP futur tant qu'un GP est en cours. Le **GP courant** = le premier GP non annulé dont le scoring n'est pas finalisé (`scoring_finalized_at IS NULL`, plus petit `round`) — même notion que la Home. Il le reste depuis avant son week-end jusqu'à la finalisation de son scoring (dimanche soir) ; le GP suivant ne s'ouvre aux items qu'à ce moment-là. Enforcement **serveur** dans l'action `playItem` (le `gpId` doit être le GP courant — les Server Actions sont des endpoints publics), pas seulement dans l'UI.
+- **Deadline items GP — deux paliers** (décidé 2026-07-01) : la fenêtre pour poser un item dépend de l'item, pas d'un verrou unique.
+
+  | Palier | Items | Deadline dure |
+  |---|---|---|
+  | **Avant les qualifs** | Bouclier, Wild Card, Dernier tour de magie | Début de la 1ʳᵉ session scorée (Q1, ou Sprint Qualifying en week-end sprint) |
+  | **Avant la course** | Bloquer un pilote, On va trancher dans le vif !, Il est de retour !, "It must be the water !", Move de la FIA | Départ de la course |
+
+  Raison du palier « avant les qualifs » : Wild Card (vole la moitié des points) et Dernier tour de magie (×2) sont les plus gros *swings* du jeu — les garder **aveugles** (posés avant toute info de grille) préserve le risque. Les items « avant la course » profitent tous de la grille de qualif, mais avec un enjeu plus chirurgical.
+
+- **Règle de ciblage par session** : pour un item à session (Bloquer un pilote, Wild Card, Dernier tour de magie), seules les sessions **pas encore démarrées** au moment où l'item est posé sont sélectionnables — même si la deadline dure de l'item n'est pas atteinte. Une session déjà courue disparaît du menu. En pratique cette règle ne contraint que **Bloquer un pilote** : posé le vendredi il peut viser SQ / SR / Qualif / Course, posé le dimanche matin il ne reste que la Course. Pour les items « avant les qualifs », qualif et course sont toujours à venir au moment de jouer → aucune session n'est jamais grisée. Enforcement serveur : `session_ciblée.starts_at > now` (même pattern que le verrouillage des pronostics).
+
+- **États d'indisponibilité (UI)** : chaque item indisponible est **grisé** avec un motif explicite, plutôt que masqué. Cas à couvrir :
+  - **GP futur** (round > GP courant) → page items verrouillée, message « Disponible après le GP en cours ».
+  - **GP passé / finalisé** → verrouillé (message distinct d'un GP futur : la fenêtre est passée, pas à venir).
+  - **Slot hebdo déjà pris** : un item déjà joué ce week-end → tous les autres grisés (« 1 item / week-end »).
+  - **Stock saison épuisé** (`uses_remaining = 0`) → grisé « épuisé » — cas **distinct** du slot hebdo (plus aucun exemplaire de la saison, ex. Wild Card déjà utilisée à un GP précédent).
+  - **Deadline de palier passée** → grisé « verrouillé ». Le grisage est **par palier** : en cours de week-end (entre Q1 et la course), les items « avant les qualifs » sont grisés pendant que les items « avant la course » restent jouables.
+
+- **Jamais de report silencieux d'un item vers un autre GP** (décidé 2026-07-01, suite à un incident réel) : la page « Jouer un item » affiche **toujours le GP concerné en évidence**. Si un item est trop tard pour ce GP, il est **refusé/grisé** — il ne bascule jamais implicitement sur le GP suivant. Un joueur ne doit jamais pouvoir croire qu'il joue pour le GP X alors que l'item compte pour le GP X+1. La règle « GP courant uniquement » ci-dessus garantit d'ailleurs qu'aucun item ne peut être posé sur un GP futur tant que le GP en cours n'est pas finalisé.
 - **Items saison** (Coup de clé à molette, Boost turbo) : ne consomment PAS le slot hebdomadaire — ils ont leur propre deadline (avant le dernier GP). Un joueur peut jouer un item GP ET un item saison sur le même week-end.
 
 #### Items disponibles
@@ -248,11 +267,13 @@ Les items sont des actions stratégiques qu'un utilisateur peut jouer contre (ou
 | Item | Utilisations/saison | Effet | Points |
 |---|---|---|---|
 | **On va trancher dans le vif !** | 1 | Choisir un pilote qui ne finira pas la course (DNF). Vérifié sur résultat officiel. DNS (pilote qui n'a pas pris le départ) ne compte pas — item wasted. | +8 pts |
-| **Il est de retour !** | 1 | Choisir un pilote dont la position en grille (qualifications) est > 10, et qui finira dans le top 5 de la course. Si le pilote n'a pas de position en qualif (pit lane start, DNS qualif) → éligible par défaut. | +8 pts |
+| **Il est de retour !** | 1 | Choisir un pilote dont la position en grille (qualifications) est > 10, et qui finira dans le top 5 de la course. Si le pilote n'a pas de position en qualif (pit lane start, DNS qualif) → éligible par défaut. **Les deux critères sont obligatoires** (part hors du top 10 ET finit top 5). | +8 pts |
 | **"It must be the water !"** | 1 | Choisir une écurie dont les 2 pilotes ne marquent aucun point en course | +12 pts |
 | **Move de la FIA** ⚠️ | 1 | Choisir un pilote qui recevra une pénalité en course — vérifié via OpenF1 race control messages | +10 pts |
 
 > ⚠️ **Move de la FIA** — *Nice to have*. Faisable via les messages race control OpenF1, mais nécessite du parsing de texte (pas une donnée structurée). À implémenter uniquement si une source propre et fiable est trouvée.
+
+> **« Il est de retour ! » — points inchangés malgré le nouveau palier** (décidé 2026-07-01) : bien que l'item soit désormais posé *après* les qualifs (grille connue, donc le critère « part hors top 10 » est trivial à satisfaire au moment de jouer), on garde **8 pts**. La difficulté réelle reste l'arrivée top 5 d'un pilote de fond de grille, jugée suffisante pour le barème. Pas de rééquilibrage.
 
 ##### Modificateurs de score
 
@@ -298,7 +319,7 @@ Les notifications sont envoyées via Web Push (standard ouvert, compatible iOS 1
 | Week-end de GP approche | J-2 avant `grands_prix.weekend_starts_at` (= **début du GP** = 1ère session de compétition : sprint qualif en week-end sprint, sinon qualif — **hors essais libres**) |
 | Rappel pronos J-1 | 24h avant le début de la **première session qui verrouille pronos + items** du week-end (Sprint Qualifying sur week-end sprint, Qualifications sinon) — une seule notif par GP. Calé sur la session-deadline, pas sur la qualif principale, pour rester pertinent en week-end sprint où la deadline tombe le vendredi. |
 | Deadline pronostic qualifications | 1h avant le début des qualifications |
-| Deadline pronostic course | 1h avant le départ |
+| Deadline pronostic course | 1h avant le départ — verrouille aussi les **items du palier « avant la course »** (Bloquer un pilote non encore posé, bonus de prédiction) |
 | Rappel « tu peux encore ajuster » | 2h après le début de **chaque session non-finale** du week-end (SQ, SR, Qualif), pour rappeler que le prono de la **session suivante** est toujours modifiable (ex. ajuster sa course avec la grille de qualif). Une seule notif par session via claim atomique ; envoyée uniquement si la session suivante n'a pas encore démarré. Un prono se verrouille au *début* de sa session (`sessionLockState`), donc la fenêtre d'ajustement reste ouverte. |
 | Session imminente (« ça va commencer ») | **10 min avant le début de chaque session** (essais libres inclus), pour ne pas la louper. Une seule notif par session (dédup atomique par session). **Configurable par l'utilisateur** — voir la préférence ci-dessous. |
 | Rattrapage à l'activation des push | **Au moment où l'utilisateur active les notifications**, s'il existe une session-deadline scorable (pronos + items) dans les **2h** à venir. Couvre le cas où l'on s'abonne en plein week-end, après le passage des crons de rappel (J-1, 1h). Envoyée au seul utilisateur qui vient de s'abonner (`sendPushToUser`), best-effort (n'échoue jamais l'abonnement), pas de dédup (one-shot par abonnement). **Pas de filtre par ligue** — aligné sur les autres rappels qui notifient tous les abonnés ; la fenêtre de 2h est ajustable (`CATCH_UP_DEADLINE_WINDOW_MS`). |

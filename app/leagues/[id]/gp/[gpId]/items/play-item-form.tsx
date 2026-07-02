@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { BottomSheet } from '@/app/ui/bottom-sheet'
 import { playItemAction, type PlayItemInput } from '@/app/actions/items'
 import { ALLOWED_SESSIONS, SESSION_TYPES } from '@/app/actions/items-payload'
+import type { ItemAvailability, ItemUnavailableReason } from '@/lib/items/availability'
 import type { SessionType } from '@/lib/scoring/types'
+import { t, type TranslationKey } from '@/lib/i18n'
 
 interface Driver {
   id:        string
@@ -41,6 +43,10 @@ interface Props {
   gpId:           string
   leagueId:       string
   userItems:      UserItem[]
+  availability:   Record<string, ItemAvailability>
+  // Item déjà joué ce week-end (affiché à part sur la page) → exclu de la liste,
+  // les autres apparaissent grisés « Déjà joué ce week-end ». null si slot libre.
+  playedItemType: string | null
   members:        Member[]
   drivers:        Driver[]
   constructors:   Constructor[]
@@ -54,6 +60,10 @@ const PLAYABLE_ITEMS = new Set([
   'shield', 'block_driver', 'wild_card', 'double_points',
   'dnf_prediction', 'underdog_top5', 'no_points_team',
 ])
+
+// Motif de grisage d'un item indisponible (i18n approche A — clés items.unavailable.*).
+const unavailableLabel = (reason: ItemUnavailableReason): string =>
+  t(`items.unavailable.${reason}` as TranslationKey)
 
 const SESSION_LABELS: Record<SessionType, string> = {
   qualifying:        'Qualifications',
@@ -72,7 +82,7 @@ type Draft = {
 }
 
 export function PlayItemForm({
-  gpId, leagueId, userItems, members, drivers, constructors,
+  gpId, leagueId, userItems, availability, playedItemType, members, drivers, constructors,
   sessionTypes, itemLabels,
 }: Props) {
   const router = useRouter()
@@ -82,7 +92,11 @@ export function PlayItemForm({
   const [message, setMessage]         = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending, startTransition]  = useTransition()
 
-  const playableUserItems = userItems.filter((i) => PLAYABLE_ITEMS.has(i.itemType))
+  // L'item déjà joué ce week-end est affiché à part (carte « Item joué ») → on l'exclut
+  // de la liste ; les autres restent visibles mais grisés « Déjà joué ce week-end ».
+  const playableUserItems = userItems.filter(
+    (i) => PLAYABLE_ITEMS.has(i.itemType) && i.itemType !== playedItemType,
+  )
 
   const chooseItem = (itemType: string) => {
     setSelectedItem(itemType)
@@ -134,13 +148,33 @@ export function PlayItemForm({
       {/* Étape 1 — Choisir un item */}
       {step === 'choose' && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Tes items disponibles</h2>
+          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+            {playedItemType ? 'Tes items' : 'Tes items disponibles'}
+          </h2>
           {playableUserItems.length === 0 && (
             <p className="text-zinc-500 text-sm">Plus d&apos;items disponibles pour cette saison.</p>
           )}
           <div className="flex flex-col gap-2">
             {playableUserItems.map((item) => {
               const label = itemLabels[item.itemType]
+              const state = availability[item.itemType]
+
+              // Item indisponible → grisé + motif, non cliquable (cf. product-specs §3.5).
+              if (state && !state.available) {
+                return (
+                  <div
+                    key={item.itemType}
+                    className="flex items-start gap-3 px-4 py-3 rounded-xl bg-zinc-900 opacity-40 cursor-not-allowed"
+                  >
+                    <span className="text-2xl shrink-0 mt-0.5">{label?.emoji ?? '🎮'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium text-sm">{label?.name ?? item.itemType}</p>
+                      <p className="text-zinc-500 text-xs mt-0.5">{unavailableLabel(state.reason)}</p>
+                    </div>
+                  </div>
+                )
+              }
+
               return (
                 <button
                   key={item.itemType}

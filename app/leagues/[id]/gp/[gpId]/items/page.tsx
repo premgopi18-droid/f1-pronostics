@@ -5,7 +5,14 @@ import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import { getUserGPItems, getPlayedGPItemForUser } from '@/lib/data/items'
-import { allItemLabels } from '@/lib/items/catalog'
+import { getCurrentGp } from '@/lib/data/current-gp'
+import { allItemLabels, ITEM_LOCK_PHASE } from '@/lib/items/catalog'
+import {
+  gpPlayability,
+  itemAvailability,
+  type ItemAvailability,
+  type SessionTiming,
+} from '@/lib/items/availability'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 import { PlayItemForm } from './play-item-form'
 
@@ -33,6 +40,7 @@ export default async function ItemsPage({
     constructorsRaw,
     userItems,
     playedItem,
+    currentGp,
   ] = await Promise.all([
     supabase
       .from('grands_prix')
@@ -43,7 +51,7 @@ export default async function ItemsPage({
       .from('sessions')
       .select('id, type, starts_at')
       .eq('gp_id', gpId)
-      // Essais libres exclus : la deadline items = 1ère session scorée (cf. §211).
+      // Essais libres exclus : les paliers items portent sur les sessions scorées (cf. §211).
       .in('type', SCOREABLE_SESSION_TYPES)
       .order('starts_at', { ascending: true }),
     supabase
@@ -60,15 +68,46 @@ export default async function ItemsPage({
     getCachedConstructors(season),
     getUserGPItems(userId, leagueId, season),
     getPlayedGPItemForUser(userId, gpId, leagueId),
+    getCurrentGp(season),
   ])
 
   if (!gp || !league) notFound()
   if (gp.season !== season || gp.is_cancelled) notFound()
 
-  // Deadline = début de la première session du GP
-  const firstSession = sessions?.[0]
-  const deadlineDate = firstSession ? new Date(firstSession.starts_at as string) : null
-  const isDeadlinePassed = deadlineDate ? deadlineDate <= new Date() : false
+  const nowMs = new Date().getTime()
+
+  // Sessions scorées (type + horaire) — base des paliers et du gating par session.
+  const scoredSessions: SessionTiming[] = (sessions ?? []).map((s) => ({
+    type:     s.type as SessionType,
+    startsAt: s.starts_at as string,
+  }))
+
+  // Jouabilité du GP : seul le GP courant est ouvert ; futurs verrouillés, passés fermés.
+  const playability = gpPlayability(gp.round as number, currentGp?.round ?? null)
+
+  // Sessions encore ciblables (pas démarrées) — le form les recroise avec ALLOWED_SESSIONS.
+  const futureSessionTypes = scoredSessions
+    .filter((s) => new Date(s.startsAt).getTime() > nowMs)
+    .map((s) => s.type)
+
+  // Disponibilité par item (grisage + motif). Calcul en mémoire — aucune requête par item.
+  const availability: Record<string, ItemAvailability> = Object.fromEntries(
+    (userItems ?? []).map((item) => [
+      item.itemType,
+      itemAvailability({
+        phase:                ITEM_LOCK_PHASE[item.itemType] ?? 'pre_race',
+        sessions:             scoredSessions,
+        nowMs,
+        hasPlayedThisWeekend: Boolean(playedItem),
+        usesRemaining:        item.usesRemaining,
+      }),
+    ]),
+  )
+
+  // Deux deadlines de palier affichées (product-specs §3.5).
+  const preQualifyingDeadline = scoredSessions[0] ? new Date(scoredSessions[0].startsAt) : null
+  const raceSession = scoredSessions.find((s) => s.type === 'race')
+  const preRaceDeadline = raceSession ? new Date(raceSession.startsAt) : null
 
   const otherMembers = (members ?? [])
     .filter((m) => m.user_id !== userId)
@@ -94,14 +133,14 @@ export default async function ItemsPage({
     name: c.name as string,
   }))
 
-  const availableSessionTypes = (sessions ?? []).map((s) => s.type as SessionType)
   const isSprintWeekend = gp.is_sprint_weekend as boolean
+  const formatDeadline = (d: Date) => d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-8">
       <div className="max-w-lg mx-auto flex flex-col gap-8">
 
-        {/* Header */}
+        {/* Header — le GP concerné est toujours affiché en évidence (jamais de report silencieux). */}
         <div className="flex flex-col gap-1">
           <Link
             href={`/leagues/${leagueId}/gp/${gpId}`}
@@ -109,22 +148,44 @@ export default async function ItemsPage({
           >
             ← {gp.name as string}
           </Link>
-          <h1 className="text-2xl font-bold text-white">Jouer un item</h1>
+          <h1 className="text-2xl font-bold text-white">Jouer un item — {gp.name as string}</h1>
           <p className="text-xs text-zinc-500 uppercase tracking-wider">
             {league.name as string} · Round {gp.round} · {gp.country}
           </p>
-          {deadlineDate && (
-            <p className={`text-sm mt-1 ${isDeadlinePassed ? 'text-red-400' : 'text-zinc-400'}`}>
-              {isDeadlinePassed
-                ? 'Deadline passée — les items sont verrouillés pour ce GP'
-                : `Deadline : ${deadlineDate.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}`
-              }
-            </p>
+          {playability === 'open' && (
+            <div className="text-sm text-zinc-400 mt-1 flex flex-col gap-0.5">
+              {preQualifyingDeadline && (
+                <span>Avant les qualifs : {formatDeadline(preQualifyingDeadline)}</span>
+              )}
+              {preRaceDeadline && (
+                <span>Avant la course : {formatDeadline(preRaceDeadline)}</span>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Item déjà joué */}
-        {playedItem && (
+        {/* GP futur — items pas encore ouverts */}
+        {playability === 'future' && (
+          <div className="bg-zinc-900 rounded-xl px-4 py-4">
+            <p className="text-white font-medium">Pas encore disponible</p>
+            <p className="text-zinc-500 text-sm mt-1">
+              Tu ne peux jouer un item que sur le GP en cours. Reviens une fois le GP courant terminé.
+            </p>
+          </div>
+        )}
+
+        {/* GP passé / finalisé — fenêtre fermée */}
+        {playability === 'past' && (
+          <div className="bg-zinc-900 rounded-xl px-4 py-4">
+            <p className="text-white font-medium">Fenêtre passée</p>
+            <p className="text-zinc-500 text-sm mt-1">
+              La période pour jouer un item sur ce GP est terminée.
+            </p>
+          </div>
+        )}
+
+        {/* Item déjà joué (slot hebdo consommé) */}
+        {playability === 'open' && playedItem && (
           <div className="bg-zinc-900 rounded-xl px-4 py-4 flex flex-col gap-2">
             <p className="text-xs text-zinc-500 uppercase tracking-wider">Item joué</p>
             <div className="flex items-center gap-3">
@@ -135,26 +196,24 @@ export default async function ItemsPage({
               </div>
             </div>
             <p className="text-xs text-zinc-600 mt-1">
-              Révélé après la course · résolu par le cron de scoring
+              1 item par week-end — tu as déjà joué le tien. Révélé après la course.
             </p>
           </div>
         )}
 
-        {/* Deadline passée, pas d'item joué */}
-        {isDeadlinePassed && !playedItem && (
-          <p className="text-zinc-500 text-sm">Aucun item joué pour ce week-end.</p>
-        )}
-
-        {/* Formulaire */}
-        {!isDeadlinePassed && !playedItem && (
+        {/* Liste des items — GP courant. Slot libre : items jouables + indisponibles grisés.
+            Slot pris : l'item joué est affiché ci-dessus, les autres apparaissent grisés. */}
+        {playability === 'open' && (
           <PlayItemForm
             gpId={gpId}
             leagueId={leagueId}
             userItems={userItems}
+            availability={availability}
+            playedItemType={playedItem?.itemType ?? null}
             members={otherMembers}
             drivers={driverList}
             constructors={constructorList}
-            sessionTypes={availableSessionTypes}
+            sessionTypes={futureSessionTypes}
             isSprintWeekend={isSprintWeekend}
             itemLabels={ITEM_LABELS}
           />

@@ -11,6 +11,7 @@ import { PredictionTabs, type SessionData } from './prediction-tabs'
 import type { Driver } from './prediction-form'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 import { getBacingerId } from '@/lib/f1/circuit-mapping'
+import { getTurnsForCircuit } from '@/lib/f1/circuit-static-data'
 import { CircuitTrack, type CircuitFeature } from '@/app/ui/circuit-track'
 
 export default async function PredictPage({
@@ -45,16 +46,28 @@ export default async function PredictPage({
 
   // Tracé du circuit (optionnel) : lookup nom Jolpica → id bacinger, puis lecture publique
   // de `circuit_tracks`. Tout échec de mapping/lecture → pas de tracé (fallback gracieux).
+  // Tours : dérivés de la dernière édition disputée du circuit (`race_laps`, #174) —
+  // toujours à jour, se remplit tout seul après la 1ʳᵉ course d'un nouveau circuit.
   const bacingerId = getBacingerId(gp.circuit as string)
   let circuitFeature: CircuitFeature | null = null
+  let circuitLaps: number | null = null
   if (bacingerId) {
-    const { data: track } = await supabase
-      .from('circuit_tracks')
-      .select('geojson')
-      .eq('id', bacingerId)
-      .single()
+    const [{ data: track }, { data: lapsRow }] = await Promise.all([
+      supabase.from('circuit_tracks').select('geojson').eq('id', bacingerId).single(),
+      supabase
+        .from('grands_prix')
+        .select('race_laps')
+        .eq('circuit', gp.circuit as string)
+        .not('race_laps', 'is', null)
+        .order('season', { ascending: false })
+        .order('round', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
     circuitFeature = (track?.geojson as CircuitFeature | undefined) ?? null
+    circuitLaps = (lapsRow?.race_laps as number | undefined) ?? null
   }
+  const circuitTurns = bacingerId ? getTurnsForCircuit(bacingerId) : null
 
   const constructorByCode = new Map(
     constructorsRaw.map((c) => [c.id as string, { code: c.code as string, name: c.name as string }]),
@@ -145,6 +158,8 @@ export default async function PredictPage({
             geojson={circuitFeature}
             bacingerId={bacingerId}
             circuitName={gp.circuit as string}
+            laps={circuitLaps}
+            turns={circuitTurns}
           />
         )}
 

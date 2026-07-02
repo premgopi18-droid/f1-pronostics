@@ -3,6 +3,7 @@ import {
   fetchCalendar,
   fetchDriverStandings,
   fetchConstructorStandings,
+  fetchRaceLaps,
   mapRaceResult,
   type JolpikaRaceResult,
 } from './jolpica'
@@ -289,5 +290,60 @@ describe('mapRaceResult', () => {
     const [, withoutFl] = mapRaceResult(makeResult('LEC', '2', '2', '5'))
     expect(withFl.fastestLap).toBe(true)
     expect(withoutFl.fastestLap).toBe(false)
+  })
+})
+
+describe('fetchRaceLaps', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
+  afterEach(() => vi.unstubAllGlobals())
+
+  function mockFetch(body: unknown) {
+    vi.mocked(fetch).mockResolvedValue({
+      ok:   true,
+      json: () => Promise.resolve(body),
+    } as Response)
+  }
+
+  function raceWith(results: { position: string; laps?: string }[]) {
+    return {
+      MRData: {
+        RaceTable: {
+          Races: [
+            {
+              Results: results.map((r) => ({
+                position:     r.position,
+                positionText: r.position,
+                Driver: { code: 'XXX', driverId: 'x', givenName: 'X', familyName: 'Y', permanentNumber: '1' },
+                ...(r.laps ? { laps: r.laps } : {}),
+              })),
+            },
+          ],
+        },
+      },
+    }
+  }
+
+  it('retourne les tours du vainqueur (position "1")', async () => {
+    // Vainqueur listé après un autre pilote → on cherche bien par position, pas l'index 0.
+    mockFetch(raceWith([
+      { position: '2', laps: '77' },
+      { position: '1', laps: '78' },
+    ]))
+    expect(await fetchRaceLaps(2026, 8)).toBe(78)
+  })
+
+  it('retombe sur le premier résultat si aucune position "1"', async () => {
+    mockFetch(raceWith([{ position: '2', laps: '56' }]))
+    expect(await fetchRaceLaps(2026, 1)).toBe(56)
+  })
+
+  it('retourne null si pas de résultats (course non courue)', async () => {
+    mockFetch(raceWith([]))
+    expect(await fetchRaceLaps(2026, 99)).toBeNull()
+  })
+
+  it('retourne null si le champ laps est absent ou invalide', async () => {
+    mockFetch(raceWith([{ position: '1' }]))
+    expect(await fetchRaceLaps(2026, 2)).toBeNull()
   })
 })

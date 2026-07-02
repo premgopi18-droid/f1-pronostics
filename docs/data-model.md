@@ -67,6 +67,7 @@
 | notified_open_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif push "pronostics ouverts" (J-2). Garantit une seule notif par GP. |
 | notified_scores_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif push "résultats disponibles". Garantit une seule notif par GP. |
 | notified_reminder_24h_at | TIMESTAMPTZ | null jusqu'à l'envoi du rappel push "pronos J-1" (24h avant la 1ʳᵉ session-deadline du week-end). Garantit une seule notif par GP. |
+| race_laps | INTEGER | null jusqu'à la course. Nombre de tours de la course = tours du vainqueur, dérivé des résultats F1 par le cron `/api/f1/sync` à la confirmation (`fetchRaceLaps` → `setRaceLaps`). Alimente la stat « tours » du tracé de circuit (§3.3, #174) — lu sur la dernière édition disputée du circuit. |
 | created_at | TIMESTAMPTZ | |
 
 **RLS :** lecture publique

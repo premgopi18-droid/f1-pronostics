@@ -1,37 +1,17 @@
-// Données statiques par circuit — nombre de tours de course et nombre de virages.
-// Absentes de bacinger ET du calendrier Jolpica, elles sont maintenues à la main.
+// Nombre de virages par circuit — donnée curée à la main.
 //
-// Clé = identifiant bacinger (voir `circuit-mapping.ts`). Valeurs de l'ère actuelle
-// (susceptibles d'être ajustées si un tracé change). Un circuit absent d'une table
-// → la statistique correspondante n'est simplement pas affichée (fallback gracieux).
-// Madring (es-2026) : nouveau tracé, distance de course non figée → volontairement omis.
-
-export const LAPS_BY_CIRCUIT: Record<string, number> = {
-  'au-1953': 58,
-  'mx-1962': 71,
-  'br-1940': 71,
-  'it-1922': 53,
-  'az-2016': 51,
-  'es-1991': 66,
-  'mc-1929': 78,
-  'be-1925': 44,
-  'ca-1978': 70,
-  'us-2012': 56,
-  'nl-1948': 72,
-  'hu-1986': 70,
-  'us-2023': 50,
-  'qa-2004': 57,
-  'sg-2008': 62,
-  'us-2022': 57,
-  'at-1969': 71,
-  'cn-2004': 56,
-  'gb-1948': 52,
-  'jp-1962': 53,
-  'ae-2009': 58,
-  'bh-2002': 57,
-  'sa-2021': 50,
-  'it-1953': 63,
-}
+// Contrairement aux tours (désormais dérivés automatiquement des résultats F1, voir
+// `grands_prix.race_laps` + #174), le nombre de virages n'existe dans AUCUNE source
+// exploitable (ni bacinger, ni Jolpica, ni OpenF1). Le scraping Wikipédia/Wikidata est
+// écarté : fragile, pour une valeur qui ne change qu'à une reconfiguration physique du
+// circuit (rare). On maintient donc une table curée, avec revue annuelle.
+//
+// Clé = identifiant bacinger (voir `circuit-mapping.ts`). Valeur = configuration de l'ère
+// actuelle. Circuit absent → la statistique n'est pas affichée (fallback gracieux).
+//
+// ⚠️ REVUE ANNUELLE (checklist docs/product-specs §3.3) : en début de saison, revérifier
+//    les circuits reconfigurés et ajouter les nouveaux tracés du calendrier.
+//    Dernière vérification : 2026 (calendrier 2026).
 
 export const TURNS_BY_CIRCUIT: Record<string, number> = {
   'au-1953': 14,
@@ -58,11 +38,6 @@ export const TURNS_BY_CIRCUIT: Record<string, number> = {
   'bh-2002': 15,
   'sa-2021': 27,
   'it-1953': 19,
-}
-
-/** Nombre de tours de course pour un circuit, ou `null` si inconnu. */
-export function getLapsForCircuit(bacingerId: string): number | null {
-  return LAPS_BY_CIRCUIT[bacingerId] ?? null
 }
 
 /** Nombre de virages pour un circuit, ou `null` si inconnu. */

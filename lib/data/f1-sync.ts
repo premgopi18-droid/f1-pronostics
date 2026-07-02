@@ -155,6 +155,17 @@ export async function confirmSessionResults(sessionId: string): Promise<void> {
   if (error) throw error
 }
 
+// Enregistre le nombre de tours de la course d'un GP (dérivé des résultats F1).
+// Idempotent : réécrit la même valeur sans effet de bord.
+export async function setRaceLaps(gpId: string, laps: number): Promise<void> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('grands_prix')
+    .update({ race_laps: laps })
+    .eq('id', gpId)
+  if (error) throw error
+}
+
 export async function getSessionId(
   gpId: string,
   type: SessionType,

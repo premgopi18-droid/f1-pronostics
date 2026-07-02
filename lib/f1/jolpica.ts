@@ -24,6 +24,7 @@ export interface JolpikaRaceResult {
   positionText: string   // "1".."20", "R"=Retired (DNF), "W"=Withdrew (DNS), "D"=DSQ, "N"=non-classé
   Driver:       JolpikaDriver
   FastestLap?:  { rank: string }
+  laps?:        string   // tours effectués par le pilote (le vainqueur = distance de course)
 }
 
 interface JolpikaQualifyingResult {
@@ -145,6 +146,18 @@ export async function fetchRaceResults(
   )
   const results = data.MRData.RaceTable.Races[0]?.Results ?? []
   return new Map(results.map(mapRaceResult))
+}
+
+// Nombre de tours de la course = tours effectués par le vainqueur (position 1).
+// `null` si la course n'a pas de résultats (pas encore courue) ou donnée absente.
+export async function fetchRaceLaps(year: number, round: number): Promise<number | null> {
+  const data = await jolpikaGet<{ MRData: { RaceTable: { Races: JolpikaRace[] } } }>(
+    `/${year}/${round}/results`,
+  )
+  const results = data.MRData.RaceTable.Races[0]?.Results ?? []
+  const winner = results.find((result) => result.position === '1') ?? results[0]
+  const laps = winner?.laps ? parseInt(winner.laps, 10) : NaN
+  return Number.isFinite(laps) && laps > 0 ? laps : null
 }
 
 export async function fetchQualifyingResults(

@@ -9,8 +9,8 @@ import { Card, CardTitle } from '@/app/ui/card'
 import { Countdown } from '@/app/components/countdown'
 import { PreviousGpCard } from '@/app/components/previous-gp-card'
 import { GpWeekendCard } from '@/app/components/gp-weekend-card'
-import { getPreviousGpCard, getCurrentGpView } from '@/lib/data/home'
-import { getCurrentGp } from '@/lib/data/current-gp'
+import { getPreviousGpCard } from '@/lib/data/home'
+import { getCurrentGpWithView } from '@/lib/data/current-gp'
 import { cn } from '@/lib/utils'
 import { t } from '@/lib/i18n'
 
@@ -19,14 +19,14 @@ export default async function HomePage() {
   const season = getCurrentSeason()
   const userId = (await headers()).get('x-user-id')!
 
-  const [{ data: profile }, { data: memberships }, nextGP, previousGp] = await Promise.all([
+  const [{ data: profile }, { data: memberships }, currentGpWithView, previousGp] = await Promise.all([
     supabase.from('profiles').select('pseudo, avatar_key, avatar_url').eq('id', userId).single(),
     supabase
       .from('league_members')
       .select('league_id, leagues!league_id ( name )')
       .eq('user_id', userId)
       .eq('season', season),
-    getCurrentGp(season),
+    getCurrentGpWithView(season),
     getPreviousGpCard(userId, season),
   ])
 
@@ -36,10 +36,10 @@ export default async function HomePage() {
     return { id: m.league_id, name: league?.name ?? 'Ligue sans nom' }
   })
 
-  // Phase du GP courant (countdown / week-end / live / calcul) + ses sessions.
-  const gpView = nextGP
-    ? await getCurrentGpView(nextGP.id, nextGP.weekendStartsAt)
-    : null
+  // Phase du GP courant (countdown / week-end / live / calcul) + ses sessions —
+  // ramenées par la même requête que le GP (getCurrentGpWithView, #183).
+  const nextGP = currentGpWithView?.gp ?? null
+  const gpView = currentGpWithView?.view ?? null
   const phase = gpView?.phase ?? 'upcoming'
 
   return (

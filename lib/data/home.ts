@@ -1,44 +1,11 @@
 import { createServiceClient } from '@/lib/supabase'
 import { rawGpScore } from '@/lib/gp-score'
-import { deriveCurrentGpView, type CurrentGpView } from '@/lib/home-phase'
 
 const RACE_SESSION_TYPE = 'race'
 const PODIUM_SIZE = 3
 
-export type { CurrentGpView }
-
-/**
- * Phase du GP courant (countdown / week-end / live / calcul) + ses sessions pour la
- * card week-end + `hasResults`. `Date.now()` est lu ici (fonction de données, hors
- * render React). La dérivation est déléguée au helper pur `deriveCurrentGpView`.
- */
-export async function getCurrentGpView(
-  gpId: string,
-  weekendStartsAt: string | null,
-): Promise<CurrentGpView> {
-  const supabase = createServiceClient()
-  const nowMs = Date.now()
-
-  // Toutes les sessions (EL comprises) : le helper sépare ce qui sert à
-  // `hasResults` (tout) de ce qui sert à la phase / la card (sessions scorées).
-  const { data: rows, error } = await supabase
-    .from('sessions')
-    .select('type, starts_at, results_confirmed_at')
-    .eq('gp_id', gpId)
-    .order('starts_at', { ascending: true })
-
-  if (error) console.error('[data/home] sessions (view)', error)
-
-  return deriveCurrentGpView(
-    nowMs,
-    weekendStartsAt,
-    (rows ?? []).map((s) => ({
-      type: s.type,
-      startsAt: s.starts_at,
-      resultsConfirmedAt: s.results_confirmed_at,
-    })),
-  )
-}
+// La vue du GP courant (phase / sessions / hasResults) vit désormais dans
+// lib/data/current-gp.ts (getCurrentGpWithView — jointure unique, #183).
 
 export type PreviousGpCard = {
   name: string

@@ -53,7 +53,7 @@ export function PredictionTabs({ sessions, drivers }: Props) {
     tabRefs.current[index]?.focus()
   }
 
-  const onTabKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+  const onTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     const count = sessions.length
     let next: number | null = null
     if (event.key === 'ArrowRight') next = (activeIndex + 1) % count
@@ -103,9 +103,11 @@ export function PredictionTabs({ sessions, drivers }: Props) {
         <div
           role="tablist"
           aria-label={t('predict.sessionsLabel')}
-          onKeyDown={onTabKeyDown}
           className="flex gap-1 rounded-xl border border-border bg-card p-1"
         >
+          {/* onKeyDown porté par les tabs (focusables) et non par le tablist :
+              pattern APG — le conteneur n'est pas focusable, le clavier vit sur
+              le tab actif (roving tabIndex). */}
           {sessions.map((session, i) => (
             <button type="button"
               key={session.id}
@@ -115,6 +117,7 @@ export function PredictionTabs({ sessions, drivers }: Props) {
               aria-selected={i === activeIndex}
               aria-controls="predict-tabpanel"
               tabIndex={i === activeIndex ? 0 : -1}
+              onKeyDown={onTabKeyDown}
               onClick={() => setActiveIndex(i)}
               className={cn(
                 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',

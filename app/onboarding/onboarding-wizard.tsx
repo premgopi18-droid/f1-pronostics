@@ -110,6 +110,9 @@ export function OnboardingWizard({ userId }: { userId: string }) {
               value={pseudo}
               onChange={(event) => setPseudo(event.target.value)}
               placeholder={t("onboarding.pseudoPlaceholder")}
+              // Autofocus volontaire : l'étape 1 du wizard n'a qu'un seul champ,
+              // qui est l'action attendue — rien au-dessus à court-circuiter.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               autoComplete="off"
               aria-invalid={availability.status === "error"}

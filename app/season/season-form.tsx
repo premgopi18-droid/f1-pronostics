@@ -326,9 +326,13 @@ function RankingPanel({
             <div className="flex flex-col gap-3">
               <div className="flex gap-3">
                 <div className="flex flex-col gap-1 flex-1">
-                  <label className="text-xs text-zinc-400">Depuis la position</label>
+                  {/* <span> et non <label> : le déclencheur est un bouton (ouvre une sheet),
+                      pas un champ — l'association se fait par aria-labelledby (libellé + valeur). */}
+                  <span id="season-item-from-label" className="text-xs text-zinc-400">{t('season.itemFromLabel')}</span>
                   <button
                     type="button"
+                    id="season-item-from-button"
+                    aria-labelledby="season-item-from-label season-item-from-button"
                     onClick={() => setFromSheetOpen(true)}
                     className="flex items-center justify-between rounded-xl bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800 cursor-pointer text-white"
                   >
@@ -364,9 +368,11 @@ function RankingPanel({
                   </BottomSheet>
                 </div>
                 <div className="flex flex-col gap-1 flex-1">
-                  <label className="text-xs text-zinc-400">Vers la position</label>
+                  <span id="season-item-to-label" className="text-xs text-zinc-400">{t('season.itemToLabel')}</span>
                   <button
                     type="button"
+                    id="season-item-to-button"
+                    aria-labelledby="season-item-to-label season-item-to-button"
                     onClick={() => setToSheetOpen(true)}
                     className="flex items-center justify-between rounded-xl bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800 cursor-pointer text-white"
                   >
@@ -467,6 +473,9 @@ function SortableRow({
 
   return (
     <>
+      {/* Tap = raccourci pointeur uniquement — équivalent clavier via la poignée
+          dnd-kit + boutons Monter/Descendre focusables dans la ligne. */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         ref={setNodeRef}
         style={style}

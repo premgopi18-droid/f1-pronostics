@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { remaining } from "@/lib/countdown";
+import { formatCountdownLabel, remaining } from "@/lib/countdown";
 import { t } from "@/lib/i18n";
 
 const TICK_MS = 30_000;
@@ -20,7 +20,8 @@ export function Countdown({ targetIso }: { targetIso: string }) {
     return () => clearInterval(id);
   }, []);
 
-  const { days, hours, mins } = remaining(target, now);
+  const timeLeft = remaining(target, now);
+  const { days, hours, mins } = timeLeft;
   const cells: ReadonlyArray<readonly [number, string]> = [
     [days, t("home.countdownDays")],
     [hours, t("home.countdownHours")],
@@ -28,9 +29,19 @@ export function Countdown({ targetIso }: { targetIso: string }) {
   ];
 
   return (
-    <div className="flex gap-2">
+    // Lecteurs d'écran : une seule phrase (role timer + aria-label), lue à la
+    // navigation — jamais d'aria-live, un countdown qui s'annonce à chaque tick
+    // serait du bruit. Les cellules visuelles sont masquées (aria-hidden).
+    // suppressHydrationWarning : l'aria-label dépend de Date.now(), comme les
+    // chiffres — décalage SSR/client inhérent et bénin.
+    <div
+      role="timer"
+      aria-label={formatCountdownLabel(timeLeft)}
+      suppressHydrationWarning
+      className="flex gap-2"
+    >
       {cells.map(([n, label]) => (
-        <div key={label} className="flex-1 rounded-xl bg-black/25 p-2.5 text-center">
+        <div key={label} aria-hidden="true" className="flex-1 rounded-xl bg-black/25 p-2.5 text-center">
           <div className="font-numeric text-2xl font-bold text-foreground" suppressHydrationWarning>
             {n}
           </div>

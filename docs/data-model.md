@@ -34,6 +34,8 @@
 
 **RLS :** lecture publique
 
+**Index :** `(constructor_id)`
+
 ---
 
 ### `constructors`
@@ -115,6 +117,8 @@ Seuls les résultats officiels Jolpica sont stockés — pas de flag `is_officia
 
 **RLS :** lecture publique
 
+**Index :** `(driver_id)`
+
 ---
 
 ### `circuit_tracks`
@@ -171,6 +175,8 @@ Extension de `auth.users` Supabase. Créée automatiquement à l'inscription via
 | created_at | TIMESTAMPTZ | |
 
 **RLS :** accessible uniquement par le propriétaire
+
+**Index :** `(user_id)`
 
 > Pas de table `notifications` en v1 — envoi cron fire-and-forget via push_subscriptions. Décision consciente. (Les **annonces produit** font exception : elles ont une table `announcements` dédiée, car éditoriales et rejouables — voir ci-dessous.)
 
@@ -291,6 +297,8 @@ Une ligne par user par session. L'ordre prédit est stocké en JSONB — pas de 
 
 **RLS :** même règle que `predictions` (lock + co-membre de ligue)
 
+**Index :** `(user_id, session_id)`, `(session_id)`, `(driver_id)`
+
 ---
 
 ### `season_predictions`
@@ -339,6 +347,8 @@ Stock d'items GP de chaque joueur par ligue. Initialisé en début de saison.
 **Contrainte :** UNIQUE (user_id, league_id, season, item_type)
 
 **RLS :** accessible uniquement par le propriétaire
+
+**Index :** `(user_id, league_id, season)`, `(league_id)`
 
 ---
 
@@ -475,6 +485,8 @@ Calculé en fin de saison une fois les résultats WDC/WCC officiels.
 **Contrainte :** UNIQUE (user_id, league_id, season)
 
 **RLS :** lisible par tous les membres de la ligue
+
+**Index :** `(league_id)`
 
 ---
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef } from 'react'
+import { t } from '@/lib/i18n'
 
 const FOCUSABLE = [
   'a[href]',
@@ -89,7 +90,7 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
           <button
             type="button"
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={t('common.close')}
             className="text-lg leading-none text-text-secondary hover:text-foreground"
           >
             ✕

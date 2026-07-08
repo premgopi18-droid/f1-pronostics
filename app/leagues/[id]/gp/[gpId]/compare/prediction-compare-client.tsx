@@ -237,7 +237,7 @@ export function PredictionCompareClient({
       {sessions.length > 1 && (
         <div className="flex gap-1 border border-border bg-card p-1 rounded-xl" role="tablist">
           {sessions.map((s) => (
-            <button
+            <button type="button"
               key={s.id}
               role="tab"
               aria-selected={s.id === activeSessionId}
@@ -257,7 +257,7 @@ export function PredictionCompareClient({
 
       {/* Toggle Vue groupe / Tête-à-tête */}
       <div className="flex gap-0 border border-border bg-card p-1 rounded-xl" role="tablist" aria-label={t('compare.modeLabel')}>
-        <button
+        <button type="button"
           role="tab"
           aria-selected={view === 'group'}
           onClick={() => setView('group')}
@@ -270,7 +270,7 @@ export function PredictionCompareClient({
         >
           {t('compare.vueGroupe')}
         </button>
-        <button
+        <button type="button"
           role="tab"
           aria-selected={view === 'head-to-head'}
           onClick={() => setView('head-to-head')}
@@ -303,7 +303,7 @@ export function PredictionCompareClient({
             <>
               {/* Sélecteur adversaire */}
               <div className="flex items-center justify-between gap-3">
-                <button
+                <button type="button"
                   onClick={() =>
                     setOpponentIndex((prev) => (prev - 1 + opponents.length) % opponents.length)
                   }
@@ -317,7 +317,7 @@ export function PredictionCompareClient({
                   <p className="text-xs text-text-secondary">{t('compare.toiVs')}</p>
                   <p className="text-foreground font-semibold">{opponent?.pseudo ?? '?'}</p>
                 </div>
-                <button
+                <button type="button"
                   onClick={() =>
                     setOpponentIndex((prev) => (prev + 1) % opponents.length)
                   }

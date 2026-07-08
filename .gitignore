@@ -43,3 +43,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# fichier temporaire du workflow d'annonce produit (curl /api/admin/announce)
+announce.json

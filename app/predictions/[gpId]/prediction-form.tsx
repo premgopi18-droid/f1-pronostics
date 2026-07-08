@@ -123,11 +123,11 @@ function A11yHintBanner({ onActivate, onDismiss }: { onActivate: () => void; onD
     <div className="flex items-start justify-between gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-2.5">
       <p className="text-sm text-text-secondary">
         {t('predict.a11yHint')}{' '}
-        <button onClick={onActivate} className="text-primary-text underline underline-offset-2 transition-opacity hover:opacity-80">
+        <button type="button" onClick={onActivate} className="text-primary-text underline underline-offset-2 transition-opacity hover:opacity-80">
           {t('predict.a11yHintCta')}
         </button>
       </p>
-      <button
+      <button type="button"
         onClick={onDismiss}
         aria-label={t('predict.close')}
         className="shrink-0 text-lg leading-none text-text-secondary transition-colors hover:text-foreground"
@@ -303,7 +303,7 @@ function RaceForm({
                       <DriverInfo driver={driver} position={i + 1} large={reducedMotion} />
                       {reducedMotion && (
                         <>
-                          <button
+                          <button type="button"
                             onClick={(e) => { e.stopPropagation(); moveDriverUp(i) }}
                             aria-label={`${t('predict.moveUp')} ${driver.firstName} ${driver.lastName}`}
                             disabled={i === 0}
@@ -311,7 +311,7 @@ function RaceForm({
                           >
                             <ChevronUp size={16} aria-hidden="true" />
                           </button>
-                          <button
+                          <button type="button"
                             onClick={(e) => { e.stopPropagation(); moveDriverDown(i) }}
                             aria-label={`${t('predict.moveDown')} ${driver.firstName} ${driver.lastName}`}
                             disabled={i === selected.length - 1}
@@ -321,7 +321,7 @@ function RaceForm({
                           </button>
                         </>
                       )}
-                      <button
+                      <button type="button"
                         {...dragHandleProps}
                         aria-label={t('predict.reorder')}
                         className="shrink-0 touch-none cursor-grab p-1 text-text-secondary active:cursor-grabbing hover:text-foreground"
@@ -538,7 +538,7 @@ function QualifsForm({
                         <DriverInfo driver={driver} large={reducedMotion} />
                         {reducedMotion && (
                           <>
-                            <button
+                            <button type="button"
                               onClick={(e) => { e.stopPropagation(); moveDriverUp(i) }}
                               aria-label={`${t('predict.moveUp')} ${driver.firstName} ${driver.lastName}`}
                               disabled={i === 0}
@@ -546,7 +546,7 @@ function QualifsForm({
                             >
                               <ChevronUp size={16} aria-hidden="true" />
                             </button>
-                            <button
+                            <button type="button"
                               onClick={(e) => { e.stopPropagation(); moveDriverDown(i) }}
                               aria-label={`${t('predict.moveDown')} ${driver.firstName} ${driver.lastName}`}
                               disabled={i === selected.length - 1}
@@ -556,14 +556,14 @@ function QualifsForm({
                             </button>
                           </>
                         )}
-                        <button
+                        <button type="button"
                           {...dragHandleProps}
                           aria-label={t('predict.reorder')}
                           className="shrink-0 touch-none cursor-grab p-1 text-text-secondary active:cursor-grabbing hover:text-foreground"
                         >
                           <GripVertical size={14} aria-hidden="true" />
                         </button>
-                        <button
+                        <button type="button"
                           onClick={(e) => { e.stopPropagation(); remove(i) }}
                           aria-label={`${t('predict.remove')} ${driver.firstName} ${driver.lastName}`}
                           className="shrink-0 p-1 text-text-secondary transition-colors hover:text-destructive"
@@ -602,7 +602,7 @@ function QualifsForm({
                   +
                 </span>
                 <DriverInfo driver={driver} />
-                <button
+                <button type="button"
                   onClick={() => add(driver.code)}
                   disabled={isComplete}
                   aria-label={`${t('predict.add')} ${driver.firstName} ${driver.lastName}`}

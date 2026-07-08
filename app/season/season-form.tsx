@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { translateActionError } from '@/lib/actions/errors'
+import { t } from '@/lib/i18n'
 import {
   DndContext,
   closestCenter,
@@ -102,7 +103,7 @@ export function SeasonForm({
       {/* Onglets WDC / WCC */}
       <div className="flex gap-1 bg-zinc-900 rounded-lg p-1">
         {(['wdc', 'wcc'] as Tab[]).map((t) => (
-          <button
+          <button type="button"
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
@@ -234,7 +235,7 @@ function RankingPanel({
       if ('error' in result) {
         setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
       } else {
-        setMessage({ type: 'ok', text: 'Pronostic saison enregistré !' })
+        setMessage({ type: 'ok', text: t('season.savedOk') })
         setSavedOnce(true)
       }
     })
@@ -288,13 +289,13 @@ function RankingPanel({
       </DndContext>
 
       {message && (
-        <p className={`text-sm ${message.type === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
+        <p className={`text-sm ${message.type === 'ok' ? 'text-success' : 'text-destructive'}`}>
           {message.text}
         </p>
       )}
 
       {isSubmissionOpen && (
-        <button
+        <button type="button"
           onClick={submit}
           disabled={isPending}
           className="bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium rounded-lg px-4 py-2.5 transition-colors cursor-pointer disabled:cursor-not-allowed"
@@ -309,17 +310,17 @@ function RankingPanel({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white">{itemEmoji} {itemName}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Déplace une entrée dans ton classement</p>
+              <p className="text-xs text-zinc-500 mt-0.5">{t('season.itemPanelSubtitle')}</p>
             </div>
             <span className="text-xs text-zinc-500">×{usesLeft}</span>
           </div>
 
           {!showItem ? (
-            <button
+            <button type="button"
               onClick={() => setShowItem(true)}
-              className="text-sm text-red-400 hover:text-red-300 transition-colors cursor-pointer text-left"
+              className="text-sm text-destructive hover:text-destructive/80 transition-colors cursor-pointer text-left"
             >
-              Utiliser →
+              {t('season.use')} →
             </button>
           ) : (
             <div className="flex flex-col gap-3">
@@ -334,7 +335,7 @@ function RankingPanel({
                     <span className="font-mono">P{itemFrom} · {labels.get(entries[itemFrom - 1]) ?? entries[itemFrom - 1]}</span>
                     <span className="text-zinc-500">›</span>
                   </button>
-                  <BottomSheet open={fromSheetOpen} onClose={() => setFromSheetOpen(false)} title="Depuis la position">
+                  <BottomSheet open={fromSheetOpen} onClose={() => setFromSheetOpen(false)} title={t('season.moveFromTitle')}>
                     <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
                       {entries.slice(0, predictionCount).map((code, i) => {
                         const pos = i + 1
@@ -372,7 +373,7 @@ function RankingPanel({
                     <span className="font-mono">P{itemTo} · {labels.get(entries[itemTo - 1]) ?? entries[itemTo - 1]}</span>
                     <span className="text-zinc-500">›</span>
                   </button>
-                  <BottomSheet open={toSheetOpen} onClose={() => setToSheetOpen(false)} title="Vers la position">
+                  <BottomSheet open={toSheetOpen} onClose={() => setToSheetOpen(false)} title={t('season.moveToTitle')}>
                     <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
                       {entries.slice(0, predictionCount).map((code, i) => {
                         const pos = i + 1
@@ -398,18 +399,18 @@ function RankingPanel({
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
+                <button type="button"
                   onClick={applyItem}
                   disabled={isPending || itemFrom === itemTo}
                   className="flex-1 bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
                 >
-                  {isPending ? 'Envoi…' : 'Confirmer'}
+                  {isPending ? t('season.sending') : t('season.confirm')}
                 </button>
-                <button
+                <button type="button"
                   onClick={() => setShowItem(false)}
                   className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 cursor-pointer"
                 >
-                  Annuler
+                  {t('season.cancel')}
                 </button>
               </div>
             </div>
@@ -479,12 +480,12 @@ function SortableRow({
         )}
       >
         {!disabled && (
-          <button
+          <button type="button"
             {...attributes}
             {...listeners}
             className="text-zinc-600 hover:text-zinc-400 cursor-grab active:cursor-grabbing touch-none shrink-0"
             tabIndex={-1}
-            aria-label="Déplacer"
+            aria-label={t('season.moveHandle')}
           >
             ⠿
           </button>
@@ -502,17 +503,17 @@ function SortableRow({
 
         {!disabled && reducedMotion && (
           <div className="flex gap-1 shrink-0">
-            <button
+            <button type="button"
               onClick={(e) => { e.stopPropagation(); onMoveUp?.() }}
               disabled={!onMoveUp}
               className="w-6 h-6 flex items-center justify-center text-zinc-500 hover:text-zinc-200 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              aria-label="Monter"
+              aria-label={t('season.moveUp')}
             >↑</button>
-            <button
+            <button type="button"
               onClick={(e) => { e.stopPropagation(); onMoveDown?.() }}
               disabled={!onMoveDown}
               className="w-6 h-6 flex items-center justify-center text-zinc-500 hover:text-zinc-200 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              aria-label="Descendre"
+              aria-label={t('season.moveDown')}
             >↓</button>
           </div>
         )}

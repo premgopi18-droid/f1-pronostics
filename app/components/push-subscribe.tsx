@@ -10,7 +10,7 @@ export function PushSubscribe() {
   const isSubscribed = status === 'subscribed'
 
   return (
-    <button
+    <button type="button"
       onClick={() => toggle(!isSubscribed)}
       disabled={pending}
       className="flex items-center gap-2 px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 transition-colors w-full text-left"

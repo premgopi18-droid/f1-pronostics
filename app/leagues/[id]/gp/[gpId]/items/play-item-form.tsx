@@ -125,7 +125,7 @@ export function PlayItemForm({
         setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
         return
       }
-      setMessage({ type: 'ok', text: 'Item joué ! Il sera résolu après la course.' })
+      setMessage({ type: 'ok', text: t('items.playedOk') })
       // Re-render du RSC parent : bascule sur l'état « item joué » (formulaire masqué)
       router.refresh()
     })
@@ -137,7 +137,7 @@ export function PlayItemForm({
     return (
       <div className="bg-zinc-900 rounded-xl px-4 py-6 text-center flex flex-col gap-2">
         <span className="text-3xl">{itemLabels[selectedItem!]?.emoji}</span>
-        <p className="text-emerald-400 font-medium">{message.text}</p>
+        <p className="text-success font-medium">{message.text}</p>
         <p className="text-zinc-500 text-sm">Mise à jour de la page…</p>
       </div>
     )
@@ -177,7 +177,7 @@ export function PlayItemForm({
               }
 
               return (
-                <button
+                <button type="button"
                   key={item.itemType}
                   onClick={() => chooseItem(item.itemType)}
                   className="flex items-start gap-3 px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors text-left cursor-pointer"
@@ -218,7 +218,7 @@ export function PlayItemForm({
       {step === 'configure' && selectedItem && (
         <section className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={back} className="text-zinc-500 hover:text-zinc-300 text-sm cursor-pointer">←</button>
+            <button type="button" onClick={back} className="text-zinc-500 hover:text-zinc-300 text-sm cursor-pointer">←</button>
             <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
               {itemLabels[selectedItem]?.emoji} {itemLabels[selectedItem]?.name}
             </h2>
@@ -235,7 +235,7 @@ export function PlayItemForm({
           />
 
           {isConfigureComplete && (
-            <button
+            <button type="button"
               onClick={() => setStep('confirm')}
               className="bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg px-4 py-2.5 transition-colors cursor-pointer"
             >
@@ -249,7 +249,7 @@ export function PlayItemForm({
       {step === 'confirm' && selectedItem && (
         <section className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={back} className="text-zinc-500 hover:text-zinc-300 text-sm cursor-pointer">←</button>
+            <button type="button" onClick={back} className="text-zinc-500 hover:text-zinc-300 text-sm cursor-pointer">←</button>
             <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Confirmer</h2>
           </div>
 
@@ -262,10 +262,10 @@ export function PlayItemForm({
           />
 
           {message?.type === 'error' && (
-            <p className="text-red-400 text-sm">{message.text}</p>
+            <p className="text-destructive text-sm">{message.text}</p>
           )}
 
-          <button
+          <button type="button"
             onClick={submit}
             disabled={isPending}
             className="bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium rounded-lg px-4 py-2.5 transition-colors cursor-pointer disabled:cursor-not-allowed"
@@ -305,7 +305,7 @@ function ConfigureStep({
             value={draft.targetUserId ?? ''}
             onChange={(v) => onChange({ targetUserId: v })}
             options={members.map((m) => ({ value: m.userId, label: m.pseudo }))}
-            placeholder="Choisir un adversaire"
+            placeholder={t('items.chooseOpponent')}
           />
           {draft.targetUserId && (
             <SelectField
@@ -313,7 +313,7 @@ function ConfigureStep({
               value={draft.sessionType ?? ''}
               onChange={(v) => onChange({ sessionType: v as SessionType })}
               options={targetableSessions.map((s) => ({ value: s, label: SESSION_LABELS[s] }))}
-              placeholder="Choisir une session"
+              placeholder={t('items.chooseSession')}
             />
           )}
           {draft.sessionType && (
@@ -335,7 +335,7 @@ function ConfigureStep({
             value={draft.targetUserId ?? ''}
             onChange={(v) => onChange({ targetUserId: v })}
             options={members.map((m) => ({ value: m.userId, label: m.pseudo }))}
-            placeholder="Choisir un adversaire"
+            placeholder={t('items.chooseOpponent')}
           />
           {draft.targetUserId && (
             <SelectField
@@ -343,7 +343,7 @@ function ConfigureStep({
               value={draft.sessionType ?? ''}
               onChange={(v) => onChange({ sessionType: v as SessionType })}
               options={targetableSessions.map((s) => ({ value: s, label: SESSION_LABELS[s] }))}
-              placeholder="Choisir une session"
+              placeholder={t('items.chooseSession')}
             />
           )}
         </div>
@@ -356,7 +356,7 @@ function ConfigureStep({
           value={draft.sessionType ?? ''}
           onChange={(v) => onChange({ sessionType: v as SessionType })}
           options={targetableSessions.map((s) => ({ value: s, label: SESSION_LABELS[s] }))}
-          placeholder="Choisir une session"
+          placeholder={t('items.chooseSession')}
         />
       )
 
@@ -377,7 +377,7 @@ function ConfigureStep({
           <p className="text-sm text-zinc-400">Écurie sans point</p>
           <div className="flex flex-col gap-1">
             {constructors.map((c) => (
-              <button
+              <button type="button"
                 key={c.code}
                 onClick={() => onChange({ constructorCode: c.code })}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors cursor-pointer text-left ${
@@ -495,7 +495,7 @@ function DriverPicker({
       <p className="text-sm text-zinc-400">{label}</p>
       <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
         {drivers.map((d) => (
-          <button
+          <button type="button"
             key={d.code}
             onClick={() => onChange(d.code)}
             className={`font-mono text-sm px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { iconButtonVariants } from "@/app/ui/icon-button";
 import { headers } from "next/headers";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase";
@@ -116,7 +117,7 @@ export default async function LeaguesPage() {
         <Link
           href="/leagues/new"
           aria-label={t("leagues.create")}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-foreground transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className={iconButtonVariants({ bordered: true })}
         >
           <Plus size={18} aria-hidden />
         </Link>

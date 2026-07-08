@@ -93,7 +93,7 @@ export function GpResultsTabs({
         className="flex gap-1 rounded-xl border border-border bg-card p-1"
       >
         {officialTabs.map((tab) => (
-          <button
+          <button type="button"
             key={tab.id}
             role="tab"
             aria-selected={activeTab === tab.id}
@@ -117,11 +117,11 @@ export function GpResultsTabs({
       {practiceTabs.length > 0 && (
         <div
           role="tablist"
-          aria-label="Essais libres"
+          aria-label={t('results.practiceGroupLabel')}
           className="flex gap-1 rounded-xl border border-border bg-card p-1"
         >
           {practiceTabs.map((tab) => (
-            <button
+            <button type="button"
               key={tab.id}
               role="tab"
               aria-selected={activeTab === tab.id}

@@ -1,3 +1,5 @@
+import { t } from "@/lib/i18n";
+
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
 const MINUTES_PER_DAY = 60 * 24;
@@ -12,4 +14,15 @@ export function remaining(target: number, now: number): Remaining {
     hours: Math.floor((totalMinutes % MINUTES_PER_DAY) / MINUTES_PER_HOUR),
     mins: totalMinutes % MINUTES_PER_HOUR,
   };
+}
+
+/**
+ * Libellé lecteur d'écran du compte à rebours — une phrase complète, lue en une
+ * fois quand l'utilisateur navigue sur le composant (jamais annoncée d'office :
+ * pas d'aria-live sur un countdown). Unités en toutes lettres : naturelles à
+ * l'oral (« j »/« h » seraient épelés) et alignées sur les cellules visibles.
+ * Le pluriel invariable (« 1 jours ») est assumé — négligeable à la volée.
+ */
+export function formatCountdownLabel({ days, hours, mins }: Remaining): string {
+  return t("home.countdownAriaLabel", { days, hours, mins });
 }

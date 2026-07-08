@@ -286,6 +286,10 @@ function RaceForm({
               return (
                 <SortableRow key={code} id={code} reducedMotion={reducedMotion}>
                   {(dragHandleProps, isDragging) => (
+                    /* Tap = raccourci pointeur uniquement : l'équivalent clavier existe
+                       (poignée dnd-kit + boutons Monter/Descendre focusables dans la ligne).
+                       Rendre le <li> focusable dupliquerait chaque ligne dans l'ordre de tab. */
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
                     <li
                       onClick={() => onRowTap(code)}
                       className={cn(
@@ -521,6 +525,9 @@ function QualifsForm({
                 return (
                   <SortableRow key={code} id={code} reducedMotion={reducedMotion}>
                     {(dragHandleProps, isDragging) => (
+                      /* Tap = raccourci pointeur uniquement — équivalent clavier via la
+                         poignée dnd-kit + boutons Monter/Descendre (cf. RaceForm). */
+                      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
                       <li
                         onClick={() => onRowTap(code)}
                         className={cn(

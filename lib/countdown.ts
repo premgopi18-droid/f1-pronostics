@@ -19,8 +19,9 @@ export function remaining(target: number, now: number): Remaining {
 /**
  * Libellé lecteur d'écran du compte à rebours — une phrase complète, lue en une
  * fois quand l'utilisateur navigue sur le composant (jamais annoncée d'office :
- * pas d'aria-live sur un countdown). Unités abrégées (j/h/min) : pas de pluriel
- * à gérer, aligné sur les cellules visuelles.
+ * pas d'aria-live sur un countdown). Unités en toutes lettres : naturelles à
+ * l'oral (« j »/« h » seraient épelés) et alignées sur les cellules visibles.
+ * Le pluriel invariable (« 1 jours ») est assumé — négligeable à la volée.
  */
 export function formatCountdownLabel({ days, hours, mins }: Remaining): string {
   return t("home.countdownAriaLabel", { days, hours, mins });

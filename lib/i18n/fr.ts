@@ -46,7 +46,7 @@ export const fr = {
     countdownDays: "jours",
     countdownHours: "heures",
     countdownMins: "min",
-    countdownAriaLabel: "Départ dans {days} j {hours} h {mins} min",
+    countdownAriaLabel: "Départ dans {days} jours {hours} heures {mins} minutes",
     predict: "Je pronostique",
     noNextGp: "Aucun Grand Prix à venir pour le moment.",
     liveLabel: "LIVE",

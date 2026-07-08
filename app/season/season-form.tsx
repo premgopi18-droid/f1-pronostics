@@ -337,7 +337,7 @@ function RankingPanel({
                     className="flex items-center justify-between rounded-xl bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800 cursor-pointer text-white"
                   >
                     <span className="font-mono">P{itemFrom} · {labels.get(entries[itemFrom - 1]) ?? entries[itemFrom - 1]}</span>
-                    <span className="text-zinc-500">›</span>
+                    <span aria-hidden="true" className="text-zinc-500">›</span>
                   </button>
                   <BottomSheet open={fromSheetOpen} onClose={() => setFromSheetOpen(false)} title={t('season.moveFromTitle')}>
                     <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
@@ -377,7 +377,7 @@ function RankingPanel({
                     className="flex items-center justify-between rounded-xl bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800 cursor-pointer text-white"
                   >
                     <span className="font-mono">P{itemTo} · {labels.get(entries[itemTo - 1]) ?? entries[itemTo - 1]}</span>
-                    <span className="text-zinc-500">›</span>
+                    <span aria-hidden="true" className="text-zinc-500">›</span>
                   </button>
                   <BottomSheet open={toSheetOpen} onClose={() => setToSheetOpen(false)} title={t('season.moveToTitle')}>
                     <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
@@ -489,11 +489,13 @@ function SortableRow({
         )}
       >
         {!disabled && (
+          /* Poignée focusable (pas de tabIndex={-1}) : le KeyboardSensor dnd-kit
+             (Espace pour saisir, flèches pour déplacer) est l'équivalent clavier
+             du drag — même pattern que prediction-form. */
           <button type="button"
             {...attributes}
             {...listeners}
             className="text-zinc-600 hover:text-zinc-400 cursor-grab active:cursor-grabbing touch-none shrink-0"
-            tabIndex={-1}
             aria-label={t('season.moveHandle')}
           >
             ⠿

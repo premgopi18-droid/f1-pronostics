@@ -12,7 +12,7 @@
 - **Colonne `season`** (INTEGER, ex: 2026) sur toutes les tables pertinentes — prépare le multi-saisons v2. Exception : `leagues` est une entité persistante sans saison.
 - **JSONB** pour les listes ordonnées (prediction entries) — 1 ligne par prédiction, pas de JOIN
 - **Pas d'écrasement** — les données de jeu passées (`scores`, `predictions`, `items_played`) ne sont jamais supprimées ou modifiées. **Exception : suppression de compte (RGPD)** — `delete_own_account` retire les adhésions (`league_members`) et l'inventaire d'items non joués (`user_items`) de l'utilisateur, toutes saisons confondues, pour libérer les slots de ligue. Les données de jeu ci-dessus restent (liées à l'UUID anonymisé), donc les calculs de points passés restent intègres.
-- **RLS Supabase** sur toutes les tables exposées au client
+- **RLS Supabase** sur toutes les tables exposées au client. Convention perf : dans les policies, toujours écrire `(select auth.uid())` — jamais `auth.uid()` nu, ré-évalué par ligne (advisor `auth_rls_initplan`). Éviter aussi deux policies permissives sur le même couple rôle/commande : une policy « own » en `FOR ALL` + une policy SELECT co-membres se scindent en INSERT/UPDATE/DELETE + un SELECT fusionné par `OR` (migration `20260708120000_perf_rls_and_indexes`).
 - **Codes pilotes/écuries** (ex: "VER", "RED_BULL") dans les JSONB de prédictions — trade-off délibéré : lisibilité > intégrité référentielle sur ces champs. Le moteur de scoring mappe code → UUID au moment du calcul.
 
 ---
@@ -413,7 +413,7 @@ Historique de chaque item joué. Le champ `payload` stocke les données spécifi
 - Lecture par le joueur qui l'a joué : toujours
 - Lecture par les autres membres de la ligue : uniquement après `resolved_at`
 
-**Index :** `(league_id, gp_id, season)`
+**Index :** `(league_id, gp_id, season)`, `(gp_id)`
 
 ---
 
@@ -438,7 +438,7 @@ Historique de chaque item joué. Le champ `payload` stocke les données spécifi
 
 **RLS :** lisible par tous les membres de la ligue
 
-**Index :** `(league_id, season)`, `(user_id, league_id, season)`
+**Index :** `(league_id, season)`, `(user_id, league_id, season)`, `(session_id)`
 
 **Forme du breakdown :** tableau JSON de `BreakdownEntry` (cf. `lib/scoring/types.ts`), une entrée par position scorée, écrit tel quel par `upsertBaseScores`. Il ne contient **que** les points de position — ni le bonus fastest lap, ni l'effet des items (ceux-ci vivent dans `final_score` ; le FL est une prédiction séparée dans `fastest_lap_predictions`).
 

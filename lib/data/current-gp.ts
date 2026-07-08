@@ -70,8 +70,11 @@ export async function getCurrentGpWithView(season: number): Promise<CurrentGpWit
   if (!data) return null
 
   // L'embed PostgREST ne garantit pas l'ordre — deriveCurrentGpView et la card
-  // week-end attendent les sessions triées chronologiquement.
-  const sessions = [...data.sessions].sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+  // week-end attendent les sessions triées chronologiquement. Tri numérique sur le
+  // timestamp (pas lexicographique) : insensible au format d'offset renvoyé.
+  const sessions = [...data.sessions].sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+  )
 
   return {
     gp: {

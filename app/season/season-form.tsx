@@ -310,7 +310,7 @@ function RankingPanel({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white">{itemEmoji} {itemName}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Déplace une entrée dans ton classement</p>
+              <p className="text-xs text-zinc-500 mt-0.5">{t('season.itemPanelSubtitle')}</p>
             </div>
             <span className="text-xs text-zinc-500">×{usesLeft}</span>
           </div>
@@ -320,7 +320,7 @@ function RankingPanel({
               onClick={() => setShowItem(true)}
               className="text-sm text-destructive hover:text-destructive/80 transition-colors cursor-pointer text-left"
             >
-              Utiliser →
+              {t('season.use')} →
             </button>
           ) : (
             <div className="flex flex-col gap-3">
@@ -404,13 +404,13 @@ function RankingPanel({
                   disabled={isPending || itemFrom === itemTo}
                   className="flex-1 bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
                 >
-                  {isPending ? 'Envoi…' : 'Confirmer'}
+                  {isPending ? t('season.sending') : t('season.confirm')}
                 </button>
                 <button type="button"
                   onClick={() => setShowItem(false)}
                   className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 cursor-pointer"
                 >
-                  Annuler
+                  {t('season.cancel')}
                 </button>
               </div>
             </div>

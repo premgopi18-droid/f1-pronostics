@@ -404,6 +404,7 @@ export const fr = {
     itemFromLabel:     "Depuis la position",
     itemToLabel:       "Vers la position",
     itemUsedSuffix:    "utilisé !",
+    itemPanelSubtitle: "Déplace une entrée dans ton classement",
     use:               "Utiliser",
     confirm:           "Confirmer",
     sending:           "Envoi…",

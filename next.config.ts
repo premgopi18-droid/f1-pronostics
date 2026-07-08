@@ -32,6 +32,10 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Supprime `X-Powered-By: Next.js` (fuite de framework). Vercel le retire déjà
+  // en prod, mais le projet se veut self-hostable (décision clé « no lock-in ») :
+  // cette ligne rend le comportement déterministe quel que soit l'hébergeur.
+  poweredByHeader: false,
   async headers() {
     return [
       {

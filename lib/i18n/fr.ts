@@ -10,6 +10,7 @@ export const fr = {
     loading: "Chargement…",
     next: "Suivant →",
     back: "Précédent",
+    close: "Fermer",
     comingSoon: "Bientôt disponible.",
   },
   login: {
@@ -193,6 +194,9 @@ export const fr = {
   // par la page « Jouer un item » et les « Faits marquants » des résultats GP. Les emojis
   // sont des tokens visuels (lib/items/catalog.ts), pas du texte traduisible.
   items: {
+    playedOk:       "Item joué ! Il sera résolu après la course.",
+    chooseOpponent: "Choisir un adversaire",
+    chooseSession:  "Choisir une session",
     shield:         { name: "Bouclier",                     description: "Annule tous les items offensifs reçus ce week-end" },
     block_driver:   { name: "Bloquer un pilote",            description: "Un pilote rapporte 0 pt de position à un adversaire pour une session choisie" },
     wild_card:      { name: "Wild Card",                    description: "Vole la moitié des points d'un adversaire sur une session" },
@@ -360,6 +364,7 @@ export const fr = {
     tabQualifying: "Qualifications",
     tabSprint: "Sprint",
     tabSprintQualifying: "Quali sprint",
+    practiceGroupLabel: "Essais libres",
     tabPractice1: "EL 1",
     tabPractice2: "EL 2",
     tabPractice3: "EL 3",
@@ -371,6 +376,12 @@ export const fr = {
     practiceNoData: "Résultats non encore disponibles.",
   },
   season: {
+    savedOk:           "Pronostic saison enregistré !",
+    moveHandle:        "Déplacer",
+    moveUp:            "Monter",
+    moveDown:          "Descendre",
+    moveFromTitle:     "Depuis la position",
+    moveToTitle:       "Vers la position",
     pageTitle:         "WDC / WCC — Pronostics saison",
     wdcTitle:          "Champion pilotes · WDC",
     wccTitle:          "Champion constructeurs · WCC",

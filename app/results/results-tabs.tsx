@@ -52,7 +52,7 @@ export function ResultsTabs({ gps, driverStandings, constructorStandings }: Prop
         className="mx-page mb-4 flex gap-1 rounded-xl border border-border bg-card p-1"
       >
         {TABS.map((tab) => (
-          <button
+          <button type="button"
             key={tab.id}
             role="tab"
             aria-selected={activeTab === tab.id}

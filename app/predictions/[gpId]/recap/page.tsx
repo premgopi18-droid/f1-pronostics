@@ -303,8 +303,8 @@ export default async function RecapGPPage({
               <span
                 className={`mt-1 shrink-0 text-xs px-2 py-1 rounded-full ${
                   isDefinitif
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : 'bg-amber-500/10 text-amber-400'
+                    ? 'bg-success-soft text-success'
+                    : 'bg-warning-soft text-warning'
                 }`}
               >
                 {isDefinitif ? t('recap.badgeDefinitif') : t('recap.badgeProvisoire')}
@@ -366,8 +366,8 @@ export default async function RecapGPPage({
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full ${
                     isDefinitif
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : 'bg-amber-500/10 text-amber-400'
+                      ? 'bg-success-soft text-success'
+                      : 'bg-warning-soft text-warning'
                   }`}
                 >
                   {isDefinitif ? t('recap.badgeDefinitif') : t('recap.badgeProvisoire')}
@@ -402,7 +402,7 @@ export default async function RecapGPPage({
               {/* Total brut */}
               <div className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm font-semibold text-white">{t('recap.totalBrut')}</span>
-                <span className="text-lg font-bold text-red-400 tabular-nums">
+                <span className="text-lg font-bold text-destructive tabular-nums">
                   {totalBrut} {t('recap.pts')}
                 </span>
               </div>
@@ -437,8 +437,8 @@ export default async function RecapGPPage({
                         <span
                           className={`text-xs px-1.5 py-0.5 rounded ${
                             league.itemsDelta > 0
-                              ? 'bg-emerald-500/10 text-emerald-400'
-                              : 'bg-red-500/10 text-red-400'
+                              ? 'bg-success-soft text-success'
+                              : 'bg-destructive-soft text-destructive'
                           }`}
                         >
                           {league.itemsDelta > 0 ? '+' : ''}{league.itemsDelta}

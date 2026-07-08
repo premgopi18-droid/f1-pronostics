@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { iconButtonVariants } from '@/app/ui/icon-button'
 import { ChevronLeft, Settings } from 'lucide-react'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
@@ -152,7 +153,7 @@ export default async function LeaguePage({
       <div className="flex items-center gap-3 py-2">
         <Link
           href="/leagues"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className={iconButtonVariants()}
           aria-label={t('common.back')}
         >
           <ChevronLeft size={20} aria-hidden />
@@ -168,7 +169,7 @@ export default async function LeaguePage({
         {isAdmin && (
           <Link
             href={`/leagues/${id}/admin`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-text-secondary transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className={iconButtonVariants({ tone: "muted" })}
             aria-label={t('admin.pageTitle')}
           >
             <Settings size={18} aria-hidden />

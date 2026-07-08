@@ -107,7 +107,7 @@ export function PredictionTabs({ sessions, drivers }: Props) {
           className="flex gap-1 rounded-xl border border-border bg-card p-1"
         >
           {sessions.map((session, i) => (
-            <button
+            <button type="button"
               key={session.id}
               ref={(el) => { tabRefs.current[i] = el }}
               id={`predict-tab-${session.id}`}

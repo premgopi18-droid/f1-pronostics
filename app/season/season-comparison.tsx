@@ -69,7 +69,7 @@ export function SeasonComparison({
         className="mx-page mb-5 flex gap-1 rounded-xl border border-border bg-card p-1"
       >
         {(['wdc', 'wcc'] as Tab[]).map((t_) => (
-          <button
+          <button type="button"
             key={t_}
             role="tab"
             aria-selected={tab === t_}
@@ -280,7 +280,7 @@ function ComparisonPanel({
       {message && (
         <p className={cn(
           'text-sm',
-          message.type === 'ok' ? 'text-emerald-400' : 'text-destructive',
+          message.type === 'ok' ? 'text-success' : 'text-destructive',
         )}>
           {message.text}
         </p>
@@ -295,7 +295,7 @@ function ComparisonPanel({
               <p className="mt-0.5 text-xs text-text-secondary">{itemDesc}</p>
             </div>
             {!showItem && (
-              <button
+              <button type="button"
                 onClick={() => setShowItem(true)}
                 className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -347,14 +347,14 @@ function ComparisonPanel({
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
+                <button type="button"
                   onClick={applyItem}
                   disabled={isPending || itemFrom === itemTo}
                   className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {isPending ? t('season.sending') : t('season.confirm')}
                 </button>
-                <button
+                <button type="button"
                   onClick={() => setShowItem(false)}
                   className="px-4 py-2 text-sm text-text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                 >
@@ -398,15 +398,15 @@ function ComparisonRow({
     : '~'
 
   const iconClass =
-    status === 'exact'   ? 'text-emerald-400'
+    status === 'exact'   ? 'text-success'
     : status === 'unknown' ? 'text-text-muted'
-    : 'text-amber-400'
+    : 'text-warning'
 
   const gapText  = delta === null ? '—' : delta === 0 ? '0' : `±${delta}`
   const gapClass =
-    status === 'exact'   ? 'text-emerald-400 font-bold'
+    status === 'exact'   ? 'text-success font-bold'
     : status === 'unknown' ? 'text-text-muted'
-    : status === 'close'   ? 'text-amber-400 font-bold'
+    : status === 'close'   ? 'text-warning font-bold'
     : 'text-destructive font-bold'
 
   return (

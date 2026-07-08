@@ -36,7 +36,7 @@ export function InstallBanner() {
         </div>
 
         {!isIOS && (
-          <button
+          <button type="button"
             onClick={install}
             className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary/90 active:scale-95"
           >
@@ -44,7 +44,7 @@ export function InstallBanner() {
           </button>
         )}
 
-        <button
+        <button type="button"
           onClick={dismissBanner}
           className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
           aria-label={t('install.close')}

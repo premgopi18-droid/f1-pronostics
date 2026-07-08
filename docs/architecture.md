@@ -110,6 +110,10 @@
 
 > **Pourquoi des Server Actions et non des route handlers pour le CRUD ?** Les Server Actions sont co-localisées avec les pages, partagent les types TypeScript, et évitent la couche HTTP pour les mutations déclenchées par l'utilisateur. Les route handlers sont réservés aux crons (pas de session utilisateur) et au callback OAuth.
 
+> **Erreurs des Server Actions — les actions retournent des codes, le client traduit** (i18n approche A, #181). **Pattern cible, migration progressive.** Une action ne retourne jamais de texte UI : elle retourne un `ActionErrorCode` typé (`lib/actions/errors.ts`), éventuellement accompagné d'`errorVars` pour les messages paramétrés. Le composant client traduit via `translateActionError(code, vars)` ; la copy française vit dans `lib/i18n/fr.ts` (section `actionErrors`). Un test d'exhaustivité (`lib/actions/errors.test.ts`) garantit qu'aucun code n'existe sans clé de traduction (et inversement). Les détails techniques (`error.message` d'une exception) vont dans `console.error` côté serveur, jamais dans le retour de l'action. Les routes API cron/dev (`app/api/**`) ne sont pas concernées : leurs erreurs sont des réponses machine (curl/logs).
+>
+> Sur ce pattern : `items`, `items-payload`, `league-admin`, `predictions`, `season-predictions`. **Conventions résiduelles à migrer** (suivi #191) : `profile.ts` (clés i18n complètes en dur), `onboarding.ts`/`notification-preferences.ts` (codes courts ad-hoc mappés côté client), `leagues.ts` (`LeagueActionState.errorCode` mappé via préfixe de clé). Toute **nouvelle** action utilise `ActionErrorCode`.
+
 > **Règle d'import** : `/lib/scoring/` peut importer depuis lui-même et depuis `/lib/scoring/types`. Il ne peut **jamais** importer depuis `/lib/data/`, `/lib/f1/`, ou Supabase. Si tu te surprends à importer Supabase dans `/lib/scoring/`, la logique est au mauvais endroit.
 
 > **Frontière des clients Supabase** — il y a **deux** clients, et la confusion entre les deux est une faille de sécurité :

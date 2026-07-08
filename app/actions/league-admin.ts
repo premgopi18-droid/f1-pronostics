@@ -3,8 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
+import type { ActionErrorCode } from '@/lib/actions/errors'
 
-type AdminResult = { error?: string; success?: boolean; inviteOpen?: boolean }
+type AdminResult = { error?: ActionErrorCode; success?: boolean; inviteOpen?: boolean }
 
 // Garde-fou applicatif : un Server Action est un endpoint POST public, le gate UI
 // (`isAdmin` dans page.tsx) ne protège pas l'appel direct. On vérifie l'admin-ship
@@ -13,7 +14,7 @@ type AdminResult = { error?: string; success?: boolean; inviteOpen?: boolean }
 async function assertAdmin(leagueId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' as const }
+  if (!user) return { error: 'notAuthenticated' as const }
 
   const { data: membership } = await supabase
     .from('league_members')
@@ -23,7 +24,7 @@ async function assertAdmin(leagueId: string) {
     .eq('season', getCurrentSeason())
     .maybeSingle()
 
-  if (!membership?.is_admin) return { error: 'Action réservée à l\'administrateur de la ligue' as const }
+  if (!membership?.is_admin) return { error: 'adminOnly' as const }
   return { supabase }
 }
 
@@ -37,7 +38,7 @@ export async function toggleInvites(leagueId: string): Promise<AdminResult> {
   const { data: inviteOpen, error } = await auth.supabase
     .rpc('toggle_invites', { p_league_id: leagueId })
 
-  if (error || typeof inviteOpen !== 'boolean') return { error: 'Erreur lors de la mise à jour' }
+  if (error || typeof inviteOpen !== 'boolean') return { error: 'updateFailed' }
 
   revalidatePath(`/leagues/${leagueId}`)
   return { success: true, inviteOpen }
@@ -49,10 +50,10 @@ export async function transferAdmin(leagueId: string, targetUserId: string): Pro
 
   const { supabase } = auth
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' }
+  if (!user) return { error: 'notAuthenticated' }
 
   // Garde-fou : se transférer à soi-même rétrograderait le seul admin → ligue sans admin.
-  if (targetUserId === user.id) return { error: 'Transfert vers soi-même impossible' }
+  if (targetUserId === user.id) return { error: 'cannotTransferToSelf' }
 
   const season = getCurrentSeason()
 
@@ -68,8 +69,8 @@ export async function transferAdmin(leagueId: string, targetUserId: string): Pro
     .eq('season', season)
     .select('user_id')
 
-  if (promoteError) return { error: 'Erreur lors du transfert' }
-  if (!promoted || promoted.length === 0) return { error: 'Membre introuvable' }
+  if (promoteError) return { error: 'transferFailed' }
+  if (!promoted || promoted.length === 0) return { error: 'memberNotFound' }
 
   // Rétrograder l'admin courant.
   const { error: demoteError } = await supabase
@@ -87,7 +88,7 @@ export async function transferAdmin(leagueId: string, targetUserId: string): Pro
       .eq('league_id', leagueId)
       .eq('user_id', targetUserId)
       .eq('season', season)
-    return { error: 'Erreur lors du transfert' }
+    return { error: 'transferFailed' }
   }
 
   revalidatePath(`/leagues/${leagueId}`)
@@ -115,8 +116,8 @@ export async function regenerateInviteCode(leagueId: string): Promise<AdminResul
       return { success: true }
     }
 
-    if (error.code !== '23505') return { error: 'Erreur lors de la régénération' }
+    if (error.code !== '23505') return { error: 'regenerateFailed' }
   }
 
-  return { error: 'Impossible de générer un code unique' }
+  return { error: 'inviteCodeGenerationFailed' }
 }

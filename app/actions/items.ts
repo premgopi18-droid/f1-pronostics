@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
+import type { ActionFailure } from '@/lib/actions/errors'
 import { insertPlayedItem } from '@/lib/data/items'
 import { getCurrentGp } from '@/lib/data/current-gp'
 import { ITEM_LOCK_PHASE } from '@/lib/items/catalog'
@@ -30,7 +31,7 @@ function sessionTypeOf(input: PlayItemInput): SessionType | null {
 
 export type { PlayItemInput } from './items-payload'
 
-export type PlayItemResult = { error: string } | { ok: true }
+export type PlayItemResult = ActionFailure | { ok: true }
 
 export async function playItemAction(
   gpId:     string,
@@ -39,7 +40,7 @@ export async function playItemAction(
 ): Promise<PlayItemResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non authentifié' }
+  if (!user) return { error: 'notAuthenticated' }
 
   // Frontière de confiance : `input` vient du client, le typage TS ne garantit rien
   // au runtime. On valide la forme avant que validatePayload/toDBPayload ne déréférencent
@@ -49,7 +50,7 @@ export async function playItemAction(
     typeof input.itemType !== 'string' ||
     typeof input.payload !== 'object' || input.payload === null
   ) {
-    return { error: 'Requête invalide' }
+    return { error: 'invalidRequest' }
   }
 
   const season = getCurrentSeason()
@@ -61,7 +62,7 @@ export async function playItemAction(
   // est valide, dans la bonne saison et non annulé → pas de 2ᵉ lecture de `grands_prix`.
   const currentGp = await getCurrentGp(season)
   if (!currentGp || currentGp.id !== gpId) {
-    return { error: 'Les items ne sont jouables que sur le GP en cours' }
+    return { error: 'itemOnlyCurrentGp' }
   }
 
   // Sessions scorées du GP (type + horaire) — base des deux verrous ci-dessous.
@@ -78,13 +79,13 @@ export async function playItemAction(
     type:     s.type as SessionType,
     startsAt: s.starts_at,
   }))
-  if (scoredSessions.length === 0) return { error: 'Aucune session trouvée pour ce GP' }
+  if (scoredSessions.length === 0) return { error: 'noSessionsForGp' }
 
   // Deadline dure selon le palier de l'item (product-specs §3.5 — deux paliers).
   const phase = ITEM_LOCK_PHASE[input.itemType]
-  if (!phase) return { error: 'Type d\'item non supporté' }
+  if (!phase) return { error: 'unsupportedItemType' }
   if (isPhaseLocked(phase, scoredSessions, Date.now())) {
-    return { error: 'Deadline passée — cet item est verrouillé pour ce GP' }
+    return { error: 'itemDeadlinePassed' }
   }
 
   // Gating par session : une session déjà démarrée n'est plus ciblable, même si la
@@ -92,9 +93,9 @@ export async function playItemAction(
   const chosenSession = sessionTypeOf(input)
   if (chosenSession) {
     const session = scoredSessions.find((s) => s.type === chosenSession)
-    if (!session) return { error: 'Session indisponible pour ce GP' }
+    if (!session) return { error: 'sessionUnavailable' }
     if (new Date(session.startsAt).getTime() <= Date.now()) {
-      return { error: 'Session déjà démarrée — trop tard pour la cibler' }
+      return { error: 'sessionAlreadyStarted' }
     }
   }
 
@@ -107,7 +108,7 @@ export async function playItemAction(
     .eq('season', season)
     .maybeSingle()
 
-  if (!membership) return { error: 'Tu n\'es pas membre de cette ligue' }
+  if (!membership) return { error: 'notLeagueMember' }
 
   // 1 item par GP par ligue par utilisateur
   const { data: alreadyPlayed } = await supabase
@@ -118,7 +119,7 @@ export async function playItemAction(
     .eq('league_id', leagueId)
     .maybeSingle()
 
-  if (alreadyPlayed) return { error: 'Tu as déjà joué un item ce week-end dans cette ligue' }
+  if (alreadyPlayed) return { error: 'itemAlreadyPlayedThisWeekend' }
 
   // uses_remaining > 0
   const { data: itemRow } = await supabase
@@ -131,7 +132,7 @@ export async function playItemAction(
     .maybeSingle()
 
   if (!itemRow || (itemRow.uses_remaining) <= 0) {
-    return { error: 'Item épuisé pour cette saison' }
+    return { error: 'itemExhausted' }
   }
 
   // Validations payload selon le type
@@ -142,7 +143,7 @@ export async function playItemAction(
   if (OFFENSIVE_ITEMS.has(input.itemType)) {
     const offensivePayload = input.payload as BlockDriverPayload | WildCardPayload
     if (offensivePayload.targetUserId === user.id) {
-      return { error: 'Tu ne peux pas te cibler toi-même' }
+      return { error: 'cannotTargetSelf' }
     }
     const { data: targetMember } = await supabase
       .from('league_members')
@@ -152,7 +153,7 @@ export async function playItemAction(
       .eq('season', season)
       .maybeSingle()
 
-    if (!targetMember) return { error: 'La cible n\'est pas membre de cette ligue' }
+    if (!targetMember) return { error: 'targetNotLeagueMember' }
   }
 
   // Conversion payload TS (camelCase) → DB (snake_case)
@@ -165,8 +166,8 @@ export async function playItemAction(
     // Backstop des races rares (les pré-checks couvrent les cas courants) : la RPC rejette
     // un PostgrestError — exhaustion (P0001) ou double-play concurrent (unique_violation 23505).
     const code = (error as { code?: string }).code
-    if (code === 'P0001') return { error: 'Item épuisé pour cette saison' }
-    if (code === '23505') return { error: 'Tu as déjà joué un item ce week-end dans cette ligue' }
-    return { error: 'Erreur inattendue' }
+    if (code === 'P0001') return { error: 'itemExhausted' }
+    if (code === '23505') return { error: 'itemAlreadyPlayedThisWeekend' }
+    return { error: 'unexpected' }
   }
 }

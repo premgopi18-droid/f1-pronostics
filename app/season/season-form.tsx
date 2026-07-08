@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { translateActionError } from '@/lib/actions/errors'
 import {
   DndContext,
   closestCenter,
@@ -231,7 +232,7 @@ function RankingPanel({
       const toSubmit = entries.slice(0, predictionCount)
       const result = await submitSeasonPredictionAction(type, toSubmit)
       if ('error' in result) {
-        setMessage({ type: 'error', text: result.error })
+        setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
       } else {
         setMessage({ type: 'ok', text: 'Pronostic saison enregistré !' })
         setSavedOnce(true)
@@ -244,7 +245,7 @@ function RankingPanel({
     startTransition(async () => {
       const result = await applySeasonItemAction(itemType, itemFrom, itemTo)
       if ('error' in result) {
-        setMessage({ type: 'error', text: result.error })
+        setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
       } else {
         onEntriesChange((() => {
           const next = [...entries]

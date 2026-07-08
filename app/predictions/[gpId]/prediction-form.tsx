@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import { translateActionError } from '@/lib/actions/errors'
 import {
   DndContext,
   closestCenter,
@@ -246,7 +247,7 @@ function RaceForm({
     startTransition(async () => {
       const result = await submitPredictionAction(sessionId, selected)
       if ('error' in result) {
-        setMessage({ type: 'error', text: result.error })
+        setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
         return
       }
       if (fastestLap) {
@@ -254,7 +255,7 @@ function RaceForm({
         if (flDriver) {
           const flResult = await submitFastestLapAction(sessionId, flDriver.id)
           if ('error' in flResult) {
-            setMessage({ type: 'error', text: flResult.error })
+            setMessage({ type: 'error', text: translateActionError(flResult.error, flResult.errorVars) })
             return
           }
         }
@@ -481,7 +482,7 @@ function QualifsForm({
     startTransition(async () => {
       const result = await submitPredictionAction(sessionId, selected)
       if ('error' in result) {
-        setMessage({ type: 'error', text: result.error })
+        setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
         return
       }
       setMessage({ type: 'ok', text: t('predict.savedOk') })

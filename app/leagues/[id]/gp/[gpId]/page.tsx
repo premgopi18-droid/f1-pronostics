@@ -59,16 +59,16 @@ export default async function GPScoresPage({
 
   if (!gp || !league || gp.season !== season) notFound()
 
-  const sessionIds = (sessions ?? []).map((s) => s.id as string)
+  const sessionIds = (sessions ?? []).map((s) => s.id)
   const confirmedSessions = (sessions ?? []).filter((s) => s.results_confirmed_at != null)
-  const confirmedSessionIds = confirmedSessions.map((s) => s.id as string)
+  const confirmedSessionIds = confirmedSessions.map((s) => s.id)
 
   // ── État des boutons d'action ──────────────────────────────────────────────
   // Items jouables jusqu'au départ de la 1ère séance ; comparaison visible dès
   // qu'une séance est verrouillée (cf. /items et /compare).
   const nowMs = new Date().getTime()
   const startTimes = (sessions ?? [])
-    .map((s) => s.starts_at as string | null)
+    .map((s) => s.starts_at)
     .filter((v): v is string => v != null)
     .map((v) => new Date(v).getTime())
   const itemsDeadlinePassed = startTimes.length > 0 && Math.min(...startTimes) <= nowMs
@@ -118,22 +118,22 @@ export default async function GPScoresPage({
       .not('resolved_at', 'is', null),
   ])
 
-  const typeById = new Map((sessions ?? []).map((s) => [s.id as string, s.type as SessionType]))
+  const typeById = new Map((sessions ?? []).map((s) => [s.id, s.type as SessionType]))
 
   // Sessions confirmées, dans l'ordre canonique
   const orderedConfirmedTypes = SESSION_ORDER.filter((type) =>
     confirmedSessions.some((s) => s.type === type),
   )
-  const sessionIdByType = new Map(confirmedSessions.map((s) => [s.type as SessionType, s.id as string]))
+  const sessionIdByType = new Map(confirmedSessions.map((s) => [s.type as SessionType, s.id]))
 
   // ── Maps ────────────────────────────────────────────────────────────────
   const scoreMap = new Map<string, { finalScore: number; exactPositions: number }>()
   for (const row of scoreRows ?? []) {
-    const sessionType = typeById.get(row.session_id as string)
+    const sessionType = typeById.get(row.session_id)
     if (!sessionType) continue
     scoreMap.set(`${row.user_id}:${sessionType}`, {
-      finalScore:     row.final_score as number,
-      exactPositions: row.exact_positions as number,
+      finalScore:     row.final_score,
+      exactPositions: row.exact_positions,
     })
   }
 
@@ -147,7 +147,7 @@ export default async function GPScoresPage({
 
   const flBySession = new Map<string, string>()
   for (const row of flRows ?? []) {
-    const driver = (row.drivers as unknown) as { code: string } | null
+    const driver = row.drivers
     if (driver) flBySession.set(`${row.user_id}:${row.session_id}`, driver.code)
   }
 
@@ -156,9 +156,10 @@ export default async function GPScoresPage({
   const positionToCode  = new Map<string, Map<number, string>>()  // sessionId → pos → code
   const actualFL        = new Map<string, string>()               // sessionId → code
   for (const row of resultRows ?? []) {
-    const driver = (row.drivers as unknown) as { code: string } | null
+    const driver = row.drivers
     if (!driver) continue
-    const sid = row.session_id as string
+    const sid = row.session_id
+    // Non-null garanti par le filtre `.not('position', 'is', null)` de la requête.
     const pos = row.position as number
     if (!resultsByCode.has(sid))  resultsByCode.set(sid, new Map())
     if (!positionToCode.has(sid)) positionToCode.set(sid, new Map())
@@ -172,12 +173,12 @@ export default async function GPScoresPage({
   const identity = new Map<string, PlayerIdentity>()
   const avatarByUser = new Map<string, { avatarKey: string | null; avatarUrl: string | null }>()
   for (const m of members ?? []) {
-    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; avatar_url: string | null } | null
-    identity.set(m.user_id as string, {
+    const profile = m.profiles
+    identity.set(m.user_id, {
       pseudo: profile?.pseudo ?? '?',
       color:  (getHelmet(profile?.avatar_key) ?? DEFAULT_HELMET).color,
     })
-    avatarByUser.set(m.user_id as string, {
+    avatarByUser.set(m.user_id, {
       avatarKey: profile?.avatar_key ?? null,
       avatarUrl: profile?.avatar_url ?? null,
     })
@@ -189,12 +190,12 @@ export default async function GPScoresPage({
   const resolvedItems: ResolvedItem[] = (itemRows ?? [])
     .filter((row) => row.points_delta_actor != null)
     .map((row) => ({
-      userId:            row.user_id as string,
-      itemType:          row.item_type as string,
+      userId:            row.user_id,
+      itemType:          row.item_type,
       payload:           (row.payload as Record<string, unknown>) ?? {},
-      wasShielded:       (row.was_shielded as boolean | null) ?? false,
-      pointsDeltaActor:  row.points_delta_actor as number,
-      pointsDeltaTarget: row.points_delta_target as number | null,
+      wasShielded:       row.was_shielded ?? false,
+      pointsDeltaActor:  row.points_delta_actor,
+      pointsDeltaTarget: row.points_delta_target,
     }))
 
   // Comptage des attaques neutralisées par bouclier — calculé une fois, partagé.
@@ -203,7 +204,7 @@ export default async function GPScoresPage({
 
   // ── Vues membres ──────────────────────────────────────────────────────────
   const memberViews: MemberView[] = (members ?? []).map((m) => {
-    const memberId = m.user_id as string
+    const memberId = m.user_id
     const info     = identity.get(memberId)!
     const itemLines = buildMemberItemLines(resolvedItems, memberId, identity, shieldedByTarget)
 
@@ -274,14 +275,14 @@ export default async function GPScoresPage({
             href={`/leagues/${leagueId}`}
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            ← {league.name as string}
+            ← {league.name}
           </Link>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">
                 {t('gpResults.round')} {gp.round} · {gp.country}
               </p>
-              <h1 className="text-2xl font-bold text-foreground">{gp.name as string}</h1>
+              <h1 className="text-2xl font-bold text-foreground">{gp.name}</h1>
             </div>
             {hasScores && (
               <span

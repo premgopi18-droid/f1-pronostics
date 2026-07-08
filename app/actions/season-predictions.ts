@@ -41,14 +41,14 @@ export async function submitSeasonPredictionAction(
       .select('code')
       .eq('season', season)
     if (error) return { error: 'Erreur serveur' }
-    validCodes = new Set((drivers ?? []).map((d) => d.code as string))
+    validCodes = new Set((drivers ?? []).map((d) => d.code))
   } else {
     const { data: constructors, error } = await db
       .from('constructors')
       .select('code')
       .eq('season', season)
     if (error) return { error: 'Erreur serveur' }
-    validCodes = new Set((constructors ?? []).map((c) => c.code as string))
+    validCodes = new Set((constructors ?? []).map((c) => c.code))
   }
 
   for (const code of entries) {

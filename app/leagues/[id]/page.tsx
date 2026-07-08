@@ -96,10 +96,10 @@ export default async function LeaguePage({
 
   // --- Classement ---
   const members: MemberRow[] = (rawMembers ?? []).map((m) => {
-    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; avatar_url: string | null } | null
+    const profile = m.profiles
     return {
-      user_id: m.user_id as string,
-      is_admin: m.is_admin as boolean,
+      user_id: m.user_id,
+      is_admin: m.is_admin,
       profile: {
         pseudo: profile?.pseudo ?? '?',
         avatarKey: profile?.avatar_key ?? null,
@@ -108,8 +108,9 @@ export default async function LeaguePage({
     }
   })
   const normalizedSeasonScores: SeasonScoreRow[] = (seasonRows ?? []).map((r) => ({
-    user_id: r.user_id as string,
-    total: r.total as number,
+    user_id: r.user_id,
+    // `total` est nullable en DB (colonne calculée en fin de saison) — 0 tant qu'absent.
+    total: r.total ?? 0,
   }))
   const initialStandings: Standing[] = buildStandings(
     members,
@@ -122,7 +123,7 @@ export default async function LeaguePage({
   // --- Items ---
   const itemsByType = new Map<GpItemType, number>()
   for (const item of myItems ?? []) {
-    itemsByType.set(item.item_type as GpItemType, item.uses_remaining as number)
+    itemsByType.set(item.item_type as GpItemType, item.uses_remaining)
   }
 
   // --- Aperçu saison ---
@@ -130,10 +131,10 @@ export default async function LeaguePage({
   const myGpScores = new Map<string, number>()
   for (const row of myScoreRows ?? []) {
     // scores → sessions est une relation to-one : PostgREST renvoie un objet, pas un tableau.
-    const session = ((row as unknown) as { final_score: number; sessions: { gp_id: string } | null }).sessions
+    const session = row.sessions
     const gpId = session?.gp_id
     if (!gpId) continue
-    myGpScores.set(gpId, (myGpScores.get(gpId) ?? 0) + (row.final_score as number))
+    myGpScores.set(gpId, (myGpScores.get(gpId) ?? 0) + (row.final_score))
   }
   const lastFinalized = getLastFinalizedGps(gpList as Parameters<typeof getLastFinalizedGps>[0], 3)
 
@@ -143,7 +144,7 @@ export default async function LeaguePage({
   // --- Deadline ---
   const upcomingGp = findUpcomingGp(gpList as Parameters<typeof findUpcomingGp>[0], now)
   const qualifying = (nextQualifying ?? [])[0]
-  const deadlineString = qualifying?.starts_at ? formatDeadline(qualifying.starts_at as string) : null
+  const deadlineString = qualifying?.starts_at ? formatDeadline(qualifying.starts_at) : null
 
   return (
     <main className="flex flex-1 flex-col px-page pt-2 pb-6">
@@ -158,7 +159,7 @@ export default async function LeaguePage({
         </Link>
         <div className="flex flex-1 flex-col gap-0">
           <h1 className="font-display text-xl font-bold leading-tight text-foreground">
-            {league.name as string}
+            {league.name}
           </h1>
           <p className="text-xs text-text-secondary">
             {memberCount} {t('leagues.members')} · {t('leagueDetail.season')} {season}
@@ -298,11 +299,12 @@ export default async function LeaguePage({
             </h2>
             <div className="flex flex-col gap-1.5">
               {gpList.map((gp) => {
-                const isPast = new Date(gp.weekend_starts_at as string) < now
+                // `weekend_starts_at` nullable en DB : sans date, le GP n'est pas « passé ».
+                const isPast = gp.weekend_starts_at != null && new Date(gp.weekend_starts_at) < now
                 const isNext = gp.id === upcomingGp?.id
                 return (
                   <Link
-                    key={gp.id as string}
+                    key={gp.id}
                     href={isPast ? `/leagues/${id}/gp/${gp.id}` : `/predictions/${gp.id}`}
                     className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
@@ -310,7 +312,7 @@ export default async function LeaguePage({
                       R{gp.round}
                     </span>
                     <span className="flex-1 text-sm font-medium text-foreground">
-                      {gp.name as string}
+                      {gp.name}
                     </span>
                     {gp.scoring_finalized_at != null ? (
                       <span className="text-2xs font-semibold text-success">{t('leagueDetail.gpStatusFinal')}</span>

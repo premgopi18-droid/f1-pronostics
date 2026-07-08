@@ -16,12 +16,12 @@ export async function getResultsForSession(
 
   const result = new Map<string, DriverResult>()
   for (const row of data ?? []) {
-    const driver = (row.drivers as unknown) as ({ code: string } | null)
+    const driver = row.drivers
     if (driver) {
       result.set(driver.code, {
-        position:   row.position as number | null,
-        fastestLap: row.fastest_lap as boolean,
-        dnf:        row.dnf as boolean,
+        position:   row.position,
+        fastestLap: row.fastest_lap,
+        dnf:        row.dnf,
       })
     }
   }
@@ -42,10 +42,10 @@ export async function getConstructorDriversMap(
 
   const result = new Map<string, string[]>()
   for (const row of data ?? []) {
-    const constructor = (row.constructors as unknown) as ({ code: string } | null)
+    const constructor = row.constructors
     if (!constructor) continue
     const drivers = result.get(constructor.code) ?? []
-    drivers.push(row.code as string)
+    drivers.push(row.code)
     result.set(constructor.code, drivers)
   }
   return result
@@ -70,7 +70,7 @@ export async function upsertSessionResults(
 
   if (driversError) throw driversError
 
-  const codeToId = new Map((drivers ?? []).map((d) => [d.code as string, d.id as string]))
+  const codeToId = new Map((drivers ?? []).map((d) => [d.code, d.id]))
 
   const rows = Array.from(results.entries())
     .filter(([code]) => codeToId.has(code))

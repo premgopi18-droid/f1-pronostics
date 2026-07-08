@@ -48,7 +48,7 @@ export default async function PredictPage({
   // de `circuit_tracks`. Tout échec de mapping/lecture → pas de tracé (fallback gracieux).
   // Tours : dérivés de la dernière édition disputée du circuit (`race_laps`, #174) —
   // toujours à jour, se remplit tout seul après la 1ʳᵉ course d'un nouveau circuit.
-  const bacingerId = getBacingerId(gp.circuit as string)
+  const bacingerId = getBacingerId(gp.circuit)
   let circuitFeature: CircuitFeature | null = null
   let circuitLaps: number | null = null
   if (bacingerId) {
@@ -57,7 +57,7 @@ export default async function PredictPage({
       supabase
         .from('grands_prix')
         .select('race_laps')
-        .eq('circuit', gp.circuit as string)
+        .eq('circuit', gp.circuit)
         .not('race_laps', 'is', null)
         .order('season', { ascending: false })
         .order('round', { ascending: false })
@@ -65,28 +65,30 @@ export default async function PredictPage({
         .maybeSingle(),
     ])
     circuitFeature = (track?.geojson as CircuitFeature | undefined) ?? null
-    circuitLaps = (lapsRow?.race_laps as number | undefined) ?? null
+    circuitLaps = lapsRow?.race_laps ?? null
   }
   const circuitTurns = bacingerId ? getTurnsForCircuit(bacingerId) : null
 
   const constructorByCode = new Map(
-    constructorsRaw.map((c) => [c.id as string, { code: c.code as string, name: c.name as string }]),
+    constructorsRaw.map((c) => [c.id, { code: c.code, name: c.name }]),
   )
 
   const drivers: Driver[] = driversRaw.map((d) => {
-    const constructor = constructorByCode.get(d.constructor_id as string) ?? { code: '', name: '' }
+    const constructor = constructorByCode.get(d.constructor_id ?? '') ?? { code: '', name: '' }
     return {
-      id:        d.id as string,
-      code:      d.code as string,
-      firstName: d.first_name as string,
-      lastName:  d.last_name as string,
+      id:        d.id,
+      code:      d.code,
+      firstName: d.first_name,
+      lastName:  d.last_name,
+      // Divergence schéma ↔ hypothèse : `number` est nullable en DB, mais toujours
+      // renseigné par le sync Jolpica (numéro permanent des pilotes).
       number:    d.number as number,
       teamCode:  constructor.code,
       teamName:  constructor.name,
     }
   })
 
-  const sessionIds = (sessions ?? []).map((s) => s.id as string)
+  const sessionIds = (sessions ?? []).map((s) => s.id)
 
   let predictionsBySession  = new Map<string, string[]>()
   let fastestLapBySession   = new Map<string, string | null>()
@@ -106,12 +108,12 @@ export default async function PredictPage({
     ])
 
     predictionsBySession = new Map(
-      (predictions ?? []).map((p) => [p.session_id as string, p.entries as string[]]),
+      (predictions ?? []).map((p) => [p.session_id, p.entries as string[]]),
     )
     fastestLapBySession = new Map(
       (fastestLapRows ?? []).map((p) => {
-        const driver = (p.drivers as unknown) as { code: string } | null
-        return [p.session_id as string, driver?.code ?? null]
+        const driver = p.drivers
+        return [p.session_id, driver?.code ?? null]
       }),
     )
   }
@@ -121,13 +123,13 @@ export default async function PredictPage({
   const sessionList: SessionData[] = (sessions ?? []).map((s) => {
     const type = s.type as SessionType
     return {
-      id:                 s.id as string,
+      id:                 s.id,
       type,
-      startsAt:           s.starts_at as string,
+      startsAt:           s.starts_at,
       expectedCount:      POSITIONS_TO_SCORE[type],
-      existingEntries:    predictionsBySession.get(s.id as string) ?? [],
-      existingFastestLap: fastestLapBySession.get(s.id as string) ?? null,
-      isLocked:           new Date(s.starts_at as string) <= now,
+      existingEntries:    predictionsBySession.get(s.id) ?? [],
+      existingFastestLap: fastestLapBySession.get(s.id) ?? null,
+      isLocked:           new Date(s.starts_at) <= now,
     }
   })
 
@@ -145,10 +147,10 @@ export default async function PredictPage({
             {t('predict.back')}
           </Link>
           <h1 className="font-display text-2xl font-bold text-foreground">
-            {gp.name as string}
+            {gp.name}
           </h1>
           <p className="text-sm text-text-secondary">
-            {gp.country as string} · {t('home.round')} {gp.round as number} · {season}
+            {gp.country} · {t('home.round')} {gp.round} · {season}
           </p>
         </div>
 
@@ -157,7 +159,7 @@ export default async function PredictPage({
           <CircuitTrack
             geojson={circuitFeature}
             bacingerId={bacingerId}
-            circuitName={gp.circuit as string}
+            circuitName={gp.circuit}
             laps={circuitLaps}
             turns={circuitTurns}
           />

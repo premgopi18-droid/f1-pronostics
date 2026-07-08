@@ -54,13 +54,13 @@ export default async function SeasonPage() {
   const isItemsOpen      = !deadlines.itemDeadline       || now < deadlines.itemDeadline
 
   const driverList = driversRaw.map((d) => ({
-    code:      d.code as string,
-    firstName: d.first_name as string,
-    lastName:  d.last_name as string,
+    code:      d.code,
+    firstName: d.first_name,
+    lastName:  d.last_name,
   }))
   const constructorList = constructorsRaw.map((c) => ({
-    code: c.code as string,
-    name: c.name as string,
+    code: c.code,
+    name: c.name,
   }))
 
   return (

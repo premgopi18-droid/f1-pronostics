@@ -73,7 +73,9 @@ export function validatePayload(input: PlayItemInput): string | null {
   }
 }
 
-export function toDBPayload(input: PlayItemInput): Record<string, unknown> {
+// Toutes les valeurs des payloads DB sont des chaînes (codes pilotes/écuries,
+// ids utilisateurs, types de session) — le type précis évite tout cast vers Json.
+export function toDBPayload(input: PlayItemInput): Record<string, string> {
   switch (input.itemType) {
     case 'shield':
       return {}

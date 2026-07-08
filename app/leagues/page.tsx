@@ -21,7 +21,7 @@ export default async function LeaguesPage() {
     .order("joined_at", { ascending: true });
 
   const memberships = rawMemberships ?? [];
-  const leagueIds = memberships.map((m) => m.league_id as string);
+  const leagueIds = memberships.map((m) => m.league_id);
 
   let summaries: LeagueSummary[] = [];
 
@@ -59,41 +59,42 @@ export default async function LeaguesPage() {
     // Pré-indexation : compte de membres par ligue
     const memberCountByLeague = new Map<string, number>();
     for (const m of allMembers ?? []) {
-      const lid = m.league_id as string;
+      const lid = m.league_id;
       memberCountByLeague.set(lid, (memberCountByLeague.get(lid) ?? 0) + 1);
     }
 
     // Items indexés par ligue
     const itemsByLeague = new Map<string, Map<GpItemType, number>>();
     for (const item of myItems ?? []) {
-      const lid = item.league_id as string;
+      const lid = item.league_id;
       if (!itemsByLeague.has(lid)) itemsByLeague.set(lid, new Map());
-      itemsByLeague.get(lid)!.set(item.item_type as GpItemType, item.uses_remaining as number);
+      itemsByLeague.get(lid)!.set(item.item_type as GpItemType, item.uses_remaining);
     }
 
     summaries = memberships.map((membership) => {
-      const lid = membership.league_id as string;
-      const league = membership.leagues as unknown as { name: string } | null;
+      const lid = membership.league_id;
+      const league = membership.leagues;
 
       // Scores filtrés sur cette ligue
       const leagueScores = (allScores ?? [])
         .filter((s) => s.league_id === lid)
         .map((s) => ({
-          user_id: s.user_id as string,
-          final_score: s.final_score as number,
-          exact_positions: s.exact_positions as number,
+          user_id: s.user_id,
+          final_score: s.final_score,
+          exact_positions: s.exact_positions,
         }));
       const leagueSeasonScores = (allSeasonScores ?? [])
         .filter((s) => s.league_id === lid)
-        .map((s) => ({ user_id: s.user_id as string, total: s.total as number }));
+        // `total` est nullable en DB (colonne calculée en fin de saison) — 0 tant qu'absent.
+        .map((s) => ({ user_id: s.user_id, total: s.total ?? 0 }));
 
       const leagueItems = itemsByLeague.get(lid) ?? new Map<GpItemType, number>();
 
       return {
         leagueId: lid,
         name: league?.name ?? "—",
-        isAdmin: membership.is_admin as boolean,
-        joinedAt: membership.joined_at as string,
+        isAdmin: membership.is_admin,
+        joinedAt: membership.joined_at,
         memberCount: memberCountByLeague.get(lid) ?? 1,
         myRank: computeMyRank(leagueScores, leagueSeasonScores, userId),
         myPoints: computeMyPoints(leagueScores, leagueSeasonScores, userId),

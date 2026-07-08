@@ -41,7 +41,7 @@ export async function getFastestLapForSession(
   for (const row of data ?? []) {
     // Embed via FK (`drivers!driver_id`) = relation many-to-one → PostgREST renvoie
     // un objet (pas un tableau). À confirmer en intégration (test plan).
-    const driver = (row.drivers as unknown) as ({ code: string } | null)
+    const driver = row.drivers
     if (driver) result.set(row.user_id, driver.code)
   }
   return result
@@ -135,7 +135,7 @@ export async function getGpHistoryScores(
   if (gpError) { console.error('[data/predictions] grands_prix', gpError); return new Map() }
   if (!gps || gps.length === 0) return new Map()
 
-  const gpIds = gps.map((gp) => gp.id as string)
+  const gpIds = gps.map((gp) => gp.id)
 
   const { data: sessions, error: sessionsError } = await supabase
     .from('sessions')
@@ -145,8 +145,8 @@ export async function getGpHistoryScores(
   if (sessionsError) { console.error('[data/predictions] sessions', sessionsError); return new Map() }
 
   const allSessions = sessions ?? []
-  const sessionIds = allSessions.map((s) => s.id as string)
-  const sessionToGp = new Map(allSessions.map((s) => [s.id as string, s.gp_id as string]))
+  const sessionIds = allSessions.map((s) => s.id)
+  const sessionToGp = new Map(allSessions.map((s) => [s.id, s.gp_id]))
 
   if (sessionIds.length === 0) return new Map(gpIds.map((id) => [id, null]))
 
@@ -162,10 +162,10 @@ export async function getGpHistoryScores(
 
   const byGp = new Map<string, { sessionId: string; baseScore: number }[]>()
   for (const row of scoreRows ?? []) {
-    const gpId = sessionToGp.get(row.session_id as string)
+    const gpId = sessionToGp.get(row.session_id)
     if (!gpId) continue
     const list = byGp.get(gpId) ?? []
-    list.push({ sessionId: row.session_id as string, baseScore: row.base_score as number })
+    list.push({ sessionId: row.session_id, baseScore: row.base_score })
     byGp.set(gpId, list)
   }
 
@@ -205,7 +205,7 @@ export async function getCurrentGpSessionStatuses(
 
   if (sessionsError) { console.error('[data/predictions] sessions (current gp)', sessionsError); return [] }
 
-  const sessionIds = (sessionRows ?? []).map((s) => s.id as string)
+  const sessionIds = (sessionRows ?? []).map((s) => s.id)
 
   const { data: predRows, error: predError } = sessionIds.length
     ? await supabase
@@ -218,12 +218,12 @@ export async function getCurrentGpSessionStatuses(
 
   if (predError) console.error('[data/predictions] predictions', predError)
 
-  const submittedIds = new Set((predRows ?? []).map((r) => r.session_id as string))
+  const submittedIds = new Set((predRows ?? []).map((r) => r.session_id))
 
   return (sessionRows ?? []).map((s) => ({
     type: s.type as SessionType,
-    lockState: sessionLockState(nowMs, s.starts_at as string),
-    hasSubmitted: submittedIds.has(s.id as string),
-    startsAt: s.starts_at as string,
+    lockState: sessionLockState(nowMs, s.starts_at),
+    hasSubmitted: submittedIds.has(s.id),
+    startsAt: s.starts_at,
   }))
 }

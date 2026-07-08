@@ -21,7 +21,7 @@ export async function getActiveLeagues(season: number): Promise<string[]> {
     .eq('season', season)
 
   if (error) throw error
-  return [...new Set((data ?? []).map((row) => row.league_id as string))]
+  return [...new Set((data ?? []).map((row) => row.league_id))]
 }
 
 export async function getLeagueMembers(
@@ -36,7 +36,7 @@ export async function getLeagueMembers(
     .eq('season', season)
 
   if (error) throw error
-  return (data ?? []).map((row) => row.user_id as string)
+  return (data ?? []).map((row) => row.user_id)
 }
 
 // ── Écriture (actions utilisateur) ───────────────────────────────────────
@@ -161,17 +161,17 @@ export async function getLeagueByCode(
 
   const memberCount = memberCountResult.count ?? 0
   const adminPseudo =
-    (adminResult.data?.profiles as unknown as { pseudo: string } | null)?.pseudo ?? null
+    (adminResult.data?.profiles)?.pseudo ?? null
   const isMember = membershipResult !== null && membershipResult.data !== null
 
   return {
-    id: league.id as string,
+    id: league.id,
     status: isMember
       ? 'already_member'
       : leagueJoinStatus(league.invite_open, memberCount, league.max_members),
-    name: league.name as string,
+    name: league.name,
     memberCount,
-    maxMembers: league.max_members as number,
+    maxMembers: league.max_members,
     adminPseudo,
     season,
   }
@@ -216,7 +216,7 @@ export async function joinLeagueByCode(
     throw new LeagueDataError('generic')
   }
 
-  await initUserItems(userId, league.id as string, season)
+  await initUserItems(userId, league.id, season)
 
-  return { leagueId: league.id as string }
+  return { leagueId: league.id }
 }

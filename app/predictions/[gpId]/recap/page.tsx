@@ -60,12 +60,12 @@ export default async function RecapGPPage({
 
   if (!gp || gp.season !== season) notFound()
 
-  const sessionIds          = (sessions ?? []).map((s) => s.id as string)
+  const sessionIds          = (sessions ?? []).map((s) => s.id)
   const confirmedSessionIds = (sessions ?? [])
     .filter((s) => s.results_confirmed_at != null)
-    .map((s) => s.id as string)
+    .map((s) => s.id)
   const raceSession         = (sessions ?? []).find((s) => s.type === 'race' && s.results_confirmed_at != null)
-  const leagueIds           = (myLeagueMemberships ?? []).map((m) => m.league_id as string)
+  const leagueIds           = (myLeagueMemberships ?? []).map((m) => m.league_id)
 
   // Stage 2 — scores, podium, FL, tous scores de saison
   const [
@@ -128,12 +128,12 @@ export default async function RecapGPPage({
   // ── Lookups team colors ────────────────────────────────────────────────────
 
   const constructorCodeById = new Map(
-    (constructorsCached ?? []).map((c) => [c.id as string, c.code as string]),
+    (constructorsCached ?? []).map((c) => [c.id, c.code]),
   )
   const teamColorByDriverCode = new Map(
     (driversCached ?? []).map((d) => [
-      d.code as string,
-      TEAM_COLORS[constructorCodeById.get(d.constructor_id as string) ?? ''] ?? '#52525b',
+      d.code,
+      TEAM_COLORS[constructorCodeById.get(d.constructor_id ?? '') ?? ''] ?? '#52525b',
     ]),
   )
 
@@ -141,14 +141,14 @@ export default async function RecapGPPage({
 
   type PodiumEntry = { code: string; color: string }
   const podium: PodiumEntry[] = (podiumRows ?? []).map((row) => {
-    const driver = (row.drivers as unknown) as { code: string; constructor_id: string } | null
+    const driver = row.drivers
     const code   = driver?.code ?? '?'
     return { code, color: teamColorByDriverCode.get(code) ?? '#52525b' }
   })
 
   // ── Mes scores par session (agrégé sur la 1ère ligue disponible — base_score identique) ──
 
-  const typeById = new Map((sessions ?? []).map((s) => [s.id as string, s.type as SessionType]))
+  const typeById = new Map((sessions ?? []).map((s) => [s.id, s.type as SessionType]))
 
   type SessionRecap = {
     type:        SessionType
@@ -161,10 +161,12 @@ export default async function RecapGPPage({
   const sessionRecapMap = new Map<SessionType, SessionRecap>()
 
   for (const row of myGpScores ?? []) {
-    const sessionType = typeById.get(row.session_id as string)
+    const sessionType = typeById.get(row.session_id)
     if (!sessionType || sessionRecapMap.has(sessionType)) continue
 
-    const breakdown    = (row.breakdown ?? []) as BreakdownEntry[]
+    // Frontière JSONB : `breakdown` est écrit par upsertBaseScores (BreakdownEntry[]),
+    // le schéma DB ne connaît que Json — cast assumé au point de lecture.
+    const breakdown    = (row.breakdown ?? []) as unknown as BreakdownEntry[]
     const exactCount   = breakdown.filter((e) => e.actualPos !== null && e.predictedPos === e.actualPos).length
     const partialCount = breakdown.filter(
       (e) => e.actualPos !== null && Math.abs(e.predictedPos - e.actualPos) === 1 && e.pts > 0,
@@ -172,7 +174,7 @@ export default async function RecapGPPage({
 
     sessionRecapMap.set(sessionType, {
       type:         sessionType,
-      baseScore:    row.base_score as number,
+      baseScore:    row.base_score,
       exactCount,
       partialCount,
       hadFl:        false, // rempli ci-dessous pour la course
@@ -180,8 +182,8 @@ export default async function RecapGPPage({
   }
 
   // Meilleur tour (course)
-  const myFlCode     = ((myFlPrediction?.drivers as unknown) as { code: string } | null)?.code
-  const actualFlCode = ((actualFlRow?.drivers as unknown) as { code: string } | null)?.code
+  const myFlCode     = (myFlPrediction?.drivers)?.code
+  const actualFlCode = (actualFlRow?.drivers)?.code
   const hadFl        = Boolean(myFlCode && myFlCode === actualFlCode)
 
   if (hadFl) {
@@ -206,18 +208,18 @@ export default async function RecapGPPage({
   const gpSessionSet = new Set(sessionIds)
 
   for (const row of allSeasonScores ?? []) {
-    const lid = row.league_id as string
-    const uid = row.user_id as string
+    const lid = row.league_id
+    const uid = row.user_id
     if (!seasonTotalByLeague.has(lid)) seasonTotalByLeague.set(lid, new Map())
     const leagueMap = seasonTotalByLeague.get(lid)!
-    leagueMap.set(uid, (leagueMap.get(uid) ?? 0) + (row.final_score as number))
+    leagueMap.set(uid, (leagueMap.get(uid) ?? 0) + (row.final_score))
   }
 
   // Mon total ce GP par ligue (pour items delta)
   const myGpFinalByLeague = new Map<string, number>()
   for (const row of myGpScores ?? []) {
-    const lid = row.league_id as string
-    myGpFinalByLeague.set(lid, (myGpFinalByLeague.get(lid) ?? 0) + (row.final_score as number))
+    const lid = row.league_id
+    myGpFinalByLeague.set(lid, (myGpFinalByLeague.get(lid) ?? 0) + (row.final_score))
   }
 
   // Rang saison par ligue
@@ -234,8 +236,8 @@ export default async function RecapGPPage({
       .map(([uid, tot]) => tot - (uid === userId ? myGpFinal : (
         // pour les autres, leur total "avant ce GP" = total - leur score ce GP
         (allSeasonScores ?? [])
-          .filter((r) => r.user_id === uid && r.league_id === lid && gpSessionSet.has(r.session_id as string))
-          .reduce((s, r) => s + (r.final_score as number), 0)
+          .filter((r) => r.user_id === uid && r.league_id === lid && gpSessionSet.has(r.session_id))
+          .reduce((s, r) => s + (r.final_score), 0)
       )))
       .sort((a, b) => b - a)
 
@@ -260,8 +262,8 @@ export default async function RecapGPPage({
 
   const leagueRecaps: LeagueRecap[] = (myLeagueMemberships ?? [])
     .map((m) => {
-      const league  = (m.leagues as unknown) as { id: string; name: string } | null
-      const lid     = m.league_id as string
+      const league  = m.leagues
+      const lid     = m.league_id
       const gpFinal = myGpFinalByLeague.get(lid) ?? 0
       const { current, previous, total } = leagueRank(lid)
 
@@ -293,9 +295,9 @@ export default async function RecapGPPage({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs text-zinc-500 uppercase tracking-wider">
-                {t('home.round')} {gp.round} · {gp.country as string}
+                {t('home.round')} {gp.round} · {gp.country}
               </p>
-              <h1 className="text-2xl font-bold text-white">{gp.name as string}</h1>
+              <h1 className="text-2xl font-bold text-white">{gp.name}</h1>
             </div>
             {hasScores && (
               <span

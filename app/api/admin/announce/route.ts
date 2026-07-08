@@ -76,7 +76,7 @@ async function handler(request: Request): Promise<Response> {
       if (insertError) throw insertError
 
       if (inserted && inserted.length > 0) {
-        announcementId = inserted[0].id as string
+        announcementId = inserted[0].id
       } else {
         const { data: existing, error: selectError } = await supabase
           .from('announcements')
@@ -84,7 +84,7 @@ async function handler(request: Request): Promise<Response> {
           .eq('dedup_key', key)
           .single()
         if (selectError || !existing) throw selectError ?? new Error('annonce introuvable')
-        announcementId = existing.id as string
+        announcementId = existing.id
         alreadySent = existing.sent_at !== null
       }
     } else {
@@ -94,7 +94,7 @@ async function handler(request: Request): Promise<Response> {
         .select('id')
         .single()
       if (insertError || !inserted) throw insertError ?? new Error('insertion échouée')
-      announcementId = inserted.id as string
+      announcementId = inserted.id
     }
 
     if (alreadySent) {

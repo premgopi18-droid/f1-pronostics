@@ -54,18 +54,18 @@ export default async function WhatsNewPage() {
       ) : (
         <ul className="mt-2 flex flex-col gap-3">
           {rows.map((row) => {
-            const target = (row.url as string | null) ?? '/whats-new'
+            const target = (row.url ?? '/whats-new')
             return (
-              <li key={row.id as string}>
+              <li key={row.id}>
                 <Link
                   href={target}
                   className="flex flex-col gap-1.5 rounded-2xl bg-card px-4 py-4 transition-colors hover:bg-muted/50 active:bg-muted"
                 >
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {formatDate(row.sent_at as string)}
+                    {formatDate(row.sent_at)}
                   </span>
-                  <span className="text-sm font-semibold text-foreground">{row.title as string}</span>
-                  <span className="text-sm text-muted-foreground">{row.body as string}</span>
+                  <span className="text-sm font-semibold text-foreground">{row.title}</span>
+                  <span className="text-sm text-muted-foreground">{row.body}</span>
                 </Link>
               </li>
             )

@@ -23,10 +23,10 @@ export async function submitPredictionAction(
     .single()
 
   if (!session) return { error: 'Session introuvable' }
-  if (new Date(session.starts_at as string) <= new Date()) return { error: 'Session verrouillée' }
+  if (new Date(session.starts_at) <= new Date()) return { error: 'Session verrouillée' }
 
   const sessionType = session.type as SessionType
-  const season      = session.season as number
+  const season      = session.season
   const expected    = POSITIONS_TO_SCORE[sessionType]
 
   // Validation du contenu : longueur, doublons, codes pilotes connus pour la saison
@@ -37,7 +37,7 @@ export async function submitPredictionAction(
     .from('drivers')
     .select('code')
     .eq('season', season)
-  const validCodes = new Set((drivers ?? []).map((d) => d.code as string))
+  const validCodes = new Set((drivers ?? []).map((d) => d.code))
   if (!entries.every((code) => validCodes.has(code))) {
     return { error: 'Sélection invalide (pilote inconnu)' }
   }
@@ -66,10 +66,10 @@ export async function submitFastestLapAction(
 
   if (!session) return { error: 'Session introuvable' }
   if (session.type !== 'race') return { error: 'Meilleur tour réservé à la course' }
-  if (new Date(session.starts_at as string) <= new Date()) return { error: 'Session verrouillée' }
+  if (new Date(session.starts_at) <= new Date()) return { error: 'Session verrouillée' }
 
   try {
-    await submitFastestLap(user.id, sessionId, session.season as number, driverId)
+    await submitFastestLap(user.id, sessionId, session.season, driverId)
     return { ok: true }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Erreur inattendue' }

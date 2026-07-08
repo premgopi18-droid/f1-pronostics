@@ -1,6 +1,7 @@
 import 'server-only'
 import { createServiceClient } from '@/lib/supabase'
 import { isCronAuthorized } from '@/lib/api/cron'
+import type { Json } from '@/lib/database.types'
 
 // Synchronise les tracés de circuits depuis bacinger/f1-circuits vers `circuit_tracks`.
 // POST uniquement (pas de cron Vercel — appel manuel au déploiement / si un tracé change).
@@ -36,7 +37,9 @@ export async function POST(request: Request): Promise<Response> {
       .map((feature) => ({
         id: feature.properties.id,
         circuit_name: feature.properties.Name,
-        geojson: feature,
+        // Frontière JSONB : BacingerFeature est sérialisable mais sans index
+        // signature — cast assumé vers Json (colonne `geojson`).
+        geojson: feature as unknown as Json,
         updated_at: new Date().toISOString(),
       }))
 

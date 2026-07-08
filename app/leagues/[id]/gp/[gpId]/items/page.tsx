@@ -124,9 +124,7 @@ export default async function ItemsPage({
     code:      d.code,
     firstName: d.first_name,
     lastName:  d.last_name,
-    // Divergence schéma ↔ hypothèse : `number` est nullable en DB, mais toujours
-    // renseigné par le sync Jolpica (numéro permanent des pilotes).
-    number:    d.number as number,
+    number:    d.number,
   }))
 
   const constructorList = constructorsRaw.map((c) => ({

@@ -71,8 +71,14 @@ const UNEXPECTED_KEY: TranslationKey = 'actionErrors.unexpected'
  * Traduit un code d'erreur d'action côté client. Fallback sur le message
  * générique si le code est inconnu (robustesse pendant un déploiement où un
  * vieux client reçoit un code plus récent que son bundle).
+ *
+ * `ActionErrorCode | (string & {})` : autocomplete + détection de typo sur les
+ * codes connus, tout en acceptant une string arbitraire (le cas fallback).
  */
-export function translateActionError(code: string, vars?: ActionErrorVars): string {
+export function translateActionError(
+  code: ActionErrorCode | (string & {}),
+  vars?: ActionErrorVars,
+): string {
   const isKnownCode = (ACTION_ERROR_CODES as readonly string[]).includes(code)
   if (!isKnownCode) return t(UNEXPECTED_KEY)
   return t(`actionErrors.${code}` as TranslationKey, vars)

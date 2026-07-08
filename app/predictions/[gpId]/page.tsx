@@ -44,30 +44,56 @@ export default async function PredictPage({
 
   if (!gp) notFound()
 
+  // Vague 2 (#183) — tout ce qui dépend de la vague 1 part en parallèle :
+  // tracé du circuit + tours (dépendent de gp.circuit) et pronos + meilleur tour
+  // de l'utilisateur (dépendent des sessions).
+  //
   // Tracé du circuit (optionnel) : lookup nom Jolpica → id bacinger, puis lecture publique
   // de `circuit_tracks`. Tout échec de mapping/lecture → pas de tracé (fallback gracieux).
   // Tours : dérivés de la dernière édition disputée du circuit (`race_laps`, #174) —
   // toujours à jour, se remplit tout seul après la 1ʳᵉ course d'un nouveau circuit.
   const bacingerId = getBacingerId(gp.circuit)
-  let circuitFeature: CircuitFeature | null = null
-  let circuitLaps: number | null = null
-  if (bacingerId) {
-    const [{ data: track }, { data: lapsRow }] = await Promise.all([
-      supabase.from('circuit_tracks').select('geojson').eq('id', bacingerId).single(),
-      supabase
-        .from('grands_prix')
-        .select('race_laps')
-        .eq('circuit', gp.circuit)
-        .not('race_laps', 'is', null)
-        .order('season', { ascending: false })
-        .order('round', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ])
-    circuitFeature = (track?.geojson as CircuitFeature | undefined) ?? null
-    circuitLaps = lapsRow?.race_laps ?? null
-  }
-  const circuitTurns = bacingerId ? getTurnsForCircuit(bacingerId) : null
+  const sessionIds = (sessions ?? []).map((s) => s.id)
+
+  const [
+    { data: track },
+    { data: lapsRow },
+    { data: predictions },
+    { data: fastestLapRows },
+  ] = await Promise.all([
+    bacingerId
+      ? supabase.from('circuit_tracks').select('geojson').eq('id', bacingerId).single()
+      : { data: null },
+    bacingerId
+      ? supabase
+          .from('grands_prix')
+          .select('race_laps')
+          .eq('circuit', gp.circuit)
+          .not('race_laps', 'is', null)
+          .order('season', { ascending: false })
+          .order('round', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null },
+    sessionIds.length > 0
+      ? supabase
+          .from('predictions')
+          .select('session_id, entries')
+          .eq('user_id', userId)
+          .in('session_id', sessionIds)
+      : { data: [] },
+    sessionIds.length > 0
+      ? supabase
+          .from('fastest_lap_predictions')
+          .select('session_id, drivers!driver_id(code)')
+          .eq('user_id', userId)
+          .in('session_id', sessionIds)
+      : { data: [] },
+  ])
+
+  const circuitFeature = (track?.geojson as CircuitFeature | undefined) ?? null
+  const circuitLaps    = lapsRow?.race_laps ?? null
+  const circuitTurns   = bacingerId ? getTurnsForCircuit(bacingerId) : null
 
   const constructorByCode = new Map(
     constructorsRaw.map((c) => [c.id, { code: c.code, name: c.name }]),
@@ -86,35 +112,12 @@ export default async function PredictPage({
     }
   })
 
-  const sessionIds = (sessions ?? []).map((s) => s.id)
-
-  let predictionsBySession  = new Map<string, string[]>()
-  let fastestLapBySession   = new Map<string, string | null>()
-
-  if (sessionIds.length > 0) {
-    const [{ data: predictions }, { data: fastestLapRows }] = await Promise.all([
-      supabase
-        .from('predictions')
-        .select('session_id, entries')
-        .eq('user_id', userId)
-        .in('session_id', sessionIds),
-      supabase
-        .from('fastest_lap_predictions')
-        .select('session_id, drivers!driver_id(code)')
-        .eq('user_id', userId)
-        .in('session_id', sessionIds),
-    ])
-
-    predictionsBySession = new Map(
-      (predictions ?? []).map((p) => [p.session_id, p.entries as string[]]),
-    )
-    fastestLapBySession = new Map(
-      (fastestLapRows ?? []).map((p) => {
-        const driver = p.drivers
-        return [p.session_id, driver?.code ?? null]
-      }),
-    )
-  }
+  const predictionsBySession = new Map(
+    (predictions ?? []).map((p) => [p.session_id, p.entries as string[]]),
+  )
+  const fastestLapBySession = new Map(
+    (fastestLapRows ?? []).map((p) => [p.session_id, p.drivers?.code ?? null]),
+  )
 
   const now = new Date()
 

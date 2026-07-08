@@ -95,13 +95,13 @@ async function handler(request: Request): Promise<Response> {
     let writeErrors = 0
 
     for (const row of pending ?? []) {
-      const gp = (row.grands_prix as unknown) as { round: number } | null
+      const gp = row.grands_prix
       if (!gp) continue
 
       const sessionType = row.type as DbSessionType
-      const rowSeason   = row.season as number
+      const rowSeason   = row.season
       const round       = gp.round
-      const startsAt    = row.starts_at as string
+      const startsAt    = row.starts_at
 
       // Isolation par session, pour la source ET les écritures (même famille de
       // bug que #121) : l'échec d'une session ne doit PAS avorter la sync ni les
@@ -133,8 +133,8 @@ async function handler(request: Request): Promise<Response> {
       if (!results || results.size === 0) continue
 
       try {
-        await upsertSessionResults(row.id as string, rowSeason, results)
-        await confirmSessionResults(row.id as string)
+        await upsertSessionResults(row.id, rowSeason, results)
+        await confirmSessionResults(row.id)
         sessionsConfirmed++
       } catch (error) {
         console.error('[api/f1/sync] écriture résultats session', row.id, error)
@@ -147,7 +147,7 @@ async function handler(request: Request): Promise<Response> {
       if (sessionType === 'race') {
         try {
           const raceLaps = await fetchRaceLaps(rowSeason, round)
-          if (raceLaps != null) await setRaceLaps(row.gp_id as string, raceLaps)
+          if (raceLaps != null) await setRaceLaps(row.gp_id, raceLaps)
         } catch (error) {
           console.error('[api/f1/sync] tours course', row.id, error)
         }

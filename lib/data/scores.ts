@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase'
 import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
 import type { ScoreKey, SessionScore, SessionType } from '@/lib/scoring/types'
+import type { Json } from '@/lib/database.types'
 
 export interface SeasonScoreRow {
   userId:   string
@@ -27,8 +28,8 @@ export async function getCurrentScoresForGP(
 
   if (sessionsError) throw sessionsError
 
-  const sessionIds = (sessions ?? []).map((s) => s.id as string)
-  const typeById   = new Map((sessions ?? []).map((s) => [s.id as string, s.type as SessionType]))
+  const sessionIds = (sessions ?? []).map((s) => s.id)
+  const typeById   = new Map((sessions ?? []).map((s) => [s.id, s.type as SessionType]))
 
   if (sessionIds.length === 0) return new Map()
 
@@ -43,14 +44,16 @@ export async function getCurrentScoresForGP(
 
   const result = new Map<ScoreKey, SessionScore>()
   for (const row of rows ?? []) {
-    const sessionType = typeById.get(row.session_id as string)
+    const sessionType = typeById.get(row.session_id)
     if (!sessionType) continue
     const key: ScoreKey = `${row.user_id}:${sessionType}`
     result.set(key, {
-      baseScore:      row.base_score as number,
-      finalScore:     row.final_score as number,
-      exactPositions: row.exact_positions as number,
-      breakdown:      row.breakdown as SessionScore['breakdown'],
+      baseScore:      row.base_score,
+      finalScore:     row.final_score,
+      exactPositions: row.exact_positions,
+      // Frontière JSONB : `breakdown` est écrit par upsertBaseScores (BreakdownEntry[]),
+      // le schéma DB ne connaît que Json — cast assumé au point de lecture.
+      breakdown:      row.breakdown as unknown as SessionScore['breakdown'],
     })
   }
   return result
@@ -84,17 +87,17 @@ export async function getPendingSessionScores(
   if (sessionsError) throw sessionsError
   if (scoredError)   throw scoredError
 
-  const scoredIds = new Set((scored ?? []).map((r) => r.session_id as string))
+  const scoredIds = new Set((scored ?? []).map((r) => r.session_id))
 
   return (sessions ?? [])
     .filter((row) => {
-      const gp = (row.grands_prix as unknown) as { scoring_finalized_at: string | null } | null
-      return gp?.scoring_finalized_at == null && !scoredIds.has(row.id as string)
+      const gp = row.grands_prix
+      return gp?.scoring_finalized_at == null && !scoredIds.has(row.id)
     })
     .map((row) => ({
-      id:     row.id as string,
-      gpId:   row.gp_id as string,
-      season: row.season as number,
+      id:     row.id,
+      gpId:   row.gp_id,
+      season: row.season,
       type:   row.type as SessionType,
     }))
 }
@@ -118,7 +121,7 @@ export async function getPendingItemResolutions(): Promise<
     // GP éligible si la race a des résultats confirmés ET au moins 1 score existant
     const race = sessions.find((s) => s.type === 'race')
     return race?.results_confirmed_at != null && race.scores.length > 0
-  }).map((gp) => ({ id: gp.id as string, name: gp.name as string, season: gp.season as number }))
+  }).map((gp) => ({ id: gp.id, name: gp.name, season: gp.season }))
 }
 
 // ── Écriture ──────────────────────────────────────────────────────────────
@@ -141,7 +144,9 @@ export async function upsertBaseScores(
     base_score:      score.baseScore,
     final_score:     score.finalScore,
     exact_positions: score.exactPositions,
-    breakdown:       score.breakdown,
+    // Frontière JSONB : BreakdownEntry[] est sérialisable mais sans index
+    // signature — cast assumé vers Json (colonne `breakdown`).
+    breakdown:       score.breakdown as unknown as Json,
     computed_at:     now,
   }))
 
@@ -167,7 +172,7 @@ export async function updateFinalScores(
     .eq('gp_id', gpId)
 
   if (sessionsError) throw sessionsError
-  const idByType = new Map((sessions ?? []).map((s) => [s.type as string, s.id as string]))
+  const idByType = new Map((sessions ?? []).map((s) => [s.type, s.id]))
 
   // N UPDATE en parallèle (1 par (user, session)) — valeurs distinctes par ligne,
   // sur des lignes déjà créées en Phase 1. Volume faible (~membres × sessions par

@@ -76,7 +76,7 @@ export async function upsertDriverConstructorLinks(
     .in('code', constructorCodes)
   if (constructorsError) throw constructorsError
 
-  const codeToId = new Map((constructors ?? []).map((c) => [c.code as string, c.id as string]))
+  const codeToId = new Map((constructors ?? []).map((c) => [c.code, c.id]))
 
   // Signale les codes écurie introuvables dans `constructors` (sync incomplet ou
   // décalage de code) — sinon le pilote garde constructor_id null sans trace.
@@ -122,7 +122,7 @@ export async function upsertGrandsPrix(
     .select('id, round')
 
   if (error) throw error
-  return new Map((data ?? []).map((row) => [row.round as number, row.id as string]))
+  return new Map((data ?? []).map((row) => [row.round, row.id]))
 }
 
 export async function upsertSessions(
@@ -200,7 +200,7 @@ export async function getGPsNeedingOpenNotification(
     .lte('weekend_starts_at', limit.toISOString())
 
   if (error) throw error
-  return (data ?? []).map((row) => ({ id: row.id as string, name: row.name as string }))
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name }))
 }
 
 export async function markGPNotifiedOpen(gpId: string): Promise<void> {
@@ -232,23 +232,16 @@ export async function getGPsNeedingQualReminder(
 
   if (error) throw error
 
-  type GPMeta = {
-    id: string
-    name: string
-    is_cancelled: boolean
-    notified_reminder_24h_at: string | null
-  }
-
   const rows: QualReminderRow[] = []
   for (const raw of data ?? []) {
-    const gp = raw.grands_prix as unknown as GPMeta | null
+    const gp = raw.grands_prix
     if (!gp) continue
     rows.push({
       gpId:        gp.id,
       gpName:      gp.name,
       isCancelled: gp.is_cancelled,
       notified:    gp.notified_reminder_24h_at != null,
-      startsAt:    new Date(raw.starts_at as string),
+      startsAt:    new Date(raw.starts_at),
     })
   }
 
@@ -286,16 +279,15 @@ export async function getImminentDeadlineForCatchUp(
 
   if (error) throw error
 
-  type GPMeta = { name: string; is_cancelled: boolean }
   const rows: CatchUpDeadlineRow[] = []
   for (const raw of data ?? []) {
-    const gp = raw.grands_prix as unknown as GPMeta | null
+    const gp = raw.grands_prix
     if (!gp || gp.is_cancelled) continue
     rows.push({
-      gpId:     raw.gp_id as string,
+      gpId:     raw.gp_id,
       gpName:   gp.name,
       type:     raw.type as SessionType,
-      startsAt: new Date(raw.starts_at as string),
+      startsAt: new Date(raw.starts_at),
     })
   }
 
@@ -316,7 +308,7 @@ export async function getGPsNeedingScoreNotification(
     .is('notified_scores_at', null)
 
   if (error) throw error
-  return (data ?? []).map((row) => ({ id: row.id as string, name: row.name as string }))
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name }))
 }
 
 export async function markGPNotifiedScores(gpId: string): Promise<void> {
@@ -346,14 +338,13 @@ export async function getSessionsNeedingDeadlineNotification(
     .lte('starts_at', limit.toISOString())
 
   if (error) throw error
-  type GPMeta = { name: string; is_cancelled: boolean }
   return (data ?? [])
-    .filter((row) => !(row.grands_prix as unknown as GPMeta).is_cancelled)
+    .filter((row) => !(row.grands_prix).is_cancelled)
     .map((row) => ({
-      id:     row.id as string,
+      id:     row.id,
       type:   row.type as SessionType,
-      gpId:   row.gp_id as string,
-      gpName: (row.grands_prix as unknown as GPMeta).name,
+      gpId:   row.gp_id,
+      gpName: (row.grands_prix).name,
     }))
 }
 
@@ -404,18 +395,17 @@ export async function getSessionsNeedingPostNudge(
 
   if (error) throw error
 
-  type GPMeta = { name: string; is_cancelled: boolean }
   const rows: NudgeSessionRow[] = []
   for (const raw of data ?? []) {
-    const gp = raw.grands_prix as unknown as GPMeta | null
+    const gp = raw.grands_prix
     if (!gp) continue
     rows.push({
-      id:          raw.id as string,
+      id:          raw.id,
       type:        raw.type as SessionType,
-      gpId:        raw.gp_id as string,
+      gpId:        raw.gp_id,
       gpName:      gp.name,
       isCancelled: gp.is_cancelled,
-      startsAt:    new Date(raw.starts_at as string),
+      startsAt:    new Date(raw.starts_at),
       notified:    raw.notified_post_session_at != null,
     })
   }
@@ -456,18 +446,17 @@ export async function getSessionsNeedingImminenceNotification(
 
   if (error) throw error
 
-  type GPMeta = { name: string; is_cancelled: boolean }
   const rows: ImminenceSessionRow[] = []
   for (const raw of data ?? []) {
-    const gp = raw.grands_prix as unknown as GPMeta | null
+    const gp = raw.grands_prix
     if (!gp) continue
     rows.push({
-      id:          raw.id as string,
+      id:          raw.id,
       type:        raw.type as DbSessionType,
-      gpId:        raw.gp_id as string,
+      gpId:        raw.gp_id,
       gpName:      gp.name,
       isCancelled: gp.is_cancelled,
-      startsAt:    new Date(raw.starts_at as string),
+      startsAt:    new Date(raw.starts_at),
       notified:    raw.notified_imminence_at != null,
     })
   }
@@ -500,8 +489,8 @@ export async function getSessionsForGP(
 
   if (error) throw error
   return (data ?? []).map((row) => ({
-    id:          row.id as string,
+    id:          row.id,
     type:        row.type as DbSessionType,
-    confirmedAt: row.results_confirmed_at as string | null,
+    confirmedAt: row.results_confirmed_at,
   }))
 }

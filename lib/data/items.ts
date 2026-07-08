@@ -141,7 +141,7 @@ export async function insertPlayedItem(
   gpId:      string,
   season:    number,
   itemType:  string,
-  dbPayload: Record<string, unknown>,
+  dbPayload: Record<string, string>,
 ): Promise<void> {
   const supabase = createServiceClient()
 

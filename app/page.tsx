@@ -32,8 +32,8 @@ export default async function HomePage() {
 
   const pseudo = profile?.pseudo ?? ''
   const leagues = (memberships ?? []).map((m) => {
-    const league = m.leagues as unknown as { name: string } | null
-    return { id: m.league_id as string, name: league?.name ?? 'Ligue sans nom' }
+    const league = m.leagues
+    return { id: m.league_id, name: league?.name ?? 'Ligue sans nom' }
   })
 
   // Phase du GP courant (countdown / week-end / live / calcul) + ses sessions.

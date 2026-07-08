@@ -58,9 +58,9 @@ export default async function PredictionComparePage({
 
   // Sessions verrouillées (starts_at <= maintenant) — les pronos sont visibles
   const lockedSessions = (sessions ?? []).filter(
-    (s) => s.starts_at != null && (s.starts_at as string) <= now,
+    (s) => s.starts_at != null && (s.starts_at) <= now,
   )
-  const lockedSessionIds = lockedSessions.map((s) => s.id as string)
+  const lockedSessionIds = lockedSessions.map((s) => s.id)
 
   if (lockedSessionIds.length === 0) {
     return (
@@ -73,7 +73,7 @@ export default async function PredictionComparePage({
             >
               ← {t('compare.back')}
             </Link>
-            <h1 className="text-2xl font-bold text-white">{gp.name as string}</h1>
+            <h1 className="text-2xl font-bold text-white">{gp.name}</h1>
           </div>
           <p className="text-zinc-500 text-sm">{t('compare.noSessionsLocked')}</p>
         </div>
@@ -102,8 +102,8 @@ export default async function PredictionComparePage({
 
   const officialResults: Record<string, string[]> = {}
   for (const row of allResults ?? []) {
-    const sid    = row.session_id as string
-    const driver = (row.drivers as unknown) as { code: string } | null
+    const sid    = row.session_id
+    const driver = row.drivers
     if (!driver) continue
     if (!officialResults[sid]) officialResults[sid] = []
     officialResults[sid].push(driver.code)
@@ -126,7 +126,7 @@ export default async function PredictionComparePage({
     .map((type) => lockedSessions.find((s) => s.type === type))
     .filter((s): s is NonNullable<typeof s> => s != null)
     .map((s) => ({
-      id:          s.id as string,
+      id:          s.id,
       type:        s.type as SessionType,
       isConfirmed: s.results_confirmed_at != null,
     }))
@@ -134,8 +134,8 @@ export default async function PredictionComparePage({
   // ── Membres enrichis ───────────────────────────────────────────────────────
 
   const memberData: MemberData[] = (members ?? []).map((m) => {
-    const profile = (m.profiles as unknown) as { pseudo: string } | null
-    const uid     = m.user_id as string
+    const profile = m.profiles
+    const uid     = m.user_id
 
     const predictions: Record<string, string[]> = {}
     for (const sessionInfo of sessionInfos) {
@@ -164,7 +164,7 @@ export default async function PredictionComparePage({
             ← {t('compare.back')}
           </Link>
           <h1 className="text-xl font-bold text-white">
-            {t('compare.title')} · {gp.name as string}
+            {t('compare.title')} · {gp.name}
           </h1>
           <p className="text-xs text-zinc-500">{t('compare.visibleAfterLock')}</p>
         </div>

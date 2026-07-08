@@ -30,10 +30,10 @@ export async function getCurrentGp(season: number): Promise<CurrentGp | null> {
   if (!data) return null
 
   return {
-    id:              data.id as string,
-    name:            data.name as string,
-    country:         data.country as string,
-    round:           data.round as number,
-    weekendStartsAt: (data.weekend_starts_at as string | null) ?? null,
+    id:              data.id,
+    name:            data.name,
+    country:         data.country,
+    round:           data.round,
+    weekendStartsAt: data.weekend_starts_at,
   }
 }

@@ -79,11 +79,11 @@ export default async function ItemsPage({
   // Sessions scorées (type + horaire) — base des paliers et du gating par session.
   const scoredSessions: SessionTiming[] = (sessions ?? []).map((s) => ({
     type:     s.type as SessionType,
-    startsAt: s.starts_at as string,
+    startsAt: s.starts_at,
   }))
 
   // Jouabilité du GP : seul le GP courant est ouvert ; futurs verrouillés, passés fermés.
-  const playability = gpPlayability(gp.round as number, currentGp?.round ?? null)
+  const playability = gpPlayability(gp.round, currentGp?.round ?? null)
 
   // Sessions encore ciblables (pas démarrées) — le form les recroise avec ALLOWED_SESSIONS.
   const futureSessionTypes = scoredSessions
@@ -112,28 +112,28 @@ export default async function ItemsPage({
   const otherMembers = (members ?? [])
     .filter((m) => m.user_id !== userId)
     .map((m) => {
-      const profile = (m.profiles as unknown) as { pseudo: string } | null
+      const profile = m.profiles
       return {
-        userId: m.user_id as string,
+        userId: m.user_id,
         pseudo: profile?.pseudo ?? '?',
       }
     })
 
   const driverList = driversRaw.map((d) => ({
-    id:        d.id as string,
-    code:      d.code as string,
-    firstName: d.first_name as string,
-    lastName:  d.last_name as string,
-    number:    d.number as number | null,
+    id:        d.id,
+    code:      d.code,
+    firstName: d.first_name,
+    lastName:  d.last_name,
+    number:    d.number,
   }))
 
   const constructorList = constructorsRaw.map((c) => ({
-    id:   c.id as string,
-    code: c.code as string,
-    name: c.name as string,
+    id:   c.id,
+    code: c.code,
+    name: c.name,
   }))
 
-  const isSprintWeekend = gp.is_sprint_weekend as boolean
+  const isSprintWeekend = gp.is_sprint_weekend
   const formatDeadline = (d: Date) => d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 
   return (
@@ -146,11 +146,11 @@ export default async function ItemsPage({
             href={`/leagues/${leagueId}/gp/${gpId}`}
             className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
           >
-            ← {gp.name as string}
+            ← {gp.name}
           </Link>
-          <h1 className="text-2xl font-bold text-white">Jouer un item — {gp.name as string}</h1>
+          <h1 className="text-2xl font-bold text-white">Jouer un item — {gp.name}</h1>
           <p className="text-xs text-zinc-500 uppercase tracking-wider">
-            {league.name as string} · Round {gp.round} · {gp.country}
+            {league.name} · Round {gp.round} · {gp.country}
           </p>
           {playability === 'open' && (
             <div className="text-sm text-zinc-400 mt-1 flex flex-col gap-0.5">

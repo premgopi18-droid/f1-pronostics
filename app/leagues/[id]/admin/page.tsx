@@ -46,10 +46,10 @@ export default async function AdminPage({
   if (!isAdmin) redirect(`/leagues/${id}`)
 
   const members: AdminMember[] = (rawMembers ?? []).map((m) => {
-    const profile = (m.profiles as unknown) as { pseudo: string; avatar_key: string | null; avatar_url: string | null } | null
+    const profile = m.profiles
     return {
-      userId: m.user_id as string,
-      isAdmin: m.is_admin as boolean,
+      userId: m.user_id,
+      isAdmin: m.is_admin,
       pseudo: profile?.pseudo ?? '?',
       avatarKey: profile?.avatar_key ?? null,
       avatarUrl: profile?.avatar_url ?? null,
@@ -74,8 +74,8 @@ export default async function AdminPage({
 
       <AdminClient
         leagueId={id}
-        inviteCode={league.invite_code as string}
-        inviteOpen={league.invite_open as boolean}
+        inviteCode={league.invite_code}
+        inviteOpen={league.invite_open}
         members={members}
         currentUserId={userId}
       />

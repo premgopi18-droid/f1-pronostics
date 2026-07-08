@@ -35,9 +35,9 @@ export default async function EditPseudoPage() {
       </div>
 
       <EditPseudoForm
-        pseudo={profile.pseudo as string}
-        avatarKey={profile.avatar_key as string | null}
-        avatarUrl={profile.avatar_url as string | null}
+        pseudo={profile.pseudo}
+        avatarKey={profile.avatar_key}
+        avatarUrl={profile.avatar_url}
       />
     </main>
   )

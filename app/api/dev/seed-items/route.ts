@@ -1,6 +1,7 @@
 import 'server-only'
 import { createServiceClient } from '@/lib/supabase'
 import { isCronAuthorized } from '@/lib/api/cron'
+import type { TablesInsert } from '@/lib/database.types'
 
 // Insère des items de test pour un GP passé (déjà finalisé) et réinitialise
 // scoring_finalized_at pour que le trigger les résout au prochain appel.
@@ -88,7 +89,7 @@ export async function GET(request: Request): Promise<Response> {
     )
   }
 
-  const userIds = members.map((m) => m.user_id as string)
+  const userIds = members.map((m) => m.user_id)
   const noShield = url.searchParams.get('noShield') === '1'
 
   // ── P1 en qualif (pour block_driver) ─────────────────────────────────────
@@ -99,8 +100,7 @@ export async function GET(request: Request): Promise<Response> {
     .eq('position', 1)
     .single()
 
-  type DriverRow = { code: string }
-  const qualP1Code = qualP1 ? (qualP1.drivers as unknown as DriverRow).code : 'VER'
+  const qualP1Code = qualP1 ? (qualP1.drivers).code : 'VER'
 
   // ── Remise à zéro : supprime les items existants + déverrouille le GP ─────
   await supabase.from('items_played').delete().eq('gp_id', gp.id).eq('league_id', leagueId)
@@ -110,7 +110,7 @@ export async function GET(request: Request): Promise<Response> {
   // scorées, et la résolution repart de `final_score` (pas de `base_score`). Sans
   // ce reset, un re-seed + re-trigger ré-appliquerait les effets par-dessus les
   // anciens → dérive. On remet donc `final_score = base_score` avant de déverrouiller.
-  const sessionIds = sessions!.map((s) => s.id as string)
+  const sessionIds = sessions!.map((s) => s.id)
   const { data: scoreRows } = await supabase
     .from('scores')
     .select('id, base_score')
@@ -122,22 +122,14 @@ export async function GET(request: Request): Promise<Response> {
       supabase
         .from('scores')
         .update({ final_score: row.base_score })
-        .eq('id', row.id as string),
+        .eq('id', row.id),
     ),
   )
 
   // ── Items à insérer ───────────────────────────────────────────────────────
   const now = new Date().toISOString()
 
-  type ItemRow = {
-    user_id:   string
-    league_id: string
-    gp_id:     string
-    season:    number
-    item_type: string
-    payload:   Record<string, unknown>
-    played_at: string
-  }
+  type ItemRow = TablesInsert<'items_played'>
 
   const items: ItemRow[] = [
     // M0 → wild_card sur M1 (race)

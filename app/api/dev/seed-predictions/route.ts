@@ -74,8 +74,7 @@ export async function GET(request: Request): Promise<Response> {
 
     if (!results?.length) continue
 
-    type ResultRow = { position: number; fastest_lap: boolean; driver_id: string; drivers: { code: string } }
-    const rows = results as unknown as ResultRow[]
+    const rows = results
 
     // Codes dans l'ordre réel (P1 → PN)
     const entries = rows.map((r) => r.drivers.code)

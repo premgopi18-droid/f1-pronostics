@@ -33,9 +33,9 @@ export async function getCurrentGpView(
     nowMs,
     weekendStartsAt,
     (rows ?? []).map((s) => ({
-      type: s.type as string,
-      startsAt: s.starts_at as string,
-      resultsConfirmedAt: s.results_confirmed_at as string | null,
+      type: s.type,
+      startsAt: s.starts_at,
+      resultsConfirmedAt: s.results_confirmed_at,
     })),
   )
 }
@@ -78,7 +78,7 @@ export async function getPreviousGpCard(
 
   if (sessionsError) console.error('[data/home] sessions', sessionsError)
 
-  const sessionIds = (sessions ?? []).map((s) => s.id as string)
+  const sessionIds = (sessions ?? []).map((s) => s.id)
   const raceSession = (sessions ?? []).find((s) => s.type === RACE_SESSION_TYPE)
 
   const [podiumResult, scoreResult] = await Promise.all([
@@ -99,18 +99,19 @@ export async function getPreviousGpCard(
   if (podiumResult.error) console.error('[data/home] session_results', podiumResult.error)
   if (scoreResult.error) console.error('[data/home] scores', scoreResult.error)
 
-  const podium = ((podiumResult.data ?? []) as unknown as Array<{
-    position: number
-    drivers: { code: string } | null
-  }>).map((row) => ({ position: row.position, code: row.drivers?.code ?? '—' }))
+  const podium = (podiumResult.data ?? []).map((row) => ({
+    // Non-null garanti par les filtres `.gt('position', 0)` / `.lte(…)` de la requête.
+    position: row.position as number,
+    code: row.drivers?.code ?? '—',
+  }))
 
-  const scoreRows = (scoreResult.data ?? []) as Array<{ session_id: string; base_score: number }>
+  const scoreRows = scoreResult.data ?? []
   const rawScore = scoreRows.length
     ? rawGpScore(scoreRows.map((r) => ({ sessionId: r.session_id, baseScore: r.base_score })))
     : null
 
   return {
-    name: gp.name as string,
+    name: gp.name,
     podium,
     rawScore,
   }

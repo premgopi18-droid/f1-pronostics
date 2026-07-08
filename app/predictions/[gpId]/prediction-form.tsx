@@ -38,7 +38,8 @@ export interface Driver {
   code:      string
   firstName: string
   lastName:  string
-  number:    number
+  // Nullable comme en DB (drivers.number) — jamais rendu dans le formulaire.
+  number:    number | null
   teamCode:  string
   teamName:  string
 }

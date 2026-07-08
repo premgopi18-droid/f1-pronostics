@@ -67,7 +67,7 @@ export async function getSeasonDeadlines(
   if (userLookup?.error) throw userLookup.error
   if (!gps || gps.length === 0) return { submissionDeadline: null, itemDeadline: null }
 
-  const gpIds = gps.map((gp) => gp.id as string)
+  const gpIds = gps.map((gp) => gp.id)
   const { data: sessions, error: sessionError } = await supabase
     .from('sessions')
     .select('gp_id, starts_at')
@@ -78,12 +78,12 @@ export async function getSeasonDeadlines(
 
   const qualMap = new Map<string, Date>()
   for (const s of sessions ?? []) {
-    qualMap.set(s.gp_id as string, new Date(s.starts_at as string))
+    qualMap.set(s.gp_id, new Date(s.starts_at))
   }
 
   // Q1 de chaque GP dans l'ordre du calendrier
   const orderedQuals = gps
-    .map((gp) => qualMap.get(gp.id as string))
+    .map((gp) => qualMap.get(gp.id))
     .filter((d): d is Date => d !== undefined)
 
   // Deadline soumission per-user : premier Q1 strictement après la date d'inscription.
@@ -114,7 +114,7 @@ export async function getAllSeasonPredictions(
     .eq('season', season)
     .eq('type', type)
   if (error) throw error
-  return new Map((data ?? []).map((row) => [row.user_id as string, row.entries as string[]]))
+  return new Map((data ?? []).map((row) => [row.user_id, row.entries as string[]]))
 }
 
 // Stock d'items saison globaux (wdc_move / wcc_move) — 1 par user par saison, toutes ligues confondues.
@@ -135,8 +135,8 @@ export async function getSeasonItems(
   let wdcMove = 1
   let wccMove = 1
   for (const row of data ?? []) {
-    if (row.item_type === 'wdc_move') wdcMove = row.uses_remaining as number
-    if (row.item_type === 'wcc_move') wccMove = row.uses_remaining as number
+    if (row.item_type === 'wdc_move') wdcMove = row.uses_remaining
+    if (row.item_type === 'wcc_move') wccMove = row.uses_remaining
   }
   return { wdcMove, wccMove }
 }

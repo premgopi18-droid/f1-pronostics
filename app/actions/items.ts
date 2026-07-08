@@ -76,7 +76,7 @@ export async function playItemAction(
 
   const scoredSessions: SessionTiming[] = (rawSessions ?? []).map((s) => ({
     type:     s.type as SessionType,
-    startsAt: s.starts_at as string,
+    startsAt: s.starts_at,
   }))
   if (scoredSessions.length === 0) return { error: 'Aucune session trouvée pour ce GP' }
 
@@ -130,7 +130,7 @@ export async function playItemAction(
     .eq('item_type', input.itemType)
     .maybeSingle()
 
-  if (!itemRow || (itemRow.uses_remaining as number) <= 0) {
+  if (!itemRow || (itemRow.uses_remaining) <= 0) {
     return { error: 'Item épuisé pour cette saison' }
   }
 

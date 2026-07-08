@@ -96,16 +96,16 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
   const gpsWithResults = new Set<string>()
 
   for (const s of sessions) {
-    const gpId = s.gp_id as string
+    const gpId = s.gp_id
     if (s.results_confirmed_at != null) gpsWithResults.add(gpId)
     const entry = sessionMap.get(gpId) ?? {}
     if (s.type === 'race') {
-      entry.raceStartsAt = s.starts_at as string
-      entry.raceResultsConfirmedAt = s.results_confirmed_at as string | null
-      raceSessionToGp.set(s.id as string, gpId)
+      entry.raceStartsAt = s.starts_at
+      entry.raceResultsConfirmedAt = s.results_confirmed_at
+      raceSessionToGp.set(s.id, gpId)
     }
     if (s.type === 'qualifying') {
-      entry.qualifyingStartsAt = s.starts_at as string
+      entry.qualifyingStartsAt = s.starts_at
     }
     sessionMap.set(gpId, entry)
   }
@@ -122,25 +122,25 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
 
   const winnerMap = new Map<string, string>()
   for (const row of winnerRows ?? []) {
-    const gpId = raceSessionToGp.get(row.session_id as string)
-    const driver = (row.drivers as unknown as { last_name: string } | null)
+    const gpId = raceSessionToGp.get(row.session_id)
+    const driver = (row.drivers)
     if (gpId && driver) winnerMap.set(gpId, driver.last_name)
   }
 
   const forStatus = gpList.map((gp) => ({
-    raceResultsConfirmedAt: sessionMap.get(gp.id as string)?.raceResultsConfirmedAt ?? null,
-    qualifyingStartsAt: sessionMap.get(gp.id as string)?.qualifyingStartsAt ?? null,
+    raceResultsConfirmedAt: sessionMap.get(gp.id)?.raceResultsConfirmedAt ?? null,
+    qualifyingStartsAt: sessionMap.get(gp.id)?.qualifyingStartsAt ?? null,
   }))
 
   const statuses = computeGpStatuses(forStatus, nowMs)
 
   return gpList.map((gp, i) => {
-    const gpId = gp.id as string
-    const country = gp.country as string
+    const gpId = gp.id
+    const country = gp.country
     const gpSessions = sessionMap.get(gpId) ?? {}
     return {
       id: gpId,
-      round: gp.round as number,
+      round: gp.round,
       countryCode: getCountryCode(country),
       displayName: getCountryNameFr(country),
       gpName: getGpNameFr(country),
@@ -174,8 +174,8 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
   if (!gp) return null
 
   const sessions = sessionRows ?? []
-  const sessionIds = sessions.map((s) => s.id as string)
-  const sessionTypeMap = new Map(sessions.map((s) => [s.id as string, s.type as string]))
+  const sessionIds = sessions.map((s) => s.id)
+  const sessionTypeMap = new Map(sessions.map((s) => [s.id, s.type]))
 
   const resultRows = sessionIds.length > 0
     ? (await supabase
@@ -186,13 +186,6 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
         .in('session_id', sessionIds)).data
     : []
 
-  type DriverEmbed = {
-    code: string
-    first_name: string
-    last_name: string
-    constructors: { name: string; code: string } | null
-  }
-
   const race: GpResultRow[] = []
   const qualifying: GpResultRow[] = []
   const sprintRace: GpResultRow[] = []
@@ -202,10 +195,10 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
   const practice3: PracticeResultRow[] = []
 
   for (const row of resultRows ?? []) {
-    const driver = (row.drivers as unknown as DriverEmbed | null)
+    const driver = (row.drivers)
     if (!driver) continue
 
-    const sessionType = sessionTypeMap.get(row.session_id as string)
+    const sessionType = sessionTypeMap.get(row.session_id)
 
     if (
       sessionType === 'race' ||
@@ -214,10 +207,10 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
       sessionType === 'sprint_qualifying'
     ) {
       const result: GpResultRow = {
-        position: row.position as number | null,
-        dnf: row.dnf as boolean,
-        dns: row.dns as boolean,
-        fastestLap: row.fastest_lap as boolean,
+        position: row.position,
+        dnf: row.dnf,
+        dns: row.dns,
+        fastestLap: row.fastest_lap,
         driverCode: driver.code,
         firstName: driver.first_name,
         lastName: driver.last_name,
@@ -230,12 +223,14 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
       else sprintQualifying.push(result)
     } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
       const result: PracticeResultRow = {
+        // Divergence schéma ↔ hypothèse : `position` est nullable en DB (DNF course),
+        // mais les résultats d'essais libres synchronisés sont toujours classés.
         position: row.position as number,
         driverCode: driver.code,
         lastName: driver.last_name,
         constructorCode: driver.constructors?.code ?? '',
         constructorName: driver.constructors?.name ?? '',
-        bestLapTime: (row.best_lap_time as string | null) ?? null,
+        bestLapTime: row.best_lap_time,
       }
       if (sessionType === 'practice_1') practice1.push(result)
       else if (sessionType === 'practice_2') practice2.push(result)
@@ -256,9 +251,9 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
 
   return {
     id: gpId,
-    gpName: getGpNameFr(gp.country as string),
-    countryCode: getCountryCode(gp.country as string),
-    round: gp.round as number,
+    gpName: getGpNameFr(gp.country),
+    countryCode: getCountryCode(gp.country),
+    round: gp.round,
     race: sortByPosition(race),
     qualifying: sortByPosition(qualifying),
     sprintRace: sortByPosition(sprintRace),

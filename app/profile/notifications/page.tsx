@@ -15,7 +15,7 @@ export default async function NotificationsPage() {
 
   const imminenceScope = (profile?.notif_imminence_scope as ImminenceScope | null) ?? 'stakes-only'
   // Défaut true : aligné sur la colonne DB et sur « toutes activées par défaut ».
-  const announcementsOptIn = (profile?.notif_announcements as boolean | null) ?? true
+  const announcementsOptIn = (profile?.notif_announcements ?? true)
 
   return (
     <NotificationsContent

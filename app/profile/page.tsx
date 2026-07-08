@@ -32,7 +32,7 @@ export default async function ProfilePage() {
   // les items joués, par ligue). On dédoublonne par session pour ne pas multiplier les
   // points par le nombre de ligues du membre.
   const pointsBySession = new Map(
-    (scores ?? []).map((row) => [row.session_id as string, (row.base_score as number | null) ?? 0]),
+    (scores ?? []).map((row) => [row.session_id, row.base_score]),
   )
   const seasonPoints = [...pointsBySession.values()].reduce((sum, points) => sum + points, 0)
 
@@ -44,14 +44,14 @@ export default async function ProfilePage() {
       {/* Header avatar + stats */}
       <div className="mb-8 flex flex-col items-center gap-3">
         <UserAvatar
-          avatarKey={profile.avatar_key as string | null}
-          avatarUrl={profile.avatar_url as string | null}
+          avatarKey={profile.avatar_key}
+          avatarUrl={profile.avatar_url}
           size={80}
-          label={profile.pseudo as string}
+          label={profile.pseudo}
         />
         <div className="flex flex-col items-center gap-1">
           <p className="font-display text-2xl font-bold text-foreground">
-            {profile.pseudo as string}
+            {profile.pseudo}
           </p>
           <p className="text-sm text-muted-foreground">
             {leagueCount} {leagueLabel} · {seasonPoints} {t('profile.statsPts')}

@@ -2,6 +2,8 @@
 // Volontairement SANS 'use server' — ces fonctions synchrones sont importées par
 // la server action `playItemAction` et testées en isolation (cf. items-payload.test.ts).
 
+import type { ActionErrorCode } from '@/lib/actions/errors'
+
 // Payloads typés côté serveur — stricts, jamais de champ superflu
 export type ShieldPayload       = Record<string, never>
 export type BlockDriverPayload  = { targetUserId: string; sessionType: string; driverCode: string }
@@ -31,45 +33,45 @@ export const ALLOWED_SESSIONS: Record<string, Set<string>> = {
   double_points: new Set(['qualifying', 'race']),
 }
 
-export function validatePayload(input: PlayItemInput): string | null {
+export function validatePayload(input: PlayItemInput): ActionErrorCode | null {
   switch (input.itemType) {
     case 'shield':
       return null
 
     case 'block_driver': {
       const p = input.payload
-      if (!p.targetUserId)                                  return 'Cible requise'
-      if (!p.driverCode)                                    return 'Pilote requis'
-      if (!ALLOWED_SESSIONS.block_driver.has(p.sessionType)) return 'Session invalide'
+      if (!p.targetUserId)                                  return 'targetRequired'
+      if (!p.driverCode)                                    return 'driverRequired'
+      if (!ALLOWED_SESSIONS.block_driver.has(p.sessionType)) return 'invalidSession'
       return null
     }
 
     case 'wild_card': {
       const p = input.payload
-      if (!p.targetUserId)                                return 'Cible requise'
-      if (!ALLOWED_SESSIONS.wild_card.has(p.sessionType)) return 'Session invalide'
+      if (!p.targetUserId)                                return 'targetRequired'
+      if (!ALLOWED_SESSIONS.wild_card.has(p.sessionType)) return 'invalidSession'
       return null
     }
 
     case 'double_points': {
       const { sessionType } = input.payload
-      if (!ALLOWED_SESSIONS.double_points.has(sessionType)) return 'Session invalide'
+      if (!ALLOWED_SESSIONS.double_points.has(sessionType)) return 'invalidSession'
       return null
     }
 
     case 'dnf_prediction':
     case 'underdog_top5': {
-      if (!input.payload.driverCode)          return 'Pilote requis'
+      if (!input.payload.driverCode)          return 'driverRequired'
       return null
     }
 
     case 'no_points_team': {
-      if (!input.payload.constructorCode)     return 'Écurie requise'
+      if (!input.payload.constructorCode)     return 'constructorRequired'
       return null
     }
 
     default:
-      return 'Type d\'item non supporté'
+      return 'unsupportedItemType'
   }
 }
 

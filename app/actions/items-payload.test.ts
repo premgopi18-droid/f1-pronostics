@@ -22,21 +22,21 @@ describe('validatePayload', () => {
       expect(validatePayload({
         itemType: 'block_driver',
         payload: { targetUserId: '', sessionType: 'race', driverCode: 'VER' },
-      })).toBe('Cible requise')
+      })).toBe('targetRequired')
     })
 
     it('refuse un pilote manquant', () => {
       expect(validatePayload({
         itemType: 'block_driver',
         payload: { targetUserId: 'u2', sessionType: 'race', driverCode: '' },
-      })).toBe('Pilote requis')
+      })).toBe('driverRequired')
     })
 
     it('refuse une session invalide', () => {
       expect(validatePayload({
         itemType: 'block_driver',
         payload: { targetUserId: 'u2', sessionType: 'practice', driverCode: 'VER' },
-      })).toBe('Session invalide')
+      })).toBe('invalidSession')
     })
 
     it('accepte les sessions sprint (specs §220 : les 4 sessions)', () => {
@@ -61,14 +61,14 @@ describe('validatePayload', () => {
       expect(validatePayload({
         itemType: 'wild_card',
         payload: { targetUserId: '', sessionType: 'qualifying' },
-      })).toBe('Cible requise')
+      })).toBe('targetRequired')
     })
 
     it('refuse une session invalide', () => {
       expect(validatePayload({
         itemType: 'wild_card',
         payload: { targetUserId: 'u2', sessionType: 'fp1' },
-      })).toBe('Session invalide')
+      })).toBe('invalidSession')
     })
 
     it('refuse les sessions sprint (specs §239 : course ou qualifs uniquement)', () => {
@@ -76,7 +76,7 @@ describe('validatePayload', () => {
         expect(validatePayload({
           itemType: 'wild_card',
           payload: { targetUserId: 'u2', sessionType },
-        })).toBe('Session invalide')
+        })).toBe('invalidSession')
       }
     })
   })
@@ -91,12 +91,12 @@ describe('validatePayload', () => {
       expect(validatePayload({
         itemType: 'double_points',
         payload: { sessionType: '' },
-      })).toBe('Session invalide')
+      })).toBe('invalidSession')
     })
 
     it('refuse les sessions sprint (specs §238 : course ou qualifs uniquement)', () => {
       for (const sessionType of ['sprint_qualifying', 'sprint_race']) {
-        expect(validatePayload({ itemType: 'double_points', payload: { sessionType } })).toBe('Session invalide')
+        expect(validatePayload({ itemType: 'double_points', payload: { sessionType } })).toBe('invalidSession')
       }
     })
   })
@@ -108,8 +108,8 @@ describe('validatePayload', () => {
     })
 
     it('refuse un pilote manquant', () => {
-      expect(validatePayload({ itemType: 'dnf_prediction', payload: { driverCode: '' } })).toBe('Pilote requis')
-      expect(validatePayload({ itemType: 'underdog_top5', payload: { driverCode: '' } })).toBe('Pilote requis')
+      expect(validatePayload({ itemType: 'dnf_prediction', payload: { driverCode: '' } })).toBe('driverRequired')
+      expect(validatePayload({ itemType: 'underdog_top5', payload: { driverCode: '' } })).toBe('driverRequired')
     })
   })
 
@@ -119,7 +119,7 @@ describe('validatePayload', () => {
     })
 
     it('refuse une écurie manquante', () => {
-      expect(validatePayload({ itemType: 'no_points_team', payload: { constructorCode: '' } })).toBe('Écurie requise')
+      expect(validatePayload({ itemType: 'no_points_team', payload: { constructorCode: '' } })).toBe('constructorRequired')
     })
   })
 

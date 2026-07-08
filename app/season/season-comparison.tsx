@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { translateActionError } from '@/lib/actions/errors'
 import { cn } from '@/lib/utils'
 import { t } from '@/lib/i18n'
 import { TEAM_COLORS, DEFAULT_TEAM_COLOR } from '@/lib/f1/team-colors'
@@ -192,7 +193,7 @@ function ComparisonPanel({
     startTransition(async () => {
       const result = await applySeasonItemAction(itemType, itemFrom, itemTo)
       if ('error' in result) {
-        setMessage({ type: 'error', text: result.error })
+        setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
       } else {
         const next = [...entries]
         const [extracted] = next.splice(itemFrom - 1, 1)

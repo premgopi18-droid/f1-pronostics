@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { translateActionError } from '@/lib/actions/errors'
 import { useRouter } from 'next/navigation'
 import { BottomSheet } from '@/app/ui/bottom-sheet'
 import { playItemAction, type PlayItemInput } from '@/app/actions/items'
@@ -121,7 +122,7 @@ export function PlayItemForm({
     startTransition(async () => {
       const result = await playItemAction(gpId, leagueId, input)
       if ('error' in result) {
-        setMessage({ type: 'error', text: result.error })
+        setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
         return
       }
       setMessage({ type: 'ok', text: 'Item joué ! Il sera résolu après la course.' })

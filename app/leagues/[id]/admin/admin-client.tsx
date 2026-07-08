@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useSyncExternalStore } from 'react'
+import { translateActionError } from '@/lib/actions/errors'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { toggleInvites, regenerateInviteCode, transferAdmin } from '@/app/actions/league-admin'
@@ -61,7 +62,7 @@ export function AdminClient({
   const handleToggle = () => {
     startToggle(async () => {
       const result = await toggleInvites(leagueId)
-      if (result.error) { setError(result.error); return }
+      if (result.error) { setError(translateActionError(result.error)); return }
       if (typeof result.inviteOpen === 'boolean') setOpen(result.inviteOpen)
       setError(null)
     })
@@ -70,7 +71,7 @@ export function AdminClient({
   const handleRegen = () => {
     startRegen(async () => {
       const result = await regenerateInviteCode(leagueId)
-      if (result.error) { setError(result.error); return }
+      if (result.error) { setError(translateActionError(result.error)); return }
       setRegenConfirm(false)
       setError(null)
       router.refresh()
@@ -80,7 +81,7 @@ export function AdminClient({
   const handleTransfer = (targetUserId: string) => {
     startTransfer(async () => {
       const result = await transferAdmin(leagueId, targetUserId)
-      if (result.error) { setError(result.error); return }
+      if (result.error) { setError(translateActionError(result.error)); return }
       setPromoteTarget(null)
       setError(null)
       router.refresh()

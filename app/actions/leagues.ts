@@ -3,26 +3,35 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { createLeague, joinLeagueByCode, LeagueDataError, type JoinLeagueErrorCode } from '@/lib/data/leagues'
+import type { ActionErrorCode } from '@/lib/actions/errors'
 import { getCurrentSeason } from '@/lib/api/cron'
 
-export type LeagueActionState<Code extends string = string> = { errorCode: Code } | null
+// Convention #181 : `error` est un ActionErrorCode, traduit côté form via translateActionError.
+export type LeagueActionState = { error: ActionErrorCode } | null
 
-type CreateErrorCode = 'unauthenticated' | 'invalid_name' | 'invalid_size' | 'generic'
+// Mapping domaine → codes d'action (JoinLeagueErrorCode reste le vocabulaire de lib/data).
+const JOIN_ERROR_CODE: Record<JoinLeagueErrorCode, ActionErrorCode> = {
+  league_not_found: 'leagueNotFound',
+  closed:           'leagueClosed',
+  already_member:   'alreadyLeagueMember',
+  full:             'leagueFull',
+  generic:          'somethingWentWrong',
+}
 type JoinErrorCode = JoinLeagueErrorCode | 'unauthenticated' | 'invite_code_required'
 
 export async function createLeagueAction(
-  _prevState: LeagueActionState<CreateErrorCode>,
+  _prevState: LeagueActionState,
   formData:   FormData,
-): Promise<LeagueActionState<CreateErrorCode>> {
+): Promise<LeagueActionState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { errorCode: 'unauthenticated' }
+  if (!user) return { error: 'notAuthenticated' }
 
   const name       = (formData.get('name') as string | null)?.trim() ?? ''
   const maxMembers = parseInt(formData.get('maxMembers') as string, 10)
 
-  if (name.length < 2 || name.length > 50) return { errorCode: 'invalid_name' }
-  if (isNaN(maxMembers) || maxMembers < 2 || maxMembers > 20) return { errorCode: 'invalid_size' }
+  if (name.length < 2 || name.length > 50) return { error: 'leagueNameInvalid' }
+  if (isNaN(maxMembers) || maxMembers < 2 || maxMembers > 20) return { error: 'leagueSizeInvalid' }
 
   let leagueId: string
   try {
@@ -30,7 +39,7 @@ export async function createLeagueAction(
     leagueId = result.leagueId
   } catch (error) {
     console.error('createLeagueAction — createLeague échoué', error)
-    return { errorCode: 'generic' }
+    return { error: 'somethingWentWrong' }
   }
 
   // redirect() lance une exception NEXT_REDIRECT → doit rester hors du try/catch
@@ -38,24 +47,24 @@ export async function createLeagueAction(
 }
 
 export async function joinLeagueAction(
-  _prevState: LeagueActionState<JoinErrorCode>,
+  _prevState: LeagueActionState,
   formData:   FormData,
-): Promise<LeagueActionState<JoinErrorCode>> {
+): Promise<LeagueActionState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { errorCode: 'unauthenticated' }
+  if (!user) return { error: 'notAuthenticated' }
 
   const inviteCode = (formData.get('inviteCode') as string | null)?.trim().toUpperCase() ?? ''
-  if (!inviteCode) return { errorCode: 'invite_code_required' }
+  if (!inviteCode) return { error: 'inviteCodeRequired' }
 
   let leagueId: string
   try {
     const result = await joinLeagueByCode(user.id, inviteCode, getCurrentSeason())
     leagueId = result.leagueId
   } catch (error) {
-    if (error instanceof LeagueDataError) return { errorCode: error.code }
+    if (error instanceof LeagueDataError) return { error: JOIN_ERROR_CODE[error.code] }
     console.error('joinLeagueAction — joinLeagueByCode échoué', error)
-    return { errorCode: 'generic' }
+    return { error: 'somethingWentWrong' }
   }
 
   redirect(`/leagues/${leagueId}`)

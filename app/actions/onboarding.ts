@@ -2,14 +2,15 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { validatePseudo, type PseudoError } from '@/lib/profile/pseudo'
+import { validatePseudo } from '@/lib/profile/pseudo'
+import type { ActionErrorCode } from '@/lib/actions/errors'
 import { HELMET_IDS } from '@/lib/profile/avatars'
 import { consumePendingInvite } from '@/lib/data/invites'
 
-/** Codes d'erreur communs (traduits côté UI). */
-export type OnboardingError = PseudoError | 'taken' | 'avatar' | 'generic'
+/** Codes d'erreur communs (convention #181 — traduits côté UI via translateActionError). */
+export type OnboardingError = Extract<ActionErrorCode, 'pseudoLength' | 'pseudoChars' | 'pseudoTaken' | 'helmetRequired' | 'somethingWentWrong'>
 
-export type PseudoCheck = { ok: boolean; error?: PseudoError | 'taken' | 'generic' }
+export type PseudoCheck = { ok: boolean; error?: OnboardingError }
 
 /**
  * Vérifie la validité + la disponibilité d'un pseudo (appelée en direct, débouncée
@@ -19,11 +20,11 @@ export async function checkPseudoAvailability(rawPseudo: string): Promise<Pseudo
   const pseudo = rawPseudo.trim()
 
   const formatError = validatePseudo(pseudo)
-  if (formatError) return { ok: false, error: formatError }
+  if (formatError) return { ok: false, error: formatError === 'chars' ? 'pseudoChars' : 'pseudoLength' }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'generic' } // garde-fou : non authentifié
+  if (!user) return { ok: false, error: 'somethingWentWrong' } // garde-fou : non authentifié
 
   const { data } = await supabase
     .from('profiles')
@@ -32,7 +33,7 @@ export async function checkPseudoAvailability(rawPseudo: string): Promise<Pseudo
     .maybeSingle()
 
   // Pris si une autre ligne porte ce pseudo (un user peut "reprendre" le sien).
-  if (data && data.id !== user.id) return { ok: false, error: 'taken' }
+  if (data && data.id !== user.id) return { ok: false, error: 'pseudoTaken' }
   return { ok: true }
 }
 
@@ -55,8 +56,8 @@ export async function completeOnboarding(
   const rawAvatarUrl = (formData.get('avatar_url') as string | null) || null
 
   const formatError = validatePseudo(pseudo)
-  if (formatError) return { error: formatError }
-  if (!HELMET_IDS.includes(avatarKey)) return { error: 'avatar' }
+  if (formatError) return { error: formatError === 'chars' ? 'pseudoChars' : 'pseudoLength' }
+  if (!HELMET_IDS.includes(avatarKey)) return { error: 'helmetRequired' }
 
   // Photo optionnelle : on n'accepte qu'une URL du bucket public `avatars`.
   const publicPrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/`
@@ -74,8 +75,8 @@ export async function completeOnboarding(
     .eq('id', user.id)
 
   if (error) {
-    if (error.code === '23505') return { error: 'taken' }
-    return { error: 'generic' }
+    if (error.code === '23505') return { error: 'pseudoTaken' }
+    return { error: 'somethingWentWrong' }
   }
 
   // Parcours invité : si un code d'invitation est en attente, auto-join et atterrissage

@@ -11,17 +11,10 @@ import { HelmetPicker } from "@/app/components/helmet-picker";
 import { AvatarPhotoField } from "@/app/components/avatar-photo-field";
 import { Button } from "@/app/ui/button";
 import { cn } from "@/lib/utils";
-import { t, type TranslationKey } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
+import { translateActionError } from "@/lib/actions/errors";
 
 const CHECK_DEBOUNCE_MS = 400;
-
-const ERROR_KEY: Record<OnboardingError, TranslationKey> = {
-  length: "onboarding.errorLength",
-  chars: "onboarding.errorChars",
-  taken: "onboarding.errorTaken",
-  avatar: "onboarding.errorAvatar",
-  generic: "onboarding.errorGeneric",
-};
 
 type Availability =
   | { status: "idle" }
@@ -65,9 +58,9 @@ export function OnboardingWizard({ userId }: { userId: string }) {
   const [prevState, setPrevState] = useState(state);
   if (prevState !== state) {
     setPrevState(state);
-    if (state.error === "taken") {
+    if (state.error === "pseudoTaken") {
       setStep(1);
-      setRawAvailability({ status: "error", error: "taken" });
+      setRawAvailability({ status: "error", error: "pseudoTaken" });
     }
   }
 
@@ -141,7 +134,7 @@ export function OnboardingWizard({ userId }: { userId: string }) {
           >
             {availability.status === "checking" && t("onboarding.pseudoChecking")}
             {availability.status === "ok" && t("onboarding.pseudoAvailable")}
-            {availability.status === "error" && t(ERROR_KEY[availability.error])}
+            {availability.status === "error" && translateActionError(availability.error)}
           </p>
 
           <div className="flex-1" />
@@ -180,9 +173,9 @@ export function OnboardingWizard({ userId }: { userId: string }) {
 
           {/* 'taken' est surfacé à l'étape 1 (cf. effet ci-dessus) — on ne le réaffiche
               pas ici, sinon le message persiste sous le casque après le rebond. */}
-          {state.error && state.error !== "taken" && (
+          {state.error && state.error !== "pseudoTaken" && (
             <p aria-live="polite" className="mt-4 text-xs text-destructive">
-              {t(ERROR_KEY[state.error])}
+              {translateActionError(state.error)}
             </p>
           )}
 

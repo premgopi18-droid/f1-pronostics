@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { joinLeagueAction } from "@/app/actions/leagues";
+import { translateActionError } from "@/lib/actions/errors";
 import { Button } from "@/app/ui/button";
 import { t } from "@/lib/i18n";
 
@@ -11,9 +12,9 @@ export function JoinPreviewButton({ code }: { code: string }) {
   return (
     <form action={action} className="mt-auto">
       <input type="hidden" name="inviteCode" value={code} />
-      {state?.errorCode && (
+      {state?.error && (
         <p className="mb-3 text-center text-xs text-destructive" aria-live="polite">
-          {t(`join.error.${state.errorCode}`)}
+          {translateActionError(state.error)}
         </p>
       )}
       <Button type="submit" size="block" disabled={isPending}>

@@ -4,6 +4,7 @@ import { useActionState } from 'react'
 import { updateProfile, type ProfileActionState } from '@/app/actions/profile'
 import { PSEUDO_MIN_LENGTH, PSEUDO_MAX_LENGTH, PSEUDO_PATTERN } from '@/lib/profile/pseudo'
 import { t } from '@/lib/i18n'
+import { translateActionError } from '@/lib/actions/errors'
 
 const initialState: ProfileActionState = {}
 
@@ -38,7 +39,7 @@ export function EditPseudoForm({
             minLength={PSEUDO_MIN_LENGTH}
             maxLength={PSEUDO_MAX_LENGTH}
             pattern={PSEUDO_PATTERN.source}
-            title={t('profile.errorChars')}
+            title={translateActionError('pseudoChars')}
             required
             autoComplete="nickname"
             className="rounded-xl bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -47,7 +48,7 @@ export function EditPseudoForm({
 
         {state.error && (
           <p className="text-sm text-destructive" role="alert">
-            {t(state.error)}
+            {translateActionError(state.error)}
           </p>
         )}
         {state.success && (

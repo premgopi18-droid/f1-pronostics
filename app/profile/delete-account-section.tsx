@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import { deleteAccount, type ProfileActionState } from '@/app/actions/profile'
 import { t } from '@/lib/i18n'
+import { translateActionError } from '@/lib/actions/errors'
 
 const initialState: ProfileActionState = {}
 
@@ -31,7 +32,7 @@ export function DeleteAccountSection() {
           </p>
           {state.error && (
             <p className="text-sm text-destructive" role="alert">
-              {t(state.error)}
+              {translateActionError(state.error)}
             </p>
           )}
           <div className="flex gap-2">

@@ -5,6 +5,7 @@ import { updateProfile, type ProfileActionState } from '@/app/actions/profile'
 import { AvatarPhotoField } from '@/app/components/avatar-photo-field'
 import { HelmetPicker } from '@/app/components/helmet-picker'
 import { t } from '@/lib/i18n'
+import { translateActionError } from '@/lib/actions/errors'
 
 const initialState: ProfileActionState = {}
 
@@ -43,7 +44,7 @@ export function EditAvatarForm({
 
       {state.error && (
         <p className="text-sm text-destructive" role="alert">
-          {t(state.error)}
+          {translateActionError(state.error)}
         </p>
       )}
       {state.success && (

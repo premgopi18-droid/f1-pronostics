@@ -6,10 +6,10 @@ import { createClient } from '@/lib/supabase'
 import { HELMET_IDS, DEFAULT_HELMET } from '@/lib/profile/avatars'
 import { validatePseudo } from '@/lib/profile/pseudo'
 import { objectPathFromPublicUrl, AVATARS_BUCKET } from '@/lib/profile/avatar-image'
-import type { TranslationKey } from '@/lib/i18n'
+import type { ActionErrorCode } from '@/lib/actions/errors'
 
-// `error` est une clé i18n (résolue côté form via `t()`), pas un texte en dur.
-export type ProfileActionState = { error?: TranslationKey; success?: boolean }
+// `error` est un code typé (traduit côté form via translateActionError) — convention #181.
+export type ProfileActionState = { error?: ActionErrorCode; success?: boolean }
 
 // N'accepte qu'une URL publique du bucket `avatars` de CE projet, sinon null.
 function sanitizeAvatarUrl(url: string | null): string | null {
@@ -24,7 +24,7 @@ export async function updateProfile(
 ): Promise<ProfileActionState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'profile.errorAuth' }
+  if (!user) return { error: 'notAuthenticated' }
 
   const pseudo       = ((formData.get('pseudo') as string | null) ?? '').trim()
   const rawAvatarKey = (formData.get('avatar_key') as string | null) || null
@@ -33,7 +33,7 @@ export async function updateProfile(
   // Source de vérité unique des règles pseudo (spec §7), partagée avec l'onboarding.
   const formatError = validatePseudo(pseudo)
   if (formatError) {
-    return { error: formatError === 'chars' ? 'profile.errorChars' : 'profile.errorLength' }
+    return { error: formatError === 'chars' ? 'pseudoChars' : 'pseudoLength' }
   }
 
   // `null` = aucun avatar choisi (conservé). Une clé inconnue (ancien emoji, valeur
@@ -61,8 +61,8 @@ export async function updateProfile(
     .eq('id', user.id)
 
   if (error) {
-    if (error.code === '23505') return { error: 'profile.errorTaken' }
-    return { error: 'profile.errorGeneric' }
+    if (error.code === '23505') return { error: 'pseudoTaken' }
+    return { error: 'updateFailed' }
   }
 
   // La DB pointe désormais vers la nouvelle valeur : on peut supprimer l'ancien
@@ -92,7 +92,7 @@ export async function deleteAccount(
 ): Promise<ProfileActionState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'profile.errorAuth' }
+  if (!user) return { error: 'notAuthenticated' }
 
   // Nettoyage des photos d'avatar AVANT le RPC (après, l'utilisateur est déconnecté
   // et anonymisé). On passe par la Storage API pour libérer réellement les octets —
@@ -115,7 +115,7 @@ export async function deleteAccount(
   const { error } = await supabase.rpc('delete_own_account')
   if (error) {
     console.error('deleteAccount: échec', error)
-    return { error: 'profile.deleteError' }
+    return { error: 'deleteAccountFailed' }
   }
 
   await supabase.auth.signOut()

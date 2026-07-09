@@ -55,6 +55,23 @@ export const ACTION_ERROR_CODES = [
   'invalidCode',
   'duplicateEntries',
   'invalidPositions',
+
+  // Profil et onboarding (pseudo partagé entre les deux — un seul couple de codes)
+  'pseudoLength',
+  'pseudoChars',
+  'pseudoTaken',
+  'helmetRequired',
+  'deleteAccountFailed',
+  'somethingWentWrong',
+
+  // Créer / rejoindre une ligue
+  'leagueNameInvalid',
+  'leagueSizeInvalid',
+  'inviteCodeRequired',
+  'leagueNotFound',
+  'leagueClosed',
+  'alreadyLeagueMember',
+  'leagueFull',
 ] as const
 
 export type ActionErrorCode = (typeof ACTION_ERROR_CODES)[number]

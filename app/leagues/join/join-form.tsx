@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react'
 import { joinLeagueAction } from '@/app/actions/leagues'
+import { translateActionError } from '@/lib/actions/errors'
 import { SubmitButton } from '@/app/ui/submit-button'
 import { t } from '@/lib/i18n'
 
@@ -10,9 +11,9 @@ export function JoinLeagueForm({ initialCode }: { initialCode?: string }) {
 
   return (
     <form action={action} className="flex flex-col gap-5">
-      {state?.errorCode && (
+      {state?.error && (
         <p className="text-sm text-destructive" aria-live="polite">
-          {t(`join.error.${state.errorCode}`)}
+          {translateActionError(state.error)}
         </p>
       )}
 

@@ -17,7 +17,6 @@ const JOIN_ERROR_CODE: Record<JoinLeagueErrorCode, ActionErrorCode> = {
   full:             'leagueFull',
   generic:          'somethingWentWrong',
 }
-type JoinErrorCode = JoinLeagueErrorCode | 'unauthenticated' | 'invite_code_required'
 
 export async function createLeagueAction(
   _prevState: LeagueActionState,

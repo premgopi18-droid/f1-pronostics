@@ -43,6 +43,11 @@ export function findCurrentOrLastGp(
  * product-specs §3.5). Cible du bouton « Jouer un item » : contrairement à
  * `findUpcomingGp`, le GP reste ciblé pendant tout son week-end (les items
  * « avant la course » sont jouables jusqu'au départ). `null` en fin de saison.
+ *
+ * Suppose une liste SANS GP annulés (comme les autres helpers de ce module) :
+ * un GP annulé n'étant jamais finalisé, il serait sinon épinglé comme courant.
+ * L'appelant (page ligue) filtre déjà `is_cancelled = false` en amont —
+ * `GrandPrixSummary` ne porte donc pas ce champ.
  */
 export function findCurrentItemsGp(
   grandsPrix: GrandPrixSummary[],

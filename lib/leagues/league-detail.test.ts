@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findUpcomingGp, findCurrentOrLastGp, getLastFinalizedGps } from "./league-detail";
+import { findUpcomingGp, findCurrentOrLastGp, findCurrentItemsGp, getLastFinalizedGps } from "./league-detail";
 import type { GrandPrixSummary } from "./league-detail";
 
 const gp = (
@@ -70,6 +70,41 @@ describe("findCurrentOrLastGp", () => {
 
   it("retourne null pour un tableau vide", () => {
     expect(findCurrentOrLastGp([], NOW)).toBeNull();
+  });
+});
+
+describe("findCurrentItemsGp", () => {
+  it("retourne le premier GP non finalisé, même si son weekend a commencé", () => {
+    // Scénario du bug : weekend du round 10 en cours (commencé avant NOW),
+    // round 11 futur — le bouton items doit cibler le round 10, pas le 11.
+    const gps = [
+      gp(9, "2026-05-15T10:00:00Z", "2026-05-17T18:00:00Z"),
+      gp(10, "2026-06-01T08:00:00Z"), // weekend commencé, pas finalisé
+      gp(11, "2026-06-15T10:00:00Z"),
+    ];
+    expect(findCurrentItemsGp(gps)?.round).toBe(10);
+  });
+
+  it("retourne le prochain GP quand le précédent est finalisé", () => {
+    const gps = [
+      gp(10, "2026-06-01T08:00:00Z", "2026-06-01T16:00:00Z"),
+      gp(11, "2026-06-15T10:00:00Z"),
+    ];
+    expect(findCurrentItemsGp(gps)?.round).toBe(11);
+  });
+
+  it("choisit le plus petit round parmi les non finalisés, quel que soit l'ordre du tableau", () => {
+    const gps = [gp(12, "2026-07-01T10:00:00Z"), gp(11, "2026-06-15T10:00:00Z")];
+    expect(findCurrentItemsGp(gps)?.round).toBe(11);
+  });
+
+  it("retourne null quand toute la saison est finalisée", () => {
+    const gps = [gp(1, "2026-03-01T10:00:00Z", "2026-03-03T20:00:00Z")];
+    expect(findCurrentItemsGp(gps)).toBeNull();
+  });
+
+  it("retourne null pour un tableau vide", () => {
+    expect(findCurrentItemsGp([])).toBeNull();
   });
 });
 

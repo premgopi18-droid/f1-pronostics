@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { t } from '@/lib/i18n'
 import { getCountryCode } from '@/lib/f1/country-codes'
-import { findUpcomingGp, findCurrentOrLastGp, getLastFinalizedGps } from '@/lib/leagues/league-detail'
+import { findUpcomingGp, findCurrentOrLastGp, findCurrentItemsGp, getLastFinalizedGps } from '@/lib/leagues/league-detail'
 import { LeaderboardRealtime } from './leaderboard-realtime'
 import { buildStandings } from '@/lib/leagues/standings'
 import { ItemBubble } from '@/app/components/item-bubble'
@@ -142,6 +142,10 @@ export default async function LeaguePage({
   // GP ciblé par le lien « pronos verrouillés » — le plus récent dont le weekend a commencé.
   const compareGp = findCurrentOrLastGp(gpList as Parameters<typeof findCurrentOrLastGp>[0], now)
 
+  // GP cible du bouton « Jouer un item » — premier GP non finalisé (définition items,
+  // ≠ upcomingGp) : reste le GP en cours pendant tout son week-end, jusqu'à finalisation.
+  const itemsGp = findCurrentItemsGp(gpList as Parameters<typeof findCurrentItemsGp>[0])
+
   // --- Deadline ---
   const upcomingGp = findUpcomingGp(gpList as Parameters<typeof findUpcomingGp>[0], now)
   const qualifying = (nextQualifying ?? [])[0]
@@ -225,9 +229,9 @@ export default async function LeaguePage({
                 ))}
               </div>
             </div>
-            {upcomingGp && (
+            {itemsGp && (
               <Link
-                href={`/leagues/${id}/gp/${upcomingGp.id}/items`}
+                href={`/leagues/${id}/gp/${itemsGp.id}/items`}
                 className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <span aria-hidden>🎮</span>

@@ -53,6 +53,11 @@ export function BottomNav() {
           "fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-card",
           // marge de sécurité pour les encoches / barres système (PWA)
           "pb-[env(safe-area-inset-bottom,0px)]",
+          // Contournement bug WebKit iOS 26 : les éléments `fixed` « décrochent » du
+          // viewport au scroll (barre coincée en plein écran) quand l'UI du navigateur
+          // se replie/déplie. La promotion sur son propre layer de composition force
+          // WebKit à repositionner la barre via le compositeur.
+          "transform-gpu",
           NAV_HEIGHT,
         )}
       >

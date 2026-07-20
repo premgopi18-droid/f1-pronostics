@@ -14,13 +14,17 @@
 | `type:refactor` | Refactor / dette technique, sans changement fonctionnel |
 | `type:perf` | Performance |
 | `type:a11y` | Accessibilité |
+| `type:security` | Sécurité (headers, RLS, durcissement) |
 | `type:docs` | Documentation |
 | `type:chore` | Deps, config, tâches outillage |
+
+Les issues `epic` sont exemptées (le label `epic` suffit, `area:*` optionnelle).
 
 ## `area:*` — domaine fonctionnel (obligatoire, au moins 1)
 
 `area:items`, `area:scoring`, `area:predictions`, `area:leagues`, `area:results`,
-`area:ui`, `area:theme`, `area:data`, `area:auth`, `area:notifications`, `area:pwa`, `area:infra`.
+`area:ui`, `area:theme`, `area:profile`, `area:data`, `area:auth`, `area:notifications`,
+`area:pwa`, `area:infra`, `area:app` (transversal applicatif : Server Actions, erreurs, i18n).
 
 Créer une nouvelle `area:*` (couleur `#1d76db`) plutôt que de laisser un ticket sans domaine.
 

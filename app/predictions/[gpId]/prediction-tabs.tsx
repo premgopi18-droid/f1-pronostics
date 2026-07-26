@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { PredictionForm, type Driver } from './prediction-form'
-import { buildTabLabel } from '@/lib/predictions/helpers'
+import { buildTabLabel, type GridSource } from '@/lib/predictions/helpers'
 import { Badge } from '@/app/ui/badge'
 import { t } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,9 @@ export interface SessionData {
   existingEntries:    string[]
   existingFastestLap: string | null
   isLocked:           boolean
+  /** Ordre de grille proposé (codes pilotes) — vide si aucune grille connue. */
+  gridOrder:          string[]
+  gridSource:         GridSource | null
 }
 
 interface Props {
@@ -147,6 +150,8 @@ export function PredictionTabs({ sessions, drivers }: Props) {
           existingEntries={savedEntries.get(activeSession.id) ?? activeSession.existingEntries}
           existingFastestLap={activeSession.existingFastestLap}
           isLocked={activeSession.isLocked}
+          gridOrder={activeSession.gridOrder}
+          gridSource={activeSession.gridSource}
           onSaved={(entries) => handleSaved(activeSession.id, entries)}
         />
       </div>

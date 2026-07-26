@@ -125,6 +125,12 @@ export const fr = {
     save: "Enregistrer",
     saving: "Enregistrement…",
     savedOk: "Pronostic enregistré !",
+    gridPrefilled: "Pré-rempli avec la grille de départ — enregistre pour valider ton prono.",
+    gridPrefilledQualifying: "Pré-rempli avec l'ordre des qualifications — enregistre pour valider ton prono.",
+    gridReset: "Repartir de la grille de départ",
+    gridResetQualifying: "Repartir de l'ordre des qualifications",
+    gridResetDone: "Ordre réinitialisé sur la grille de départ.",
+    gridResetDoneQualifying: "Ordre réinitialisé sur l'ordre des qualifications.",
     tab: {
       qualifying: "Qualifs",
       race: "Course",

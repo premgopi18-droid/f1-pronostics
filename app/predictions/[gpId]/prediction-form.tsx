@@ -19,12 +19,17 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react'
+import { GripVertical, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { submitPredictionAction, submitFastestLapAction } from '@/app/actions/predictions'
 import { TEAM_COLORS } from '@/lib/f1/team-colors'
 import { usePrefersReducedMotion, setReduceMotionOverride } from '@/lib/hooks/use-prefers-reduced-motion'
 import { useTapSelect } from '@/lib/hooks/use-tap-select'
-import { buildRaceOrder } from '@/lib/predictions/helpers'
+import {
+  buildPrefilledRaceOrder,
+  buildPrefilledTopEntries,
+  isGridPrefilled,
+  type GridSource,
+} from '@/lib/predictions/helpers'
 import { t } from '@/lib/i18n'
 import { Badge } from '@/app/ui/badge'
 import { Button } from '@/app/ui/button'
@@ -53,6 +58,9 @@ interface Props {
   existingEntries:    string[]
   existingFastestLap: string | null
   isLocked:           boolean
+  /** Ordre de grille proposé (codes pilotes) — vide si aucune grille connue. */
+  gridOrder:          string[]
+  gridSource:         GridSource | null
   onSaved?:           (entries: string[]) => void
 }
 
@@ -138,6 +146,37 @@ function A11yHintBanner({ onActivate, onDismiss }: { onActivate: () => void; onD
   )
 }
 
+// ─── Grid prefill (bandeau + bouton « repartir de la grille ») ─────────────
+
+/** Bandeau signalant que l'ordre proposé vient de la grille (pas un prono déjà
+ *  fait) + bouton de réinitialisation sur la grille, visible dès qu'une grille
+ *  est connue — y compris quand un prono existe déjà. Libellés adaptés à la
+ *  source : grille officielle vs classement des qualifications (fallback).
+ *  Partagé par `RaceForm` et `QualifsForm`. */
+function GridPrefillControls({ gridSource, wasPrefilled, onReset }: {
+  gridSource:   GridSource
+  wasPrefilled: boolean
+  onReset:      () => void
+}) {
+  const isOfficialGrid = gridSource === 'grid'
+  return (
+    <div className="flex flex-col gap-2">
+      {wasPrefilled && (
+        <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2.5 text-sm text-text-secondary">
+          {isOfficialGrid ? t('predict.gridPrefilled') : t('predict.gridPrefilledQualifying')}
+        </p>
+      )}
+      <button type="button"
+        onClick={onReset}
+        className="flex items-center gap-1.5 self-start text-sm font-semibold text-primary-text transition-opacity hover:opacity-80"
+      >
+        <RotateCcw size={14} aria-hidden="true" />
+        {isOfficialGrid ? t('predict.gridReset') : t('predict.gridResetQualifying')}
+      </button>
+    </div>
+  )
+}
+
 // ─── Driver row (shared visual, different variants) ────────────────────────
 
 function DriverInfo({ driver, position, large }: { driver: Driver; position?: number; large?: boolean }) {
@@ -191,17 +230,21 @@ function RaceForm({
   drivers,
   existingEntries,
   existingFastestLap,
+  gridOrder,
+  gridSource,
   onSaved,
 }: {
   sessionId:          string
   drivers:            Driver[]
   existingEntries:    string[]
   existingFastestLap: string | null
+  gridOrder:          string[]
+  gridSource:         GridSource | null
   onSaved?:           (entries: string[]) => void
 }) {
   const allCodes = drivers.map((d) => d.code)
 
-  const [selected,            setSelected]            = useState<string[]>(() => buildRaceOrder(existingEntries, allCodes))
+  const [selected,            setSelected]            = useState<string[]>(() => buildPrefilledRaceOrder(existingEntries, gridOrder, allCodes))
   const [fastestLap,          setFastestLap]          = useState(existingFastestLap ?? '')
   const [fastestLapSheetOpen, setFastestLapSheetOpen] = useState(false)
   const [message,             setMessage]             = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -243,6 +286,17 @@ function RaceForm({
     setMessage(null)
   }
 
+  // Réinitialise l'ordre LOCAL sur la grille — rien n'est enregistré tant que
+  // l'utilisateur ne valide pas. Le message role="status" annonce l'action aux
+  // lecteurs d'écran.
+  const resetToGrid = () => {
+    setSelected(buildPrefilledRaceOrder([], gridOrder, allCodes))
+    setMessage({
+      type: 'ok',
+      text: gridSource === 'grid' ? t('predict.gridResetDone') : t('predict.gridResetDoneQualifying'),
+    })
+  }
+
   const save = () => {
     startTransition(async () => {
       const result = await submitPredictionAction(sessionId, selected)
@@ -274,6 +328,15 @@ function RaceForm({
 
       {/* A11y hint — premier lancement, mode drag actif */}
       {showHint && <A11yHintBanner onActivate={activateA11y} onDismiss={dismissHint} />}
+
+      {/* Pré-remplissage grille : bandeau (si aucun prono enregistré) + reset */}
+      {gridSource && (
+        <GridPrefillControls
+          gridSource={gridSource}
+          wasPrefilled={isGridPrefilled(existingEntries, gridOrder)}
+          onReset={resetToGrid}
+        />
+      )}
 
       {/* Sortable driver list */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -421,15 +484,21 @@ function QualifsForm({
   drivers,
   expectedCount,
   existingEntries,
+  gridOrder,
+  gridSource,
   onSaved,
 }: {
   sessionId:       string
   drivers:         Driver[]
   expectedCount:   number
   existingEntries: string[]
+  gridOrder:       string[]
+  gridSource:      GridSource | null
   onSaved?:        (entries: string[]) => void
 }) {
-  const [selected,  setSelected]   = useState<string[]>(existingEntries)
+  const allCodes = drivers.map((d) => d.code)
+
+  const [selected,  setSelected]   = useState<string[]>(() => buildPrefilledTopEntries(existingEntries, gridOrder, allCodes, expectedCount))
   const [message,   setMessage]    = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const reducedMotion = usePrefersReducedMotion()
@@ -482,6 +551,16 @@ function QualifsForm({
     setMessage(null)
   }
 
+  // Réinitialise la sélection LOCALE sur le top N de la grille — rien n'est
+  // enregistré tant que l'utilisateur ne valide pas.
+  const resetToGrid = () => {
+    setSelected(buildPrefilledTopEntries([], gridOrder, allCodes, expectedCount))
+    setMessage({
+      type: 'ok',
+      text: gridSource === 'grid' ? t('predict.gridResetDone') : t('predict.gridResetDoneQualifying'),
+    })
+  }
+
   const save = () => {
     startTransition(async () => {
       const result = await submitPredictionAction(sessionId, selected)
@@ -509,6 +588,15 @@ function QualifsForm({
 
       {/* A11y hint — premier lancement, mode drag actif */}
       {showHint && <A11yHintBanner onActivate={activateA11y} onDismiss={dismissHint} />}
+
+      {/* Pré-remplissage grille : bandeau (si aucun prono enregistré) + reset */}
+      {gridSource && (
+        <GridPrefillControls
+          gridSource={gridSource}
+          wasPrefilled={isGridPrefilled(existingEntries, gridOrder)}
+          onReset={resetToGrid}
+        />
+      )}
 
       {/* Classés */}
       <div className="flex flex-col gap-1">
@@ -656,6 +744,8 @@ export function PredictionForm({
   existingEntries,
   existingFastestLap,
   isLocked,
+  gridOrder,
+  gridSource,
   onSaved,
 }: Props) {
   const driverByCode  = new Map(drivers.map((d) => [d.code, d]))
@@ -686,6 +776,8 @@ export function PredictionForm({
         drivers={drivers}
         existingEntries={existingEntries}
         existingFastestLap={existingFastestLap}
+        gridOrder={gridOrder}
+        gridSource={gridSource}
         onSaved={onSaved}
       />
     )
@@ -697,6 +789,8 @@ export function PredictionForm({
       drivers={drivers}
       expectedCount={expectedCount}
       existingEntries={existingEntries}
+      gridOrder={gridOrder}
+      gridSource={gridSource}
       onSaved={onSaved}
     />
   )

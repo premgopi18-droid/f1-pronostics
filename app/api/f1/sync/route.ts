@@ -12,6 +12,7 @@ import {
 } from '@/lib/f1/jolpica'
 import { fetchSprintQualifyingResults, fetchPracticeResults, fetchStartingGrid } from '@/lib/f1/openf1'
 import type { GridSessionName } from '@/lib/f1/openf1'
+import { GRID_SOURCE_SESSION_TYPE, type GridTargetSessionType } from '@/lib/f1/grid'
 import { upsertStartingGrid } from '@/lib/data/starting-grids'
 import {
   confirmSessionResults,
@@ -37,18 +38,14 @@ import { isPushConfigured, sendPushToAll, sendImminencePush } from '@/lib/push/s
 import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
 import type { DriverResult, DbSessionType } from '@/lib/scoring/types'
 
-// Sessions course dont on importe la grille de départ, avec pour chacune la
-// session du week-end qui la produit (une fois confirmée, la grille peut
-// exister côté OpenF1) et le nom de session côté OpenF1.
-type GridTargetType = 'race' | 'sprint_race'
-const GRID_TARGET_TYPES: readonly GridTargetType[] = ['race', 'sprint_race']
-const GRID_SOURCE_TYPE: Record<GridTargetType, DbSessionType> = {
-  race:        'qualifying',
-  sprint_race: 'sprint_qualifying',
-}
-const GRID_OPENF1_SESSION: Record<GridTargetType, GridSessionName> = {
-  race:        'Race',
-  sprint_race: 'Sprint',
+// Sessions course dont on importe la grille de départ. La session source
+// (mapping partagé GRID_SOURCE_SESSION_TYPE) joue un double rôle : une fois
+// confirmée, la grille peut exister côté OpenF1, et c'est SON session_key
+// qu'interroge /starting_grid (pas celui de la course — cf. lib/f1/openf1.ts).
+const GRID_TARGET_TYPES: readonly GridTargetSessionType[] = ['race', 'sprint_race']
+const GRID_OPENF1_SESSION: Record<GridTargetSessionType, GridSessionName> = {
+  race:        'Qualifying',
+  sprint_race: 'Sprint Qualifying',
 }
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
@@ -190,27 +187,31 @@ async function handler(request: Request): Promise<Response> {
       const { data: confirmedSources, error: sourcesError } = upcomingGpIds.length > 0
         ? await supabase
             .from('sessions')
-            .select('gp_id, type')
+            .select('gp_id, type, starts_at')
             .in('gp_id', upcomingGpIds)
-            .in('type', Object.values(GRID_SOURCE_TYPE))
+            .in('type', Object.values(GRID_SOURCE_SESSION_TYPE))
             .not('results_confirmed_at', 'is', null)
         : { data: [], error: null }
 
       if (sourcesError) throw sourcesError
 
-      const confirmedSourceKeys = new Set(
-        (confirmedSources ?? []).map((row) => `${row.gp_id}:${row.type}`),
+      // gp_id:type → starts_at de la session source confirmée. Le starts_at
+      // sert au rapprochement OpenF1 : /starting_grid est indexé par le
+      // session_key de la session QUALIFICATIVE, on cible donc sa date.
+      const confirmedSourceStarts = new Map(
+        (confirmedSources ?? []).map((row) => [`${row.gp_id}:${row.type}`, row.starts_at]),
       )
 
       for (const row of upcomingRaceSessions ?? []) {
-        const targetType = row.type as GridTargetType
-        if (!confirmedSourceKeys.has(`${row.gp_id}:${GRID_SOURCE_TYPE[targetType]}`)) continue
+        const targetType = row.type as GridTargetSessionType
+        const sourceStartsAt = confirmedSourceStarts.get(`${row.gp_id}:${GRID_SOURCE_SESSION_TYPE[targetType]}`)
+        if (!sourceStartsAt) continue
 
         // Isolation par session (même politique que la phase résultats) : la
         // grille est un confort UX, pas une donnée de scoring — on logue et on
         // passe, le cron retentera au prochain passage.
         try {
-          const grid = await fetchStartingGrid(row.season, GRID_OPENF1_SESSION[targetType], row.starts_at)
+          const grid = await fetchStartingGrid(row.season, GRID_OPENF1_SESSION[targetType], sourceStartsAt)
           if (grid.size === 0) continue
           await upsertStartingGrid(row.id, row.season, grid)
           gridsSynced++

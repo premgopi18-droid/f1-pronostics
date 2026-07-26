@@ -10,16 +10,9 @@ import { t } from '@/lib/i18n'
 import { PredictionTabs, type SessionData } from './prediction-tabs'
 import type { Driver } from './prediction-form'
 import { getStartingGrids } from '@/lib/data/starting-grids'
+import { GRID_SOURCE_SESSION_TYPE, gridSourceSessionType } from '@/lib/f1/grid'
 import type { GridSource } from '@/lib/predictions/helpers'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
-
-// Session du week-end dont le classement sert de fallback « ordre de grille »
-// pour chaque session course, tant que la grille officielle (starting_grids)
-// n'est pas encore importée par le cron.
-const GRID_FALLBACK_SOURCE: Partial<Record<SessionType, SessionType>> = {
-  race:        'qualifying',
-  sprint_race: 'sprint_qualifying',
-}
 import { getBacingerId } from '@/lib/f1/circuit-mapping'
 import { getTurnsForCircuit } from '@/lib/f1/circuit-static-data'
 import { CircuitTrack, type CircuitFeature } from '@/app/ui/circuit-track'
@@ -70,10 +63,10 @@ export default async function PredictPage({
   // fallback tant que la grille officielle n'est pas en base.
   const now = new Date()
   const openRaceSessionIds = (sessions ?? [])
-    .filter((s) => GRID_FALLBACK_SOURCE[s.type as SessionType] && new Date(s.starts_at) > now)
+    .filter((s) => gridSourceSessionType(s.type as SessionType) && new Date(s.starts_at) > now)
     .map((s) => s.id)
   const fallbackSourceIds = (sessions ?? [])
-    .filter((s) => Object.values(GRID_FALLBACK_SOURCE).includes(s.type as SessionType))
+    .filter((s) => Object.values(GRID_SOURCE_SESSION_TYPE).includes(s.type as SessionType))
     .map((s) => s.id)
 
   const [
@@ -166,7 +159,7 @@ export default async function PredictPage({
 
     // Ordre de grille proposé pour les sessions course encore ouvertes :
     // grille officielle en priorité, classement de la session source sinon.
-    const sourceType = GRID_FALLBACK_SOURCE[type]
+    const sourceType = gridSourceSessionType(type)
     let gridOrder: string[] = []
     let gridSource: GridSource | null = null
     if (sourceType && openRaceSessionIds.includes(s.id)) {

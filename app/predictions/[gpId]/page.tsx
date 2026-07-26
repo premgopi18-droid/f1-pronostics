@@ -9,7 +9,17 @@ import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import { t } from '@/lib/i18n'
 import { PredictionTabs, type SessionData } from './prediction-tabs'
 import type { Driver } from './prediction-form'
+import { getStartingGrids } from '@/lib/data/starting-grids'
+import type { GridSource } from '@/lib/predictions/helpers'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
+
+// Session du week-end dont le classement sert de fallback « ordre de grille »
+// pour chaque session course, tant que la grille officielle (starting_grids)
+// n'est pas encore importée par le cron.
+const GRID_FALLBACK_SOURCE: Partial<Record<SessionType, SessionType>> = {
+  race:        'qualifying',
+  sprint_race: 'sprint_qualifying',
+}
 import { getBacingerId } from '@/lib/f1/circuit-mapping'
 import { getTurnsForCircuit } from '@/lib/f1/circuit-static-data'
 import { CircuitTrack, type CircuitFeature } from '@/app/ui/circuit-track'
@@ -55,11 +65,24 @@ export default async function PredictPage({
   const bacingerId = getBacingerId(gp.circuit)
   const sessionIds = (sessions ?? []).map((s) => s.id)
 
+  // Pré-remplissage grille (#201) : sessions course non verrouillées, et
+  // sessions source (qualifs / sprint qualifs) dont le classement sert de
+  // fallback tant que la grille officielle n'est pas en base.
+  const now = new Date()
+  const openRaceSessionIds = (sessions ?? [])
+    .filter((s) => GRID_FALLBACK_SOURCE[s.type as SessionType] && new Date(s.starts_at) > now)
+    .map((s) => s.id)
+  const fallbackSourceIds = (sessions ?? [])
+    .filter((s) => Object.values(GRID_FALLBACK_SOURCE).includes(s.type as SessionType))
+    .map((s) => s.id)
+
   const [
     { data: track },
     { data: lapsRow },
     { data: predictions },
     { data: fastestLapRows },
+    startingGrids,
+    { data: fallbackResultRows },
   ] = await Promise.all([
     bacingerId
       ? supabase.from('circuit_tracks').select('geojson').eq('id', bacingerId).single()
@@ -88,6 +111,15 @@ export default async function PredictPage({
           .select('session_id, drivers!driver_id(code)')
           .eq('user_id', userId)
           .in('session_id', sessionIds)
+      : { data: [] },
+    getStartingGrids(openRaceSessionIds),
+    openRaceSessionIds.length > 0 && fallbackSourceIds.length > 0
+      ? supabase
+          .from('session_results')
+          .select('session_id, position, drivers!driver_id(code)')
+          .in('session_id', fallbackSourceIds)
+          .not('position', 'is', null)
+          .order('position', { ascending: true })
       : { data: [] },
   ])
 
@@ -119,10 +151,36 @@ export default async function PredictPage({
     (fastestLapRows ?? []).map((p) => [p.session_id, p.drivers?.code ?? null]),
   )
 
-  const now = new Date()
+  // Classement fallback par session source : codes pilotes ordonnés par position.
+  const fallbackOrderBySourceId = new Map<string, string[]>()
+  for (const row of fallbackResultRows ?? []) {
+    if (!row.drivers) continue
+    const codes = fallbackOrderBySourceId.get(row.session_id) ?? []
+    codes.push(row.drivers.code)
+    fallbackOrderBySourceId.set(row.session_id, codes)
+  }
+  const sessionIdByType = new Map((sessions ?? []).map((s) => [s.type as SessionType, s.id]))
 
   const sessionList: SessionData[] = (sessions ?? []).map((s) => {
     const type = s.type as SessionType
+
+    // Ordre de grille proposé pour les sessions course encore ouvertes :
+    // grille officielle en priorité, classement de la session source sinon.
+    const sourceType = GRID_FALLBACK_SOURCE[type]
+    let gridOrder: string[] = []
+    let gridSource: GridSource | null = null
+    if (sourceType && openRaceSessionIds.includes(s.id)) {
+      const officialGrid  = startingGrids.get(s.id)
+      const fallbackOrder = fallbackOrderBySourceId.get(sessionIdByType.get(sourceType) ?? '')
+      if (officialGrid && officialGrid.length > 0) {
+        gridOrder  = officialGrid
+        gridSource = 'grid'
+      } else if (fallbackOrder && fallbackOrder.length > 0) {
+        gridOrder  = fallbackOrder
+        gridSource = 'qualifying'
+      }
+    }
+
     return {
       id:                 s.id,
       type,
@@ -131,6 +189,8 @@ export default async function PredictPage({
       existingEntries:    predictionsBySession.get(s.id) ?? [],
       existingFastestLap: fastestLapBySession.get(s.id) ?? null,
       isLocked:           new Date(s.starts_at) <= now,
+      gridOrder,
+      gridSource,
     }
   })
 

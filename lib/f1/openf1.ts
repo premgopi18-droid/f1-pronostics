@@ -150,6 +150,53 @@ export async function fetchSprintQualifyingResults(
 }
 
 // ============================================================
+// Grille de départ (course / sprint) — non disponible dans Jolpica
+// OpenF1 publie /starting_grid (beta) AVANT le départ, pénalités et départs
+// pit lane inclus — contrairement aux classements, on ne gate donc PAS sur
+// isSessionFinished : c'est précisément la fenêtre pré-course qui nous
+// intéresse. Retourne code pilote → position de grille ; Map vide tant que la
+// grille n'est pas publiée (le cron retentera).
+// ============================================================
+
+export type GridSessionName = 'Race' | 'Sprint'
+
+interface OpenF1GridEntry {
+  driver_number: number
+  position:      number | null  // null/0 : pas de position de grille (pit lane)
+}
+
+export function mapStartingGrid(
+  entries: OpenF1GridEntry[],
+  drivers: OpenF1Driver[],
+): Map<string, number> {
+  const numberToCode = new Map(drivers.map((d) => [d.driver_number, d.name_acronym]))
+  const grid = new Map<string, number>()
+  for (const entry of entries) {
+    if (entry.position == null || entry.position <= 0) continue
+    const code = numberToCode.get(entry.driver_number)
+    if (code) grid.set(code, entry.position)
+  }
+  return grid
+}
+
+export async function fetchStartingGrid(
+  year: number,
+  sessionName: GridSessionName,
+  expectedStartsAt: string,
+): Promise<Map<string, number>> {
+  const session = await findSessionByDate(year, sessionName, expectedStartsAt)
+  if (!session) return new Map()
+
+  const [entries, drivers] = await Promise.all([
+    openf1Get<OpenF1GridEntry[]>(`/starting_grid?session_key=${session.session_key}`),
+    openf1Get<OpenF1Driver[]>(`/drivers?session_key=${session.session_key}`),
+  ])
+  if (!entries?.length || !drivers?.length) return new Map()
+
+  return mapStartingGrid(entries, drivers)
+}
+
+// ============================================================
 // Essais libres (EL1/EL2/EL3) — non disponible dans Jolpica
 // Le classement d'une séance d'essais est trié par MEILLEUR TOUR (feuille de
 // temps), pas par position sur la piste — on dérive donc le classement depuis

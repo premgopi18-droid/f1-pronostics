@@ -108,6 +108,15 @@ Format 2026 : Sprint Qualifying (vendredi) → Sprint Race (samedi matin) → Qu
 
 **Résultats F1 pendant le weekend** : les résultats officiels des sessions (qualifications, sprints) sont affichés dans l'app dès leur confirmation par Jolpica — les utilisateurs s'en servent pour ajuster leurs pronostics de course jusqu'au dimanche.
 
+**Pré-remplissage du prono course avec la grille de départ** (décidé 2026-07-26) : quand la grille de départ d'une course est connue et que la course n'a pas commencé, le formulaire de pronostic s'ouvre **pré-rempli dans l'ordre de la grille** — si et seulement si l'utilisateur n'a **aucun pronostic enregistré** pour cette session (on n'écrase jamais une saisie sauvegardée).
+
+- **Source** : la **grille de départ réelle** (pénalités et départs pit lane inclus), via l'endpoint OpenF1 `/starting_grid` — pas le classement des qualifications. Importée en base par le cron de sync (les pages ne lisent que Supabase), re-synchronisée à chaque passage jusqu'au départ pour capter les pénalités tardives.
+- **Fallback** : si la grille réelle n'est pas (encore) disponible, on pré-remplit avec le **classement des qualifications** (`session_results`), et le libellé affiché le dit honnêtement (« ordre des qualifications » vs « grille de départ »).
+- **Course principale** : grille complète pré-remplie. **Sprint Race** (week-end sprint) : même principe avec la grille du sprint (issue de la Sprint Qualifying) — les 8 premiers de la grille pré-remplis dans le classement.
+- **Brouillon, pas soumission** : le pré-remplissage n'enregistre rien — l'utilisateur doit valider pour que le prono existe. Un bandeau signale explicitement que l'ordre proposé vient de la grille et n'est pas un prono déjà fait.
+- **Bouton « Repartir de la grille de départ »** : visible dès que la grille est connue et la session non verrouillée, **y compris quand un prono existe déjà** — il réinitialise le formulaire (localement) à l'ordre de la grille, sans sauvegarder.
+- **Équité** : aucun avantage informationnel — la grille est publique et identique pour tous ; c'est uniquement de l'UX (ordonner 22 pilotes à la main est la saisie la plus pénible de l'app).
+
 **Résultats des essais libres (informatifs, non scorés)** : les classements des trois séances d'essais libres (EL1, EL2, EL3) sont affichés dans la page résultats du GP. Objectif : aider l'utilisateur à ajuster son pronostic **Top 10 Qualifications**, qui reste modifiable jusqu'au début de la Q1 — les EL3 (samedi matin) se terminent avant ce verrou. Ces résultats sont **purement informatifs** : aucun pronostic ni score ne porte dessus.
 
 > **Isolation des sessions EL** : les essais libres sont stockés dans la table `sessions` (types `practice_1/2/3`) mais doivent être **exclus de toutes les requêtes hors page résultats** — pronostics, scoring, items, home, vues ligue — via le filtre `.in('type', SCOREABLE_SESSION_TYPES)`. Sans ce filtre, une session EL traitée comme une session scorée fait planter le rendu (`SESSION_LABEL[type]` undefined → `t(undefined)`) et décale la deadline items sur l'EL1. Seule la page résultats lit explicitement les types EL.

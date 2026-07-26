@@ -10,7 +10,9 @@ import {
   fetchRaceLaps,
   fetchSprintRaceResults,
 } from '@/lib/f1/jolpica'
-import { fetchSprintQualifyingResults, fetchPracticeResults } from '@/lib/f1/openf1'
+import { fetchSprintQualifyingResults, fetchPracticeResults, fetchStartingGrid } from '@/lib/f1/openf1'
+import type { GridSessionName } from '@/lib/f1/openf1'
+import { upsertStartingGrid } from '@/lib/data/starting-grids'
 import {
   confirmSessionResults,
   upsertConstructors,
@@ -34,6 +36,20 @@ import {
 import { isPushConfigured, sendPushToAll, sendImminencePush } from '@/lib/push/send'
 import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
 import type { DriverResult, DbSessionType } from '@/lib/scoring/types'
+
+// Sessions course dont on importe la grille de départ, avec pour chacune la
+// session du week-end qui la produit (une fois confirmée, la grille peut
+// exister côté OpenF1) et le nom de session côté OpenF1.
+type GridTargetType = 'race' | 'sprint_race'
+const GRID_TARGET_TYPES: readonly GridTargetType[] = ['race', 'sprint_race']
+const GRID_SOURCE_TYPE: Record<GridTargetType, DbSessionType> = {
+  race:        'qualifying',
+  sprint_race: 'sprint_qualifying',
+}
+const GRID_OPENF1_SESSION: Record<GridTargetType, GridSessionName> = {
+  race:        'Race',
+  sprint_race: 'Sprint',
+}
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
 async function handler(request: Request): Promise<Response> {
@@ -154,6 +170,58 @@ async function handler(request: Request): Promise<Response> {
       }
     }
 
+    // ── Phase 4 : grilles de départ (pré-remplissage du prono course, #200) ──
+    // Fenêtre naturelle : la session course n'a pas commencé ET la session
+    // source du même GP (qualif → course, sprint qualif → sprint race) est
+    // confirmée. Re-synchronisée à chaque passage jusqu'au départ pour capter
+    // les pénalités tardives. Phase entièrement isolée : un échec ici ne doit
+    // avorter ni la sync ni les notifications.
+    let gridsSynced = 0
+    try {
+      const { data: upcomingRaceSessions, error: upcomingError } = await supabase
+        .from('sessions')
+        .select('id, type, season, starts_at, gp_id')
+        .in('type', [...GRID_TARGET_TYPES])
+        .gt('starts_at', now)
+
+      if (upcomingError) throw upcomingError
+
+      const upcomingGpIds = [...new Set((upcomingRaceSessions ?? []).map((row) => row.gp_id))]
+      const { data: confirmedSources, error: sourcesError } = upcomingGpIds.length > 0
+        ? await supabase
+            .from('sessions')
+            .select('gp_id, type')
+            .in('gp_id', upcomingGpIds)
+            .in('type', Object.values(GRID_SOURCE_TYPE))
+            .not('results_confirmed_at', 'is', null)
+        : { data: [], error: null }
+
+      if (sourcesError) throw sourcesError
+
+      const confirmedSourceKeys = new Set(
+        (confirmedSources ?? []).map((row) => `${row.gp_id}:${row.type}`),
+      )
+
+      for (const row of upcomingRaceSessions ?? []) {
+        const targetType = row.type as GridTargetType
+        if (!confirmedSourceKeys.has(`${row.gp_id}:${GRID_SOURCE_TYPE[targetType]}`)) continue
+
+        // Isolation par session (même politique que la phase résultats) : la
+        // grille est un confort UX, pas une donnée de scoring — on logue et on
+        // passe, le cron retentera au prochain passage.
+        try {
+          const grid = await fetchStartingGrid(row.season, GRID_OPENF1_SESSION[targetType], row.starts_at)
+          if (grid.size === 0) continue
+          await upsertStartingGrid(row.id, row.season, grid)
+          gridsSynced++
+        } catch (error) {
+          console.error('[api/f1/sync] grille de départ session', row.id, error)
+        }
+      }
+    } catch (error) {
+      console.error('[api/f1/sync] phase grilles de départ', error)
+    }
+
     // ── Notifications "pronostics ouverts" (48 h avant le week-end) ──────────
     // Guard VAPID : markGPNotifiedOpen brûlerait le flag de dédup sans push réel.
     const pushReady = isPushConfigured()
@@ -203,6 +271,7 @@ async function handler(request: Request): Promise<Response> {
       {
         gps: calendar.length,
         sessionsConfirmed,
+        gridsSynced,
         notified: gpsToNotify.length,
         qualReminders: qualReminderGPs.length,
         imminenceNotifs: imminenceSessions.length,

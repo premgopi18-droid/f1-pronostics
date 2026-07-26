@@ -757,6 +757,48 @@ export type Database = {
           },
         ]
       }
+      starting_grids: {
+        Row: {
+          created_at: string
+          driver_id: string
+          id: string
+          position: number
+          season: number
+          session_id: string
+        }
+        Insert: {
+          created_at?: string
+          driver_id: string
+          id?: string
+          position: number
+          season: number
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          driver_id?: string
+          id?: string
+          position?: number
+          season?: number
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "starting_grids_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "starting_grids_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_items: {
         Row: {
           id: string

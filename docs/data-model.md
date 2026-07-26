@@ -122,6 +122,27 @@ Seuls les résultats officiels Jolpica sont stockés — pas de flag `is_officia
 
 ---
 
+### `starting_grids`
+
+Grille de départ réelle (pénalités et pit lane inclus), importée d'OpenF1 (`/starting_grid`) par le cron de sync entre la confirmation des qualifications et le départ, puis re-synchronisée à chaque passage jusqu'au départ (pénalités tardives). Sert au pré-remplissage du pronostic course ([product-specs §3.3](product-specs.md)). `session_id` référence la session **course** (`race` / `sprint_race`), pas la qualification qui a produit la grille.
+
+| Colonne | Type | Notes |
+|---|---|---|
+| id | UUID PK | |
+| session_id | UUID FK → sessions | ON DELETE CASCADE — session course |
+| season | INTEGER | |
+| driver_id | UUID FK → drivers | |
+| position | INTEGER | position de grille (les départs pit lane, sans position, ne sont pas stockés) |
+| created_at | TIMESTAMPTZ | |
+
+**Contrainte :** UNIQUE (session_id, driver_id)
+
+**RLS :** lecture publique. Écriture réservée au service-role (cron de sync).
+
+**Index :** `(driver_id)`
+
+---
+
 ### `circuit_tracks`
 
 Tracés SVG des circuits (source `bacinger/f1-circuits`, indépendante de Jolpica). Alimentée par `POST /api/admin/sync-circuits`. Voir [product-specs §3.3](product-specs.md).
@@ -602,7 +623,7 @@ Contrairement aux autres RPC, **`SECURITY INVOKER`** (défaut) : l'écriture est
 
 ---
 
-## Récapitulatif des 19 tables
+## Récapitulatif des 20 tables
 
 | # | Table | Domaine |
 |---|---|---|
@@ -611,17 +632,18 @@ Contrairement aux autres RPC, **`SECURITY INVOKER`** (défaut) : l'écriture est
 | 3 | `grands_prix` | F1 Data |
 | 4 | `sessions` | F1 Data |
 | 5 | `session_results` | F1 Data |
-| 6 | `circuit_tracks` | F1 Data |
-| 7 | `profiles` | Utilisateurs |
-| 8 | `push_subscriptions` | Utilisateurs |
-| 9 | `announcements` | Utilisateurs |
-| 10 | `leagues` | Ligues |
-| 11 | `league_members` | Ligues |
-| 12 | `predictions` | Prédictions |
-| 13 | `fastest_lap_predictions` | Prédictions |
-| 14 | `season_predictions` | Prédictions |
-| 15 | `user_items` | Items |
-| 16 | `user_season_items` | Items |
-| 17 | `items_played` | Items |
-| 18 | `scores` | Scores |
-| 19 | `season_scores` | Scores |
+| 6 | `starting_grids` | F1 Data |
+| 7 | `circuit_tracks` | F1 Data |
+| 8 | `profiles` | Utilisateurs |
+| 9 | `push_subscriptions` | Utilisateurs |
+| 10 | `announcements` | Utilisateurs |
+| 11 | `leagues` | Ligues |
+| 12 | `league_members` | Ligues |
+| 13 | `predictions` | Prédictions |
+| 14 | `fastest_lap_predictions` | Prédictions |
+| 15 | `season_predictions` | Prédictions |
+| 16 | `user_items` | Items |
+| 17 | `user_season_items` | Items |
+| 18 | `items_played` | Items |
+| 19 | `scores` | Scores |
+| 20 | `season_scores` | Scores |

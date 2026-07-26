@@ -153,9 +153,12 @@ function A11yHintBanner({ onActivate, onDismiss }: { onActivate: () => void; onD
  *  est connue — y compris quand un prono existe déjà. Libellés adaptés à la
  *  source : grille officielle vs classement des qualifications (fallback).
  *  Partagé par `RaceForm` et `QualifsForm`. */
-function GridPrefillControls({ gridSource, wasPrefilled, onReset }: {
+function GridPrefillControls({ gridSource, wasPrefilled, disabled, onReset }: {
   gridSource:   GridSource
   wasPrefilled: boolean
+  /** Désactivé pendant l'enregistrement : un reset en plein save brouillerait
+   *  l'état local et le message de confirmation. */
+  disabled:     boolean
   onReset:      () => void
 }) {
   const isOfficialGrid = gridSource === 'grid'
@@ -168,7 +171,8 @@ function GridPrefillControls({ gridSource, wasPrefilled, onReset }: {
       )}
       <button type="button"
         onClick={onReset}
-        className="flex items-center gap-1.5 self-start text-sm font-semibold text-primary-text transition-opacity hover:opacity-80"
+        disabled={disabled}
+        className="flex items-center gap-1.5 self-start text-sm font-semibold text-primary-text transition-opacity hover:opacity-80 disabled:pointer-events-none disabled:opacity-30"
       >
         <RotateCcw size={14} aria-hidden="true" />
         {isOfficialGrid ? t('predict.gridReset') : t('predict.gridResetQualifying')}
@@ -334,6 +338,7 @@ function RaceForm({
         <GridPrefillControls
           gridSource={gridSource}
           wasPrefilled={isGridPrefilled(existingEntries, gridOrder)}
+          disabled={isPending}
           onReset={resetToGrid}
         />
       )}
@@ -594,6 +599,7 @@ function QualifsForm({
         <GridPrefillControls
           gridSource={gridSource}
           wasPrefilled={isGridPrefilled(existingEntries, gridOrder)}
+          disabled={isPending}
           onReset={resetToGrid}
         />
       )}

@@ -36,7 +36,9 @@ export async function getStartingGrids(
 /**
  * Upsert de la grille d'une session course (code pilote → position).
  * Re-synchronisée à chaque passage du cron jusqu'au départ, pour capter les
- * pénalités tardives — l'upsert met à jour les positions existantes.
+ * pénalités tardives — l'upsert met à jour les positions existantes, puis les
+ * lignes des pilotes sortis de la grille (forfait, grille republiée) sont
+ * supprimées pour ne jamais servir un ordre périmé au pré-remplissage.
  */
 export async function upsertStartingGrid(
   sessionId: string,
@@ -73,4 +75,15 @@ export async function upsertStartingGrid(
     .upsert(rows, { onConflict: 'session_id,driver_id' })
 
   if (error) throw error
+
+  // Purge des lignes hors grille fraîche (upsert d'abord, delete ensuite :
+  // pas de fenêtre où la grille serait absente pour un lecteur concurrent).
+  const freshDriverIds = rows.map((row) => row.driver_id)
+  const { error: staleError } = await supabase
+    .from('starting_grids')
+    .delete()
+    .eq('session_id', sessionId)
+    .not('driver_id', 'in', `(${freshDriverIds.join(',')})`)
+
+  if (staleError) throw staleError
 }

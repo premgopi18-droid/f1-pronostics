@@ -21,17 +21,26 @@ describe('openf1 — sélection de session par date', () => {
   })
 
   // Route la réponse selon le path OpenF1 appelé (/sessions, /drivers, /laps, /position, /starting_grid).
+  // La grille n'est servie QUE pour `gridSessionKey` : l'API réelle indexe
+  // /starting_grid par le session_key de la session QUALIFICATIVE — un mock
+  // indifférent au paramètre laisserait passer une requête sur la mauvaise
+  // session (bug de la PR #202).
   function mockOpenF1(payloads: {
     sessions?:  SessionFixture[]
     drivers?:   { driver_number: number; name_acronym: string; session_key: number }[]
     laps?:      { driver_number: number; lap_duration: number | null; date_start: string | null }[]
     positions?: { driver_number: number; position: number; date: string }[]
     grid?:      { driver_number: number; position: number | null }[]
+    gridSessionKey?: number
   }) {
     vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = input.toString()
       const body =
-        url.includes('/starting_grid') ? payloads.grid ?? [] :
+        url.includes('/starting_grid')
+          ? (payloads.gridSessionKey !== undefined && url.includes(`session_key=${payloads.gridSessionKey}`)
+              ? payloads.grid ?? []
+              : [])
+          :
         url.includes('/sessions')  ? payloads.sessions  ?? [] :
         url.includes('/drivers')   ? payloads.drivers   ?? [] :
         url.includes('/laps')      ? payloads.laps      ?? [] :
@@ -183,13 +192,16 @@ describe('openf1 — sélection de session par date', () => {
   })
 
   describe('fetchStartingGrid', () => {
-    it('retourne la grille AVANT le départ (pas de gate sur la fin de session)', async () => {
-      // Session dans le futur (2099) : une fonction résultats renverrait vide,
-      // la grille doit au contraire être disponible pré-course.
+    // /starting_grid est indexé par le session_key de la QUALIF (vérifié sur
+    // l'API réelle — review PR #202) : les fixtures ciblent donc une session
+    // Qualifying, et le mock ne sert la grille que pour son session_key.
+    it('interroge la grille via la session QUALIFICATIVE, disponible avant la course', async () => {
+      // Qualif terminée hier (2025), course pas encore courue : la grille doit
+      // être disponible — aucune fonction résultats ne le permettrait.
       mockOpenF1({
         sessions: [
-          { session_key: 300, session_name: 'Race', year: 2099,
-            circuit_short_name: 'Catalunya', date_start: '2099-05-31T13:00:00+00:00', date_end: '2099-05-31T15:00:00+00:00' },
+          { session_key: 300, session_name: 'Qualifying', year: 2025,
+            circuit_short_name: 'Catalunya', date_start: '2025-05-30T14:00:00+00:00', date_end: '2025-05-30T15:00:00+00:00' },
         ],
         drivers: [
           { driver_number: 1,  name_acronym: 'VER', session_key: 300 },
@@ -201,9 +213,10 @@ describe('openf1 — sélection de session par date', () => {
           { driver_number: 44, position: 2 },
           { driver_number: 1,  position: 3 },
         ],
+        gridSessionKey: 300,
       })
 
-      const grid = await fetchStartingGrid(2099, 'Race', '2099-05-31T13:00:00Z')
+      const grid = await fetchStartingGrid(2025, 'Qualifying', '2025-05-30T14:00:00Z')
 
       expect(grid.get('NOR')).toBe(1)
       expect(grid.get('HAM')).toBe(2)
@@ -213,21 +226,22 @@ describe('openf1 — sélection de session par date', () => {
     it('ignore les pilotes sans position de grille (pit lane) et les numéros inconnus', async () => {
       mockOpenF1({
         sessions: [
-          { session_key: 300, session_name: 'Sprint', year: 2099,
-            circuit_short_name: 'Shanghai', date_start: '2099-03-21T03:00:00+00:00', date_end: '2099-03-21T04:00:00+00:00' },
+          { session_key: 310, session_name: 'Sprint Qualifying', year: 2025,
+            circuit_short_name: 'Shanghai', date_start: '2025-03-21T07:30:00+00:00', date_end: '2025-03-21T08:14:00+00:00' },
         ],
         drivers: [
-          { driver_number: 1, name_acronym: 'VER', session_key: 300 },
-          { driver_number: 4, name_acronym: 'NOR', session_key: 300 },
+          { driver_number: 1, name_acronym: 'VER', session_key: 310 },
+          { driver_number: 4, name_acronym: 'NOR', session_key: 310 },
         ],
         grid: [
           { driver_number: 1,  position: 1 },
           { driver_number: 4,  position: null }, // départ pit lane → exclu
           { driver_number: 99, position: 2 },    // numéro sans correspondance /drivers → exclu
         ],
+        gridSessionKey: 310,
       })
 
-      const grid = await fetchStartingGrid(2099, 'Sprint', '2099-03-21T03:00:00Z')
+      const grid = await fetchStartingGrid(2025, 'Sprint Qualifying', '2025-03-21T07:30:00Z')
 
       expect(grid.size).toBe(1)
       expect(grid.get('VER')).toBe(1)
@@ -236,27 +250,48 @@ describe('openf1 — sélection de session par date', () => {
     it('renvoie une Map vide si la grille n’est pas encore publiée', async () => {
       mockOpenF1({
         sessions: [
-          { session_key: 300, session_name: 'Race', year: 2099,
-            circuit_short_name: 'Catalunya', date_start: '2099-05-31T13:00:00+00:00', date_end: '2099-05-31T15:00:00+00:00' },
+          { session_key: 300, session_name: 'Qualifying', year: 2025,
+            circuit_short_name: 'Catalunya', date_start: '2025-05-30T14:00:00+00:00', date_end: '2025-05-30T15:00:00+00:00' },
         ],
         drivers: [{ driver_number: 1, name_acronym: 'VER', session_key: 300 }],
         grid: [],
+        gridSessionKey: 300,
       })
 
-      const grid = await fetchStartingGrid(2099, 'Race', '2099-05-31T13:00:00Z')
+      const grid = await fetchStartingGrid(2025, 'Qualifying', '2025-05-30T14:00:00Z')
       expect(grid.size).toBe(0)
     })
 
     it('renvoie une Map vide si aucune session ne tombe dans la fenêtre de 2 jours', async () => {
       mockOpenF1({
         sessions: [
-          { session_key: 300, session_name: 'Race', year: 2099,
-            circuit_short_name: 'Catalunya', date_start: '2099-05-31T13:00:00+00:00', date_end: '2099-05-31T15:00:00+00:00' },
+          { session_key: 300, session_name: 'Qualifying', year: 2025,
+            circuit_short_name: 'Catalunya', date_start: '2025-05-30T14:00:00+00:00', date_end: '2025-05-30T15:00:00+00:00' },
         ],
       })
 
-      const grid = await fetchStartingGrid(2099, 'Race', '2099-08-01T13:00:00Z')
+      const grid = await fetchStartingGrid(2025, 'Qualifying', '2025-08-01T13:00:00Z')
       expect(grid.size).toBe(0)
+    })
+
+    it('grille servie uniquement pour le session_key de la qualif — une requête sur une autre session revient vide', async () => {
+      // Garde-fou anti-régression du bug #202 : deux sessions dans la fenêtre
+      // (la qualif et la course), la grille n'existe que pour la qualif. Si le
+      // code re-cible un jour la session course, ce test échoue.
+      mockOpenF1({
+        sessions: [
+          { session_key: 301, session_name: 'Race', year: 2025,
+            circuit_short_name: 'Catalunya', date_start: '2025-05-31T13:00:00+00:00', date_end: '2025-05-31T15:00:00+00:00' },
+          { session_key: 300, session_name: 'Qualifying', year: 2025,
+            circuit_short_name: 'Catalunya', date_start: '2025-05-30T14:00:00+00:00', date_end: '2025-05-30T15:00:00+00:00' },
+        ],
+        drivers: [{ driver_number: 1, name_acronym: 'VER', session_key: 300 }],
+        grid: [{ driver_number: 1, position: 1 }],
+        gridSessionKey: 300,
+      })
+
+      const grid = await fetchStartingGrid(2025, 'Qualifying', '2025-05-30T14:00:00Z')
+      expect(grid.get('VER')).toBe(1)
     })
   })
 })

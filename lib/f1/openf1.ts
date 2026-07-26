@@ -151,14 +151,19 @@ export async function fetchSprintQualifyingResults(
 
 // ============================================================
 // Grille de départ (course / sprint) — non disponible dans Jolpica
-// OpenF1 publie /starting_grid (beta) AVANT le départ, pénalités et départs
-// pit lane inclus — contrairement aux classements, on ne gate donc PAS sur
+// OpenF1 publie /starting_grid AVANT le départ, pénalités et départs pit lane
+// inclus — contrairement aux classements, on ne gate donc PAS sur
 // isSessionFinished : c'est précisément la fenêtre pré-course qui nous
 // intéresse. Retourne code pilote → position de grille ; Map vide tant que la
 // grille n'est pas publiée (le cron retentera).
+//
+// ⚠️ L'endpoint est indexé par le session_key de la session QUALIFICATIVE qui
+// produit la grille (Qualifying → course, Sprint Qualifying → sprint), PAS par
+// la session course — vérifié empiriquement (review PR #202) : le session_key
+// d'une course renvoie 404, celui de sa qualif renvoie la grille complète.
 // ============================================================
 
-export type GridSessionName = 'Race' | 'Sprint'
+export type GridSessionName = 'Qualifying' | 'Sprint Qualifying'
 
 interface OpenF1GridEntry {
   driver_number: number

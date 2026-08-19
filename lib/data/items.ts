@@ -1,4 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
+import { buildItemResolutionRows } from '@/lib/items/resolution'
+import type { Json } from '@/lib/database.types'
 import type { ItemPayload, PlayedItem, SessionType } from '@/lib/scoring/types'
 
 // ── Mapper DB (snake_case) → TypeScript (camelCase) ──────────────────────
@@ -163,34 +165,18 @@ export async function insertPlayedItem(
 
 // Appelé après applyItemEffects — persiste was_shielded, effect_applied,
 // resolved_at, et points_stolen pour les Wild Cards.
+// UN SEUL UPDATE transactionnel via la RPC mark_items_resolved (#206) : soit
+// tous les items du lot sont marqués, soit aucun — l'ancien Promise.all de N
+// UPDATE pouvait laisser un sous-ensemble non marqué, ré-appliqué au run
+// suivant sur des scores qui contenaient déjà son effet (double comptage).
 export async function markItemsResolved(items: PlayedItem[]): Promise<void> {
+  if (items.length === 0) return
   const supabase = createServiceClient()
 
-  await Promise.all(
-    items.map(async (item) => {
-      // Reconstructed DB payload (camelCase → snake_case) pour les Wild Cards
-      // (points_stolen ajouté par resolveWildCards)
-      const payload =
-        item.payload.type === 'wild_card' && item.payload.pointsStolen !== undefined
-          ? {
-              target_user_id: item.payload.targetUserId,
-              session_type:   item.payload.sessionType,
-              points_stolen:  item.payload.pointsStolen,
-            }
-          : undefined
-
-      const { error } = await supabase
-        .from('items_played')
-        .update({
-          was_shielded:        item.wasShielded,
-          effect_applied:      item.effectApplied,
-          points_delta_actor:  item.pointsDeltaActor,
-          points_delta_target: item.pointsDeltaTarget,
-          resolved_at:         new Date().toISOString(),
-          ...(payload ? { payload } : {}),
-        })
-        .eq('id', item.id)
-      if (error) throw error
-    }),
-  )
+  // Frontière JSONB (convention #179) : ItemResolutionRow n'est composé que de
+  // primitives sérialisables — le cast vers Json est structurellement sûr.
+  const { error } = await supabase.rpc('mark_items_resolved', {
+    p_items: buildItemResolutionRows(items) as unknown as Json,
+  })
+  if (error) throw error
 }

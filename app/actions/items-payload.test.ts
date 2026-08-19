@@ -115,7 +115,7 @@ describe('validatePayload', () => {
 
   describe('no_points_team', () => {
     it('accepte une écurie', () => {
-      expect(validatePayload({ itemType: 'no_points_team', payload: { constructorCode: 'ferrari' } })).toBeNull()
+      expect(validatePayload({ itemType: 'no_points_team', payload: { constructorCode: 'FERRARI' } })).toBeNull()
     })
 
     it('refuse une écurie manquante', () => {
@@ -161,8 +161,8 @@ describe('toDBPayload', () => {
   })
 
   it('no_points_team → constructor_code', () => {
-    expect(toDBPayload({ itemType: 'no_points_team', payload: { constructorCode: 'ferrari' } }))
-      .toEqual({ constructor_code: 'ferrari' })
+    expect(toDBPayload({ itemType: 'no_points_team', payload: { constructorCode: 'FERRARI' } }))
+      .toEqual({ constructor_code: 'FERRARI' })
   })
 
   it('ne laisse jamais fuir un champ camelCase', () => {

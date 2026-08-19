@@ -156,18 +156,20 @@ async function handler(request: Request): Promise<Response> {
 
       if (!raceSessionId || !qualSessionId) continue
 
-      const [raceResults, qualResults] = await Promise.all([
+      const [raceResults, qualResults, seasonConstructorDrivers] = await Promise.all([
         getResultsForSession(raceSessionId),
         getResultsForSession(qualSessionId),
+        getConstructorDriversMap(gp.season),
       ])
 
-      // Duo réel de la course (#205) : dérivé des résultats — reflète remplacements
-      // et échanges de baquet. Fallback mapping saison pour les courses dont les
-      // résultats n'ont pas de constructor_code (antérieures à la migration).
-      const raceConstructorDrivers = buildConstructorDrivers(raceResults)
-      const constructorDrivers = raceConstructorDrivers.size > 0
-        ? raceConstructorDrivers
-        : await getConstructorDriversMap(gp.season)
+      // Duo réel de la course (#205) superposé au mapping saison : la course fait
+      // foi (remplacements, échanges de baquet), le mapping saison comble les écuries
+      // absentes des résultats (constructor_code manquant — lignes antérieures à la
+      // migration, ou Constructor omis par Jolpica sur une course).
+      const constructorDrivers = new Map([
+        ...seasonConstructorDrivers,
+        ...buildConstructorDrivers(raceResults),
+      ])
 
       // Collecter les utilisateurs ciblés par des items offensifs (toutes ligues)
       const gpTargetedUserIds = new Set<string>()

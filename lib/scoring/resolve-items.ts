@@ -12,9 +12,9 @@ import type {
 // Duo réel d'une course — constructorCode → [driverCode, ...]
 // Dérivé des résultats de LA course (session_results.constructor_code, #205) :
 // reflète les remplacements et échanges de baquet, contrairement au mapping
-// saison drivers.constructor_id. Map vide si les résultats ne portent pas
-// l'écurie (sessions antérieures à #205) — l'appelant retombe alors sur
-// getConstructorDriversMap(season).
+// saison drivers.constructor_id. L'appelant superpose ce résultat au mapping
+// saison (getConstructorDriversMap) — la course fait foi, la saison comble les
+// écuries absentes des résultats (constructor_code manquant).
 // ============================================================
 
 export function buildConstructorDrivers(

@@ -15,7 +15,7 @@ import type { GridSessionName } from '@/lib/f1/openf1'
 import { GRID_SOURCE_SESSION_TYPE, type GridTargetSessionType } from '@/lib/f1/grid'
 import { upsertStartingGrid } from '@/lib/data/starting-grids'
 import { upsertGPLineup, getPreviousGPLineup, claimLineupChangeNotifications } from '@/lib/data/gp-lineups'
-import { diffLineup, formatLineupChangeBody } from '@/lib/data/lineup-changes'
+import { diffLineup, formatLineupChangeBody, selectLineupSessionCandidates } from '@/lib/data/lineup-changes'
 import {
   confirmSessionResults,
   upsertConstructors,
@@ -274,23 +274,28 @@ async function handler(request: Request): Promise<Response> {
         // Isolation par GP (même politique que les grilles) : la notif line-up
         // est un confort, un échec ne doit pas avorter la sync ni les notifs.
         try {
-          // Sessions du GP en ordre chronologique : première assez proche pour
-          // exister côté OpenF1, premier line-up non vide retenu.
+          // Sessions du GP dans l'horizon OpenF1, de la plus récente à la plus
+          // ancienne (sélection pure, testée) : la plus fraîche disponible fait
+          // foi — indispensable pour capter un remplacement du dimanche matin.
           const { data: gpSessions, error: gpSessionsError } = await supabase
             .from('sessions')
             .select('type, starts_at')
             .eq('gp_id', gp.id)
-            .order('starts_at', { ascending: true })
 
           if (gpSessionsError) throw gpSessionsError
 
+          const candidates = selectLineupSessionCandidates(
+            (gpSessions ?? []).map((session) => ({ type: session.type, startsAt: session.starts_at })),
+            Date.now(),
+            LINEUP_SESSION_HORIZON_MS,
+          )
+
           let lineup = new Map<string, string>()
-          for (const session of gpSessions ?? []) {
-            if (new Date(session.starts_at).getTime() > Date.now() + LINEUP_SESSION_HORIZON_MS) break
+          for (const session of candidates) {
             lineup = await fetchSessionLineup(
               gp.season,
               LINEUP_OPENF1_SESSION_NAME[session.type as DbSessionType],
-              session.starts_at,
+              session.startsAt,
             )
             if (lineup.size > 0) break
           }

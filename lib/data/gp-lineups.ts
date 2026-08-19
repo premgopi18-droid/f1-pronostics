@@ -32,6 +32,16 @@ export async function upsertGPLineup(
 
   const codeToId = new Map((drivers ?? []).map((d) => [d.code, d.id]))
 
+  // Réserviste vu par OpenF1 mais pas encore listé par Jolpica : filtré plus
+  // bas, le cas se résorbe dès que Jolpica l'ajoute — mais on le trace pour
+  // que le trou soit observable dans les logs du cron.
+  const unknownCodes = codes.filter((code) => !codeToId.has(code))
+  if (unknownCodes.length > 0) {
+    console.warn(
+      `upsertGPLineup : pilotes absents de drivers pour la saison ${season} — ${unknownCodes.join(', ')}`,
+    )
+  }
+
   // Lignes existantes : préserver notified_at si l'écurie n'a pas bougé,
   // le remettre à null sinon (le payload d'un upsert doit être homogène,
   // on renseigne donc la colonne pour toutes les lignes).
@@ -59,7 +69,14 @@ export async function upsertGPLineup(
       }
     })
 
-  if (rows.length === 0) return
+  // Rien de neuf (aucun pilote ajouté, aucune écurie modifiée) : pas d'écriture.
+  // La fonction tourne à chaque passage du cron pendant tout le week-end — cet
+  // early-return évite ~20 lignes réécrites à vide toutes les 10 minutes.
+  const hasChanges = rows.some((row) => {
+    const previous = existingByDriverId.get(row.driver_id)
+    return !previous || previous.team_name !== row.team_name
+  })
+  if (!hasChanges) return
 
   const { error } = await supabase
     .from('gp_lineups')

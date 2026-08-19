@@ -12,6 +12,26 @@ export interface LineupChange {
 }
 
 /**
+ * Sessions candidates à l'interrogation OpenF1, de la PLUS RÉCENTE à la plus
+ * ancienne parmi celles déjà dans l'horizon (démarrées, ou démarrant dans
+ * moins de `horizonMs`). L'ordre décroissant est essentiel : la session la
+ * plus fraîche disponible fait foi — un remplacement du dimanche matin n'est
+ * visible que dans les /drivers de la course ; en ordre croissant, les EL1 du
+ * vendredi (toujours publiées) répondraient en premier et masqueraient le
+ * changement tout le week-end. Le repli sur les sessions précédentes couvre
+ * celles qu'OpenF1 n'a pas encore publiées.
+ */
+export function selectLineupSessionCandidates<T extends { startsAt: string }>(
+  sessions: T[],
+  now: number,
+  horizonMs: number,
+): T[] {
+  return sessions
+    .filter((session) => new Date(session.startsAt).getTime() <= now + horizonMs)
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime())
+}
+
+/**
  * Diff du line-up courant contre celui du GP précédent.
  * - Pas de baseline (premier GP suivi, saison qui démarre) → aucun changement :
  *   on sème la référence sans notifier.
@@ -21,6 +41,11 @@ export interface LineupChange {
  * - Pilote présent dans la baseline mais absent du GP courant : ignoré — le
  *   remplaçant porte l'information, et un forfait sec est déjà couvert par la
  *   règle « pilote absent du classement = 0 pt ».
+ *
+ * Limitation connue : si OpenF1 renomme un libellé d'écurie en cours de saison
+ * (« RB » → « Racing Bulls »), les pilotes de l'écurie déclenchent une fausse
+ * notification unique au GP suivant, auto-résorbée dès que la baseline porte
+ * le nouveau libellé. Rare et bénin — assumé.
  */
 export function diffLineup(
   previous: Map<string, string>,

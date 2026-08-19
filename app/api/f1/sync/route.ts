@@ -249,8 +249,8 @@ async function handler(request: Request): Promise<Response> {
     // Un pilote qui roule pour une autre écurie que lors du GP précédent
     // (échange de baquet, réserviste) déclenche un push agrégé AVANT la course,
     // pendant que pronos et items sont encore jouables. Détection : /drivers
-    // OpenF1 de la première session du week-end déjà disponible (EL1 dès le
-    // vendredi), diffé contre le line-up du GP précédent — même source des
+    // OpenF1 de la session la plus récente déjà disponible (EL1 dès le vendredi,
+    // course le dimanche), diffé contre le line-up du GP précédent — même source des
     // deux côtés, les libellés d'écurie OpenF1 ne matchant ni nos codes ni les
     // noms Jolpica. Dédup par claim atomique par pilote (gp_lineups.notified_at) :
     // un 2ᵉ remplacement le dimanche matin renotifie. Le line-up est upserté

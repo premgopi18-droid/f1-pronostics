@@ -22,7 +22,7 @@ import {
   markGPNotifiedScores,
 } from '@/lib/data/f1-sync'
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
-import { applyItemEffects } from '@/lib/scoring/resolve-items'
+import { applyItemEffects, buildConstructorDrivers } from '@/lib/scoring/resolve-items'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import { isPushConfigured, sendPushToAll, sendPushToUser } from '@/lib/push/send'
 import type { ResolutionContext } from '@/lib/scoring/types'
@@ -156,11 +156,18 @@ async function handler(request: Request): Promise<Response> {
 
       if (!raceSessionId || !qualSessionId) continue
 
-      const [raceResults, qualResults, constructorDrivers] = await Promise.all([
+      const [raceResults, qualResults] = await Promise.all([
         getResultsForSession(raceSessionId),
         getResultsForSession(qualSessionId),
-        getConstructorDriversMap(gp.season),
       ])
+
+      // Duo réel de la course (#205) : dérivé des résultats — reflète remplacements
+      // et échanges de baquet. Fallback mapping saison pour les courses dont les
+      // résultats n'ont pas de constructor_code (antérieures à la migration).
+      const raceConstructorDrivers = buildConstructorDrivers(raceResults)
+      const constructorDrivers = raceConstructorDrivers.size > 0
+        ? raceConstructorDrivers
+        : await getConstructorDriversMap(gp.season)
 
       // Collecter les utilisateurs ciblés par des items offensifs (toutes ligues)
       const gpTargetedUserIds = new Set<string>()

@@ -1,11 +1,34 @@
 import { ITEM_BONUS_POINTS } from './constants'
 import type {
+  DriverResult,
   GPItemType,
   PlayedItem,
   ScoreKey,
   SessionScore,
   ResolutionContext,
 } from './types'
+
+// ============================================================
+// Duo réel d'une course — constructorCode → [driverCode, ...]
+// Dérivé des résultats de LA course (session_results.constructor_code, #205) :
+// reflète les remplacements et échanges de baquet, contrairement au mapping
+// saison drivers.constructor_id. Map vide si les résultats ne portent pas
+// l'écurie (sessions antérieures à #205) — l'appelant retombe alors sur
+// getConstructorDriversMap(season).
+// ============================================================
+
+export function buildConstructorDrivers(
+  results: Map<string, DriverResult>,
+): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+  for (const [driverCode, result] of results) {
+    if (!result.constructorCode) continue
+    const drivers = map.get(result.constructorCode) ?? []
+    drivers.push(driverCode)
+    map.set(result.constructorCode, drivers)
+  }
+  return map
+}
 
 // ============================================================
 // Ordre de résolution (spec §3.5) — source unique.
@@ -193,7 +216,17 @@ function resolveNoPointsTeam(
   ctx: ResolutionContext,
 ): void {
   if (item.payload.type !== 'no_points_team') return
-  const drivers    = ctx.constructorDrivers.get(item.payload.constructorCode) ?? []
+  const drivers = ctx.constructorDrivers.get(item.payload.constructorCode) ?? []
+
+  // Écurie introuvable dans la map (code invalide ou données absentes) : la condition
+  // est invérifiable — jamais de bonus par défaut, l'item reste sans effet.
+  if (drivers.length === 0) {
+    item.effectApplied     = false
+    item.pointsDeltaActor  = 0
+    item.pointsDeltaTarget = null
+    return
+  }
+
   const teamScored = drivers.some(code => {
     const pos = ctx.raceResults.get(code)?.position
     return pos !== null && pos !== undefined && pos <= 10

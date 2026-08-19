@@ -656,6 +656,7 @@ export type Database = {
       session_results: {
         Row: {
           best_lap_time: string | null
+          constructor_code: string | null
           created_at: string
           dnf: boolean
           dns: boolean
@@ -668,6 +669,7 @@ export type Database = {
         }
         Insert: {
           best_lap_time?: string | null
+          constructor_code?: string | null
           created_at?: string
           dnf?: boolean
           dns?: boolean
@@ -680,6 +682,7 @@ export type Database = {
         }
         Update: {
           best_lap_time?: string | null
+          constructor_code?: string | null
           created_at?: string
           dnf?: boolean
           dns?: boolean

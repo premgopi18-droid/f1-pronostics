@@ -23,13 +23,15 @@ export interface JolpikaRaceResult {
   position:     string
   positionText: string   // "1".."20", "R"=Retired (DNF), "W"=Withdrew (DNS), "D"=DSQ, "N"=non-classé
   Driver:       JolpikaDriver
+  Constructor?: JolpikaConstructor   // écurie du pilote pour CETTE course (fiable même en cas de remplacement)
   FastestLap?:  { rank: string }
   laps?:        string   // tours effectués par le pilote (le vainqueur = distance de course)
 }
 
 interface JolpikaQualifyingResult {
-  position: string
-  Driver:   JolpikaDriver
+  position:     string
+  Driver:       JolpikaDriver
+  Constructor?: JolpikaConstructor
 }
 
 interface JolpikaRace {
@@ -112,17 +114,19 @@ async function jolpikaGet<T>(path: string): Promise<T> {
 export function mapRaceResult(result: JolpikaRaceResult): [string, DriverResult] {
   const code = result.Driver.code
   return [code, {
-    position:   parseInt(result.position, 10),
-    fastestLap: result.FastestLap?.rank === '1',
-    dnf:        result.positionText === 'R',
-    dns:        result.positionText === 'W',
+    position:        parseInt(result.position, 10),
+    fastestLap:      result.FastestLap?.rank === '1',
+    dnf:             result.positionText === 'R',
+    dns:             result.positionText === 'W',
+    constructorCode: result.Constructor ? toConstructorCode(result.Constructor.constructorId) : null,
   }]
 }
 
 function mapQualifyingResult(result: JolpikaQualifyingResult): [string, DriverResult] {
   return [result.Driver.code, {
-    position:  parseInt(result.position, 10),
-    fastestLap: false,
+    position:        parseInt(result.position, 10),
+    fastestLap:      false,
+    constructorCode: result.Constructor ? toConstructorCode(result.Constructor.constructorId) : null,
   }]
 }
 

@@ -561,6 +561,7 @@ export const fr = {
     targetRequired: "Cible requise",
     driverRequired: "Pilote requis",
     constructorRequired: "Écurie requise",
+    constructorUnknown: "Écurie inconnue pour cette saison",
     invalidSession: "Session invalide",
     adminOnly: "Action réservée à l'administrateur de la ligue",
     updateFailed: "Erreur lors de la mise à jour",

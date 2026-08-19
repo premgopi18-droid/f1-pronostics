@@ -27,6 +27,7 @@ export const ACTION_ERROR_CODES = [
   'targetRequired',
   'driverRequired',
   'constructorRequired',
+  'constructorUnknown',
   'invalidSession',
 
   // Administration de ligue

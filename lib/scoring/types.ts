@@ -21,7 +21,9 @@ export type ItemPayload =
 
 export type GPItemType = Exclude<ItemPayload['type'], 'wdc_move' | 'wcc_move'>
 
-export type DriverResult = { position: number | null; fastestLap: boolean; dnf?: boolean; dns?: boolean; bestLapTime?: string | null }
+// `constructorCode` : écurie du pilote pour CETTE session (résultats Jolpica) — null pour
+// les sessions OpenF1 (sprint qualif, essais) dont le team_name n'est pas mappable.
+export type DriverResult = { position: number | null; fastestLap: boolean; dnf?: boolean; dns?: boolean; bestLapTime?: string | null; constructorCode?: string | null }
 
 /** `${userId}:${sessionType}` — clé O(1) pour la Map des scores */
 export type ScoreKey = `${string}:${string}`

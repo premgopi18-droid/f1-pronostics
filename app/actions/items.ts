@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase'
+import { createClient, createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import type { ActionFailure } from '@/lib/actions/errors'
 import { insertPlayedItem } from '@/lib/data/items'
@@ -138,6 +138,21 @@ export async function playItemAction(
   // Validations payload selon le type
   const validationError = validatePayload(input)
   if (validationError) return { error: validationError }
+
+  // Le code écurie vient du client : validation contre `constructors` de la saison
+  // (même règle que les pronos WCC, cf. season-predictions). Sans ce garde, un code
+  // forgé serait stocké tel quel et rendrait la résolution de l'item invérifiable.
+  if (input.itemType === 'no_points_team') {
+    const { data: constructorRow, error: constructorError } = await createServiceClient()
+      .from('constructors')
+      .select('id')
+      .eq('season', season)
+      .eq('code', input.payload.constructorCode)
+      .maybeSingle()
+
+    if (constructorError) return { error: 'serverError' }
+    if (!constructorRow) return { error: 'constructorUnknown' }
+  }
 
   // Pour les items offensifs : la cible doit être un autre membre de la ligue
   if (OFFENSIVE_ITEMS.has(input.itemType)) {

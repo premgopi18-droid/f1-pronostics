@@ -161,7 +161,7 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
   const [{ data: gp }, { data: sessionRows }] = await Promise.all([
     supabase
       .from('grands_prix')
-      .select('id, round, country')
+      .select('id, round, country, season')
       .eq('id', gpId)
       .maybeSingle(),
     supabase
@@ -177,14 +177,30 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
   const sessionIds = sessions.map((s) => s.id)
   const sessionTypeMap = new Map(sessions.map((s) => [s.id, s.type]))
 
-  const resultRows = sessionIds.length > 0
-    ? (await supabase
-        .from('session_results')
-        .select(
-          'session_id, position, dnf, dns, fastest_lap, best_lap_time, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
-        )
-        .in('session_id', sessionIds)).data
-    : []
+  // constructor_code = écurie du pilote CE jour-là (#205) — prioritaire sur le
+  // join drivers→constructors (écurie « actuelle », historiquement fausse après
+  // un remplacement ou un transfert). Le join reste le fallback des lignes sans
+  // constructor_code (sessions OpenF1, données antérieures au backfill).
+  const [resultRows, constructorRows] = sessionIds.length > 0
+    ? await Promise.all([
+        supabase
+          .from('session_results')
+          .select(
+            'session_id, position, dnf, dns, fastest_lap, best_lap_time, constructor_code, drivers!driver_id(code, first_name, last_name, constructors!constructor_id(name, code))',
+          )
+          .in('session_id', sessionIds)
+          .then((r) => r.data),
+        supabase
+          .from('constructors')
+          .select('code, name')
+          .eq('season', gp.season)
+          .then((r) => r.data),
+      ])
+    : [[], []]
+
+  const constructorNameByCode = new Map(
+    (constructorRows ?? []).map((c) => [c.code, c.name]),
+  )
 
   const race: GpResultRow[] = []
   const qualifying: GpResultRow[] = []
@@ -199,6 +215,10 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
     if (!driver) continue
 
     const sessionType = sessionTypeMap.get(row.session_id)
+    const constructorCode = row.constructor_code ?? driver.constructors?.code ?? ''
+    const constructorName = row.constructor_code
+      ? (constructorNameByCode.get(row.constructor_code) ?? driver.constructors?.name ?? '')
+      : (driver.constructors?.name ?? '')
 
     if (
       sessionType === 'race' ||
@@ -214,8 +234,8 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
         driverCode: driver.code,
         firstName: driver.first_name,
         lastName: driver.last_name,
-        constructorName: driver.constructors?.name ?? '',
-        constructorCode: driver.constructors?.code ?? '',
+        constructorName,
+        constructorCode,
       }
       if (sessionType === 'race') race.push(result)
       else if (sessionType === 'qualifying') qualifying.push(result)
@@ -228,8 +248,8 @@ export async function getGpDetail(gpId: string): Promise<GpDetailData | null> {
         position: row.position as number,
         driverCode: driver.code,
         lastName: driver.last_name,
-        constructorCode: driver.constructors?.code ?? '',
-        constructorName: driver.constructors?.name ?? '',
+        constructorCode,
+        constructorName,
         bestLapTime: row.best_lap_time,
       }
       if (sessionType === 'practice_1') practice1.push(result)

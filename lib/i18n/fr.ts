@@ -259,6 +259,8 @@ export const fr = {
     chainDoubleNoEffect: "Aucun score à doubler — sans effet",
     chainBonusApplied:   "Condition validée : +{pts}",
     chainBonusNoEffect:  "Condition non remplie — sans effet",
+    chainNoPointsTeamApplied:  "{constructor} ne marque aucun point : +{pts}",
+    chainNoPointsTeamNoEffect: "{constructor} a marqué des points — sans effet",
     chainShieldBlocked:  "Bouclier actif — a neutralisé {pts} attaque·s ce week-end",
     chainShieldUnused:   "Bouclier actif — aucune attaque reçue",
     // Lignes d'items dans le détail par joueur (placeholders {item} {target} {actor} {pts})

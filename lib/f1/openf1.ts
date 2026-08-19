@@ -23,8 +23,9 @@ interface OpenF1Lap {
 
 interface OpenF1Driver {
   driver_number: number
-  name_acronym:  string  // "VER", "NOR" — équivalent du code Jolpica
+  name_acronym:  string         // "VER", "NOR" — équivalent du code Jolpica
   session_key:   number
+  team_name:     string | null  // libellé humain ("Red Bull Racing") — PAS un code interne
 }
 
 interface OpenF1Position {
@@ -199,6 +200,34 @@ export async function fetchStartingGrid(
   if (!entries?.length || !drivers?.length) return new Map()
 
   return mapStartingGrid(entries, drivers)
+}
+
+// ============================================================
+// Line-up d'une session — code pilote → nom d'écurie OpenF1 brut
+// Disponible dès que la session existe côté OpenF1 (EL1 du vendredi) : pas de
+// gate isSessionFinished, c'est la fenêtre AVANT la course qui nous intéresse
+// (détection des changements de baquet, #205). ⚠️ team_name est un libellé
+// humain (« Red Bull Racing ») qui ne matche ni les codes internes ni les noms
+// Jolpica — ne comparer que du OpenF1 avec du OpenF1.
+// ============================================================
+
+export async function fetchSessionLineup(
+  year: number,
+  sessionName: string,
+  expectedStartsAt: string,
+): Promise<Map<string, string>> {
+  const session = await findSessionByDate(year, sessionName, expectedStartsAt)
+  if (!session) return new Map()
+
+  const drivers = await openf1Get<OpenF1Driver[]>(`/drivers?session_key=${session.session_key}`)
+
+  const lineup = new Map<string, string>()
+  for (const driver of drivers ?? []) {
+    if (driver.name_acronym && driver.team_name) {
+      lineup.set(driver.name_acronym, driver.team_name)
+    }
+  }
+  return lineup
 }
 
 // ============================================================

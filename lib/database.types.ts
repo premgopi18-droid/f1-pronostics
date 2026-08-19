@@ -760,6 +760,51 @@ export type Database = {
           },
         ]
       }
+      gp_lineups: {
+        Row: {
+          detected_at: string
+          driver_id: string
+          gp_id: string
+          id: string
+          notified_at: string | null
+          season: number
+          team_name: string
+        }
+        Insert: {
+          detected_at?: string
+          driver_id: string
+          gp_id: string
+          id?: string
+          notified_at?: string | null
+          season: number
+          team_name: string
+        }
+        Update: {
+          detected_at?: string
+          driver_id?: string
+          gp_id?: string
+          id?: string
+          notified_at?: string | null
+          season?: number
+          team_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp_lineups_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gp_lineups_gp_id_fkey"
+            columns: ["gp_id"]
+            isOneToOne: false
+            referencedRelation: "grands_prix"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       starting_grids: {
         Row: {
           created_at: string

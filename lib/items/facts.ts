@@ -185,8 +185,7 @@ export function buildGPFacts(
       }
 
       case 'dnf_prediction':
-      case 'underdog_top5':
-      case 'no_points_team': {
+      case 'underdog_top5': {
         const gain = item.pointsDeltaActor ?? 0
         facts.push({
           key: baseKey, emoji,
@@ -197,6 +196,25 @@ export function buildGPFacts(
           chain: [gain > 0
             ? t('gpResults.chainBonusApplied', { pts: gain })
             : t('gpResults.chainBonusNoEffect')],
+        })
+        break
+      }
+
+      // Comme les deux bonus ci-dessus, mais la chaîne nomme l'écurie visée :
+      // depuis #205 le verdict repose sur le duo réellement en piste, le joueur
+      // doit voir sur QUELLE écurie l'item a été évalué.
+      case 'no_points_team': {
+        const gain = item.pointsDeltaActor ?? 0
+        const constructorCode = (item.payload.constructor_code as string | undefined) ?? '?'
+        facts.push({
+          key: baseKey, emoji,
+          actorPseudo: actor.pseudo, actorColor: actor.color,
+          verb: t('gpResults.factPlays'), object: itemName('no_points_team'),
+          deltaText: gain > 0 ? formatSignedDelta(gain) : undefined,
+          deltaKind: gain > 0 ? 'pos' : 'nil',
+          chain: [gain > 0
+            ? t('gpResults.chainNoPointsTeamApplied', { constructor: constructorCode, pts: gain })
+            : t('gpResults.chainNoPointsTeamNoEffect', { constructor: constructorCode })],
         })
         break
       }

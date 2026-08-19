@@ -4,7 +4,7 @@ import { headers } from 'next/headers'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
-import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
+import { getCachedDrivers, getCachedConstructors, getCachedLatestRaceConstructorCodes } from '@/lib/f1/cached'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import { t } from '@/lib/i18n'
 import { PredictionTabs, type SessionData } from './prediction-tabs'
@@ -27,7 +27,7 @@ export default async function PredictPage({
   const season     = getCurrentSeason()
   const userId     = (await headers()).get('x-user-id')!
 
-  const [{ data: gp }, { data: sessions }, driversRaw, constructorsRaw] = await Promise.all([
+  const [{ data: gp }, { data: sessions }, driversRaw, constructorsRaw, latestRaceConstructorCodes] = await Promise.all([
     supabase
       .from('grands_prix')
       .select('id, name, country, round, circuit')
@@ -43,6 +43,7 @@ export default async function PredictPage({
       .order('starts_at'),
     getCachedDrivers(season),
     getCachedConstructors(season),
+    getCachedLatestRaceConstructorCodes(season),
   ])
 
   if (!gp) notFound()
@@ -120,20 +121,26 @@ export default async function PredictPage({
   const circuitLaps    = lapsRow?.race_laps ?? null
   const circuitTurns   = bacingerId ? getTurnsForCircuit(bacingerId) : null
 
-  const constructorByCode = new Map(
+  const constructorById = new Map(
     constructorsRaw.map((c) => [c.id, { code: c.code, name: c.name }]),
   )
+  const constructorNameByCode = new Map(
+    constructorsRaw.map((c) => [c.code, c.name]),
+  )
 
+  // Écurie affichée = celle de la dernière course disputée (#205, gère les
+  // échanges de baquet) ; fallback : constructor_id saison (pilote sans course).
   const drivers: Driver[] = driversRaw.map((d) => {
-    const constructor = constructorByCode.get(d.constructor_id ?? '') ?? { code: '', name: '' }
+    const seasonConstructor = constructorById.get(d.constructor_id ?? '') ?? { code: '', name: '' }
+    const latestCode = latestRaceConstructorCodes[d.code]
     return {
       id:        d.id,
       code:      d.code,
       firstName: d.first_name,
       lastName:  d.last_name,
       number:    d.number,
-      teamCode:  constructor.code,
-      teamName:  constructor.name,
+      teamCode:  latestCode ?? seasonConstructor.code,
+      teamName:  latestCode ? (constructorNameByCode.get(latestCode) ?? seasonConstructor.name) : seasonConstructor.name,
     }
   })
 

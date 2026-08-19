@@ -86,11 +86,12 @@ export default async function RecapGPPage({
           .eq('season', season)
           .in('session_id', sessionIds)
       : { data: [] },
-    // Podium officiel (course)
+    // Podium officiel (course) — constructor_code = écurie du pilote CE jour-là
+    // (#205), prioritaire pour la couleur ; fallback mapping saison via le cache.
     raceSession
       ? supabase
           .from('session_results')
-          .select('position, drivers!driver_id(code, constructor_id)')
+          .select('position, constructor_code, drivers!driver_id(code)')
           .eq('session_id', raceSession.id)
           .lte('position', 3)
           .order('position')
@@ -143,7 +144,8 @@ export default async function RecapGPPage({
   const podium: PodiumEntry[] = (podiumRows ?? []).map((row) => {
     const driver = row.drivers
     const code   = driver?.code ?? '?'
-    return { code, color: teamColorByDriverCode.get(code) ?? '#52525b' }
+    const dayOfRaceColor = row.constructor_code ? TEAM_COLORS[row.constructor_code] : undefined
+    return { code, color: dayOfRaceColor ?? teamColorByDriverCode.get(code) ?? '#52525b' }
   })
 
   // ── Mes scores par session (agrégé sur la 1ère ligue disponible — base_score identique) ──

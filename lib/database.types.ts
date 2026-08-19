@@ -949,6 +949,12 @@ export type Database = {
         Args: { check_league_id: string }
         Returns: boolean
       }
+      mark_items_resolved: {
+        Args: {
+          p_items: Json
+        }
+        Returns: undefined
+      }
       play_item: {
         Args: {
           p_gp_id: string

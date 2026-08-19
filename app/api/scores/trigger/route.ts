@@ -192,10 +192,14 @@ async function handler(request: Request): Promise<Response> {
 
         applyItemEffects(items, currentScores, ctx)
 
-        await Promise.all([
-          updateFinalScores(gp.id, leagueId, currentScores),
-          markItemsResolved(items),
-        ])
+        // Marquer les items AVANT d'écrire les scores (#206), et en un seul
+        // UPDATE transactionnel (RPC) : si l'écriture des scores échoue ensuite,
+        // le run suivant ne peut jamais ré-appliquer un effet déjà compté —
+        // au pire des effets perdus pour la ligue (faux négatif visible dans
+        // les logs), jamais un double comptage silencieux. Ordre inverse du
+        // patron « claim avant envoi » des notifs, pour la même raison.
+        await markItemsResolved(items)
+        await updateFinalScores(gp.id, leagueId, currentScores)
 
         // Identifier les utilisateurs ciblés par des items offensifs
         for (const item of items) {

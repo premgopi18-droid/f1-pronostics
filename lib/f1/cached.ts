@@ -44,12 +44,17 @@ export const getCachedConstructors = unstable_cache(
 export const getCachedLatestRaceConstructorCodes = unstable_cache(
   async (season: number): Promise<Record<string, string>> => {
     const db = createServiceClient()
-    const { data } = await db
+    const { data, error } = await db
       .from('session_results')
       .select('constructor_code, drivers!driver_id(code), sessions!session_id!inner(type, starts_at)')
       .eq('season', season)
       .not('constructor_code', 'is', null)
       .in('sessions.type', ['race', 'sprint_race'])
+
+    // Erreur loguée (pas levée) : une map vide fait retomber tous les appelants
+    // sur constructor_id — dégradation acceptable, mais qui doit rester visible
+    // dans les logs, sinon la feature s'éteindrait sans aucune trace.
+    if (error) console.error('getCachedLatestRaceConstructorCodes', error)
 
     const latestByCode: Record<string, string> = {}
     const latestStartsAt = new Map<string, number>()

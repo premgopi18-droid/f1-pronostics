@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fetchPracticeResults, fetchSprintQualifyingResults, fetchStartingGrid } from './openf1'
+import { fetchPracticeResults, fetchSprintQualifyingResults, fetchStartingGrid, fetchSessionLineup } from './openf1'
 
 // Les dates 2025 sont dans le passé (now = 2026) → sessions « terminées » par
 // défaut, sauf test dédié où l'on place date_end dans le futur.
@@ -27,7 +27,7 @@ describe('openf1 — sélection de session par date', () => {
   // session (bug de la PR #202).
   function mockOpenF1(payloads: {
     sessions?:  SessionFixture[]
-    drivers?:   { driver_number: number; name_acronym: string; session_key: number }[]
+    drivers?:   { driver_number: number; name_acronym: string; session_key: number; team_name?: string | null }[]
     laps?:      { driver_number: number; lap_duration: number | null; date_start: string | null }[]
     positions?: { driver_number: number; position: number; date: string }[]
     grid?:      { driver_number: number; position: number | null }[]
@@ -292,6 +292,60 @@ describe('openf1 — sélection de session par date', () => {
 
       const grid = await fetchStartingGrid(2025, 'Qualifying', '2025-05-30T14:00:00Z')
       expect(grid.get('VER')).toBe(1)
+    })
+  })
+
+  describe('fetchSessionLineup', () => {
+    it('mappe code pilote → team_name OpenF1 brut, et ignore les pilotes sans écurie', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 400, session_name: 'Practice 1', year: 2026,
+            circuit_short_name: 'Zandvoort', date_start: '2026-08-21T10:30:00+00:00', date_end: '2026-08-21T11:30:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 1,  name_acronym: 'VER', session_key: 400, team_name: 'Red Bull Racing' },
+          { driver_number: 30, name_acronym: 'LAW', session_key: 400, team_name: 'Red Bull Racing' },
+          { driver_number: 22, name_acronym: 'TSU', session_key: 400, team_name: 'Racing Bulls' },
+          { driver_number: 99, name_acronym: 'XXX', session_key: 400, team_name: null }, // sans écurie → exclu
+        ],
+      })
+
+      const lineup = await fetchSessionLineup(2026, 'Practice 1', '2026-08-21T10:30:00Z')
+
+      expect(lineup.get('VER')).toBe('Red Bull Racing')
+      expect(lineup.get('LAW')).toBe('Red Bull Racing')
+      expect(lineup.get('TSU')).toBe('Racing Bulls')
+      expect(lineup.size).toBe(3)
+    })
+
+    // La détection doit fonctionner AVANT la fin de la séance (le vendredi
+    // matin pendant les EL1) : contrairement aux résultats, pas de gate
+    // isSessionFinished — une date_end future ne bloque pas.
+    it('fonctionne pendant une session en cours (pas de gate de fin de session)', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 410, session_name: 'Practice 1', year: 2099,
+            circuit_short_name: 'Zandvoort', date_start: '2099-08-21T10:30:00+00:00', date_end: '2099-08-21T11:30:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 1, name_acronym: 'VER', session_key: 410, team_name: 'Red Bull Racing' },
+        ],
+      })
+
+      const lineup = await fetchSessionLineup(2099, 'Practice 1', '2099-08-21T10:30:00Z')
+      expect(lineup.get('VER')).toBe('Red Bull Racing')
+    })
+
+    it('renvoie une Map vide si aucune session ne tombe dans la fenêtre de 2 jours', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 400, session_name: 'Practice 1', year: 2026,
+            circuit_short_name: 'Zandvoort', date_start: '2026-08-21T10:30:00+00:00', date_end: '2026-08-21T11:30:00+00:00' },
+        ],
+      })
+
+      const lineup = await fetchSessionLineup(2026, 'Practice 1', '2026-10-01T10:30:00Z')
+      expect(lineup.size).toBe(0)
     })
   })
 })

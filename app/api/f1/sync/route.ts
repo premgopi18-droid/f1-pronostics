@@ -10,10 +10,12 @@ import {
   fetchRaceLaps,
   fetchSprintRaceResults,
 } from '@/lib/f1/jolpica'
-import { fetchSprintQualifyingResults, fetchPracticeResults, fetchStartingGrid } from '@/lib/f1/openf1'
+import { fetchSprintQualifyingResults, fetchPracticeResults, fetchStartingGrid, fetchSessionLineup } from '@/lib/f1/openf1'
 import type { GridSessionName } from '@/lib/f1/openf1'
 import { GRID_SOURCE_SESSION_TYPE, type GridTargetSessionType } from '@/lib/f1/grid'
 import { upsertStartingGrid } from '@/lib/data/starting-grids'
+import { upsertGPLineup, getPreviousGPLineup, claimLineupChangeNotifications } from '@/lib/data/gp-lineups'
+import { diffLineup, formatLineupChangeBody } from '@/lib/data/lineup-changes'
 import {
   confirmSessionResults,
   upsertConstructors,
@@ -46,6 +48,22 @@ const GRID_TARGET_TYPES: readonly GridTargetSessionType[] = ['race', 'sprint_rac
 const GRID_OPENF1_SESSION: Record<GridTargetSessionType, GridSessionName> = {
   race:        'Qualifying',
   sprint_race: 'Sprint Qualifying',
+}
+
+// Détection de line-up (#205) : GPs dont la course part dans moins de 5 jours
+// (= week-end en cours ou imminent), et seules les sessions démarrant dans
+// moins de 24 h sont interrogées côté OpenF1 (/drivers n'apparaît qu'autour du
+// début de séance — inutile d'appeler pour une session encore lointaine).
+const LINEUP_RACE_WINDOW_MS      = 5 * 24 * 60 * 60 * 1000
+const LINEUP_SESSION_HORIZON_MS  = 24 * 60 * 60 * 1000
+const LINEUP_OPENF1_SESSION_NAME: Record<DbSessionType, string> = {
+  practice_1:        'Practice 1',
+  practice_2:        'Practice 2',
+  practice_3:        'Practice 3',
+  sprint_qualifying: 'Sprint Qualifying',
+  sprint_race:       'Sprint',
+  qualifying:        'Qualifying',
+  race:              'Race',
 }
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
@@ -223,9 +241,94 @@ async function handler(request: Request): Promise<Response> {
       console.error('[api/f1/sync] phase grilles de départ', error)
     }
 
-    // ── Notifications "pronostics ouverts" (48 h avant le week-end) ──────────
-    // Guard VAPID : markGPNotifiedOpen brûlerait le flag de dédup sans push réel.
+    // Guard VAPID commun aux notifications : les marks/claims brûleraient les
+    // flags de dédup sans push réel.
     const pushReady = isPushConfigured()
+
+    // ── Phase 5 : line-ups + notif « changement de line-up » (#205) ─────────
+    // Un pilote qui roule pour une autre écurie que lors du GP précédent
+    // (échange de baquet, réserviste) déclenche un push agrégé AVANT la course,
+    // pendant que pronos et items sont encore jouables. Détection : /drivers
+    // OpenF1 de la première session du week-end déjà disponible (EL1 dès le
+    // vendredi), diffé contre le line-up du GP précédent — même source des
+    // deux côtés, les libellés d'écurie OpenF1 ne matchant ni nos codes ni les
+    // noms Jolpica. Dédup par claim atomique par pilote (gp_lineups.notified_at) :
+    // un 2ᵉ remplacement le dimanche matin renotifie. Le line-up est upserté
+    // même sans VAPID (baseline du GP suivant). Phase entièrement isolée.
+    let lineupNotifs = 0
+    try {
+      const raceWindowEnd = new Date(Date.now() + LINEUP_RACE_WINDOW_MS).toISOString()
+      const { data: upcomingRaces, error: upcomingRacesError } = await supabase
+        .from('sessions')
+        .select('gp_id, grands_prix!gp_id(id, name, season, round, is_cancelled)')
+        .eq('type', 'race')
+        .gt('starts_at', now)
+        .lte('starts_at', raceWindowEnd)
+
+      if (upcomingRacesError) throw upcomingRacesError
+
+      for (const raceRow of upcomingRaces ?? []) {
+        const gp = raceRow.grands_prix
+        if (!gp || gp.is_cancelled) continue
+
+        // Isolation par GP (même politique que les grilles) : la notif line-up
+        // est un confort, un échec ne doit pas avorter la sync ni les notifs.
+        try {
+          // Sessions du GP en ordre chronologique : première assez proche pour
+          // exister côté OpenF1, premier line-up non vide retenu.
+          const { data: gpSessions, error: gpSessionsError } = await supabase
+            .from('sessions')
+            .select('type, starts_at')
+            .eq('gp_id', gp.id)
+            .order('starts_at', { ascending: true })
+
+          if (gpSessionsError) throw gpSessionsError
+
+          let lineup = new Map<string, string>()
+          for (const session of gpSessions ?? []) {
+            if (new Date(session.starts_at).getTime() > Date.now() + LINEUP_SESSION_HORIZON_MS) break
+            lineup = await fetchSessionLineup(
+              gp.season,
+              LINEUP_OPENF1_SESSION_NAME[session.type as DbSessionType],
+              session.starts_at,
+            )
+            if (lineup.size > 0) break
+          }
+          if (lineup.size === 0) continue
+
+          await upsertGPLineup(gp.id, gp.season, lineup)
+          if (!pushReady) continue
+
+          const previousLineup = await getPreviousGPLineup(gp.season, gp.round)
+          const changes = diffLineup(previousLineup, lineup)
+          if (changes.length === 0) continue
+
+          const claimed = await claimLineupChangeNotifications(
+            gp.id,
+            gp.season,
+            changes.map((change) => change.driverCode),
+          )
+          if (claimed.length === 0) continue
+
+          const teamByCode = new Map(changes.map((change) => [change.driverCode, change.to]))
+          await sendPushToAll({
+            title: `🔄 ${gp.name} — changement de line-up`,
+            body:  formatLineupChangeBody(claimed.map((driver) => ({
+              displayName: driver.lastName,
+              teamName:    teamByCode.get(driver.code)!,
+            }))),
+            url:   `/predictions/${gp.id}`,
+          })
+          lineupNotifs++
+        } catch (error) {
+          console.error('[api/f1/sync] line-up GP', gp.id, error)
+        }
+      }
+    } catch (error) {
+      console.error('[api/f1/sync] phase line-ups', error)
+    }
+
+    // ── Notifications "pronostics ouverts" (48 h avant le week-end) ──────────
     const gpsToNotify = pushReady ? await getGPsNeedingOpenNotification(season) : []
     for (const gp of gpsToNotify) {
       await sendPushToAll({
@@ -273,6 +376,7 @@ async function handler(request: Request): Promise<Response> {
         gps: calendar.length,
         sessionsConfirmed,
         gridsSynced,
+        lineupNotifs,
         notified: gpsToNotify.length,
         qualReminders: qualReminderGPs.length,
         imminenceNotifs: imminenceSessions.length,

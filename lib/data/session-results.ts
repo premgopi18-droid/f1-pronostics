@@ -9,7 +9,7 @@ export async function getResultsForSession(
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('session_results')
-    .select('position, dnf, fastest_lap, drivers!driver_id(code)')
+    .select('position, dnf, fastest_lap, constructor_code, drivers!driver_id(code)')
     .eq('session_id', sessionId)
 
   if (error) throw error
@@ -19,16 +19,20 @@ export async function getResultsForSession(
     const driver = row.drivers
     if (driver) {
       result.set(driver.code, {
-        position:   row.position,
-        fastestLap: row.fastest_lap,
-        dnf:        row.dnf,
+        position:        row.position,
+        fastestLap:      row.fastest_lap,
+        dnf:             row.dnf,
+        constructorCode: row.constructor_code,
       })
     }
   }
   return result
 }
 
-// constructorCode → [driverCode, driverCode] — utilisé pour no_points_team
+// constructorCode → [driverCode, driverCode] — mapping SAISON (drivers.constructor_id).
+// Fallback pour les sessions sans constructor_code (antérieures à #205) ; inexact en
+// cas de changement d'écurie en cours de saison — préférer buildConstructorDrivers
+// (lib/scoring/resolve-items.ts) sur les résultats de la course quand ils sont renseignés.
 export async function getConstructorDriversMap(
   season: number,
 ): Promise<Map<string, string[]>> {
@@ -75,14 +79,15 @@ export async function upsertSessionResults(
   const rows = Array.from(results.entries())
     .filter(([code]) => codeToId.has(code))
     .map(([code, result]) => ({
-      session_id:    sessionId,
+      session_id:       sessionId,
       season,
-      driver_id:     codeToId.get(code)!,
-      position:      result.position,
-      dnf:           result.dnf ?? false,
-      dns:           result.dns ?? false,
-      fastest_lap:   result.fastestLap,
-      best_lap_time: result.bestLapTime ?? null,
+      driver_id:        codeToId.get(code)!,
+      position:         result.position,
+      dnf:              result.dnf ?? false,
+      dns:              result.dns ?? false,
+      fastest_lap:      result.fastestLap,
+      best_lap_time:    result.bestLapTime ?? null,
+      constructor_code: result.constructorCode ?? null,
     }))
 
   const { error } = await supabase

@@ -111,7 +111,10 @@ Seuls les résultats officiels Jolpica sont stockés — pas de flag `is_officia
 | driver_id | UUID FK → drivers | |
 | position | INTEGER | null si DNF |
 | dnf | BOOLEAN | défaut false |
+| dns | BOOLEAN | défaut false |
 | fastest_lap | BOOLEAN | défaut false |
+| best_lap_time | TEXT | null — meilleur tour (essais) |
+| constructor_code | TEXT | null — écurie du pilote pour CETTE session (résultats Jolpica, ex. `RED_BULL`). Fiable en cas de remplacement/échange de baquet (#205). Null pour les sessions OpenF1 (sprint qualif, essais) |
 | created_at | TIMESTAMPTZ | |
 
 **Contrainte :** UNIQUE (session_id, driver_id)

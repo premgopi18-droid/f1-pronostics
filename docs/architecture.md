@@ -149,7 +149,7 @@ export type ItemPayload =
 
 export type GPItemType = Exclude<ItemPayload['type'], 'wdc_move' | 'wcc_move'>
 
-export type DriverResult = { position: number | null; fastestLap: boolean }
+export type DriverResult = { position: number | null; fastestLap: boolean; dnf?: boolean; dns?: boolean; bestLapTime?: string | null; constructorCode?: string | null }
 export type ScoreKey = `${string}:${string}`  // `${userId}:${sessionType}`
 
 export interface SessionScore {

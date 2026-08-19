@@ -22,7 +22,7 @@ import {
   markGPNotifiedScores,
 } from '@/lib/data/f1-sync'
 import { computeSessionBaseScore } from '@/lib/scoring/base-score'
-import { applyItemEffects } from '@/lib/scoring/resolve-items'
+import { applyItemEffects, buildConstructorDrivers } from '@/lib/scoring/resolve-items'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import { isPushConfigured, sendPushToAll, sendPushToUser } from '@/lib/push/send'
 import type { ResolutionContext } from '@/lib/scoring/types'
@@ -156,10 +156,19 @@ async function handler(request: Request): Promise<Response> {
 
       if (!raceSessionId || !qualSessionId) continue
 
-      const [raceResults, qualResults, constructorDrivers] = await Promise.all([
+      const [raceResults, qualResults, seasonConstructorDrivers] = await Promise.all([
         getResultsForSession(raceSessionId),
         getResultsForSession(qualSessionId),
         getConstructorDriversMap(gp.season),
+      ])
+
+      // Duo réel de la course (#205) superposé au mapping saison : la course fait
+      // foi (remplacements, échanges de baquet), le mapping saison comble les écuries
+      // absentes des résultats (constructor_code manquant — lignes antérieures à la
+      // migration, ou Constructor omis par Jolpica sur une course).
+      const constructorDrivers = new Map([
+        ...seasonConstructorDrivers,
+        ...buildConstructorDrivers(raceResults),
       ])
 
       // Collecter les utilisateurs ciblés par des items offensifs (toutes ligues)

@@ -291,6 +291,21 @@ describe('mapRaceResult', () => {
     expect(withFl.fastestLap).toBe(true)
     expect(withoutFl.fastestLap).toBe(false)
   })
+
+  // #205 — l'écurie de CETTE course est portée par chaque ligne de résultat Jolpica,
+  // normalisée avec la même règle que fetchConstructors ("red_bull" → "RED_BULL").
+  it('normalise Constructor.constructorId en constructorCode', () => {
+    const [, result] = mapRaceResult({
+      ...makeResult('LAW', '9', '9'),
+      Constructor: { constructorId: 'red_bull', name: 'Red Bull' },
+    })
+    expect(result.constructorCode).toBe('RED_BULL')
+  })
+
+  it('constructorCode null si Jolpica omet Constructor', () => {
+    const [, result] = mapRaceResult(makeResult('VER', '1', '1'))
+    expect(result.constructorCode).toBeNull()
+  })
 })
 
 describe('fetchRaceLaps', () => {

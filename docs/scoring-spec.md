@@ -46,6 +46,7 @@ Bonus fastest lap (`race` uniquement) : **+7 pts** si le pilote prédit dans `fa
 
 ```typescript
 // Type unifié — une seule Map couvre les deux fonctions ci-dessous
+// (champs annexes omis ici : dnf, dns, bestLapTime, constructorCode — cf. lib/scoring/types.ts)
 type DriverResult = { position: number | null; fastestLap: boolean }
 
 const SCORE_TABLES = {
@@ -226,7 +227,7 @@ for (const dbl of activeItems('double_points')) {
 |---|---|---|
 | `dnf_prediction` | `payload.driver_code` a `dnf = true` dans `session_results` de la course. DNS (pilote qui n'a pas pris le départ) = item wasted (`effect_applied = false`) | +8 pts |
 | `underdog_top5` | `qualifying.position > 10` ET `race.position ≤ 5`. Si le pilote n'a pas de position en qualif (DNS qualif, pit lane start) → considéré hors top 10 par défaut. Nécessite les résultats des deux sessions | +8 pts |
-| `no_points_team` | Aucun des 2 pilotes du `payload.constructor_code` n'a `race.position ≤ 10` (DNF, DNS et positions > 10 tous comptent comme "sans points") | +12 pts |
+| `no_points_team` | Aucun des 2 pilotes du `payload.constructor_code` n'a `race.position ≤ 10` (DNF, DNS et positions > 10 tous comptent comme "sans points"). Le duo évalué est celui **réellement en piste ce jour-là** (`session_results.constructor_code`, #205 — fiable en cas de remplacement/échange de baquet), avec fallback sur le mapping saison pour les courses antérieures. Écurie introuvable dans la map (code invalide) → item **sans effet**, jamais de bonus par défaut | +12 pts |
 
 ```typescript
 for (const bonus of activeItems(['dnf_prediction', 'underdog_top5', 'no_points_team'])) {

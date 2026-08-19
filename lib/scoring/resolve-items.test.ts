@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyItemEffects, resolveWildCards } from './resolve-items'
+import { applyItemEffects, buildConstructorDrivers, resolveWildCards } from './resolve-items'
 import type { BreakdownEntry, DriverResult, ItemPayload, PlayedItem, ResolutionContext, ScoreKey, SessionScore } from './types'
 
 type WildCardPayload = Extract<ItemPayload, { type: 'wild_card' }>
@@ -380,6 +380,94 @@ describe('No points team', () => {
 
     expect(scores.get('alice:race')!.finalScore).toBe(10)
     expect(items[0].effectApplied).toBe(false)
+  })
+
+  // #205 — écurie absente de la map : condition invérifiable → jamais de bonus par
+  // défaut (l'ancien comportement offrait +12 sur un code invalide).
+  it('pas de bonus si l\'écurie est introuvable dans la map', () => {
+    const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(10)]])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'no_points_team', constructorCode: 'SCUDERIA_TOTO' } }),
+    ]
+
+    applyItemEffects(items, scores, { ...emptyCtx, constructorDrivers: new Map() })
+
+    expect(scores.get('alice:race')!.finalScore).toBe(10)
+    expect(items[0].effectApplied).toBe(false)
+    expect(items[0].pointsDeltaActor).toBe(0)
+  })
+
+  // #205 — un pilote listé dans le duo mais absent des résultats (forfait) compte
+  // comme « sans points » : seul le coéquipier présent peut invalider le bonus.
+  it('pilote du duo absent des résultats = sans points', () => {
+    const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(10)]])
+    const raceResults = new Map<string, DriverResult>([
+      ['VER', { position: 12, fastestLap: false }],
+      // HAD forfait : aucune ligne de résultat
+    ])
+    const constructorDrivers = new Map([['RED_BULL', ['VER', 'HAD']]])
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'no_points_team', constructorCode: 'RED_BULL' } }),
+    ]
+
+    applyItemEffects(items, scores, { ...emptyCtx, raceResults, constructorDrivers })
+
+    expect(scores.get('alice:race')!.finalScore).toBe(22)
+    expect(items[0].effectApplied).toBe(true)
+  })
+
+  // #205 — scénario échange de baquet : le duo vient des résultats de LA course
+  // (buildConstructorDrivers), pas du line-up nominal. Lawson (remplaçant) score
+  // pour Red Bull → pas de bonus, même si Hadjar (titulaire absent) n'a pas couru.
+  it('échange de baquet : évalué sur le duo réellement en piste', () => {
+    const scores = new Map<ScoreKey, SessionScore>([['alice:race', makeScore(10)]])
+    const raceResults = new Map<string, DriverResult>([
+      ['VER', { position: 11, fastestLap: false, constructorCode: 'RED_BULL' }],
+      ['LAW', { position: 8,  fastestLap: false, constructorCode: 'RED_BULL' }],
+      ['TSU', { position: 13, fastestLap: false, constructorCode: 'RB' }],
+    ])
+    const constructorDrivers = buildConstructorDrivers(raceResults)
+    const items: PlayedItem[] = [
+      makeItem({ userId: 'alice', payload: { type: 'no_points_team', constructorCode: 'RED_BULL' } }),
+    ]
+
+    applyItemEffects(items, scores, { ...emptyCtx, raceResults, constructorDrivers })
+
+    expect(constructorDrivers.get('RED_BULL')).toEqual(['VER', 'LAW'])
+    expect(scores.get('alice:race')!.finalScore).toBe(10)
+    expect(items[0].effectApplied).toBe(false)
+  })
+})
+
+// ============================================================
+// buildConstructorDrivers (#205) — duo réel depuis les résultats de course
+// ============================================================
+
+describe('buildConstructorDrivers', () => {
+  it('groupe les pilotes par constructorCode', () => {
+    const results = new Map<string, DriverResult>([
+      ['VER', { position: 1,  fastestLap: false, constructorCode: 'RED_BULL' }],
+      ['LAW', { position: 8,  fastestLap: false, constructorCode: 'RED_BULL' }],
+      ['LEC', { position: 2,  fastestLap: false, constructorCode: 'FERRARI' }],
+    ])
+
+    const map = buildConstructorDrivers(results)
+
+    expect(map.get('RED_BULL')).toEqual(['VER', 'LAW'])
+    expect(map.get('FERRARI')).toEqual(['LEC'])
+  })
+
+  it('ignore les résultats sans constructorCode et renvoie une map vide si aucun', () => {
+    const withPartial = buildConstructorDrivers(new Map<string, DriverResult>([
+      ['VER', { position: 1, fastestLap: false, constructorCode: 'RED_BULL' }],
+      ['LEC', { position: 2, fastestLap: false }],
+    ]))
+    expect(withPartial.size).toBe(1)
+
+    const legacy = buildConstructorDrivers(new Map<string, DriverResult>([
+      ['VER', { position: 1, fastestLap: false }],
+    ]))
+    expect(legacy.size).toBe(0)
   })
 })
 

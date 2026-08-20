@@ -173,8 +173,9 @@ async function handler(request: Request): Promise<Response> {
         // leurs lignes ont été écartées, et une session confirmée n'est plus
         // revisitée. On retente au prochain passage (la phase 1 rattrape les
         // pilotes dès que Jolpica les liste), dans la limite de la fenêtre de
-        // grâce. Essais libres uniquement — jamais les sessions scorées.
-        if (shouldDeferSessionConfirmation(unknownDriverCodes, sessionType, startsAt, Date.now())) {
+        // grâce. Essais libres uniquement — jamais les sessions scorées, sauf le
+        // garde-fou absolu « aucune ligne écrite » (cf. session-confirmation.ts).
+        if (shouldDeferSessionConfirmation(unknownDriverCodes, results.size, sessionType, startsAt, Date.now())) {
           sessionsDeferred++
           continue
         }

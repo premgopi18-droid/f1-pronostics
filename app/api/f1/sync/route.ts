@@ -26,6 +26,7 @@ import {
   setRaceLaps,
 } from '@/lib/data/f1-sync'
 import { upsertSessionResults } from '@/lib/data/session-results'
+import { shouldDeferSessionConfirmation } from '@/lib/data/session-confirmation'
 import { createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import {
@@ -123,6 +124,7 @@ async function handler(request: Request): Promise<Response> {
     if (pendingError) throw pendingError
 
     let sessionsConfirmed = 0
+    let sessionsDeferred = 0
     let writeErrors = 0
 
     for (const row of pending ?? []) {
@@ -164,7 +166,19 @@ async function handler(request: Request): Promise<Response> {
       if (!results || results.size === 0) continue
 
       try {
-        await upsertSessionResults(row.id, rowSeason, results)
+        const unknownDriverCodes = await upsertSessionResults(row.id, rowSeason, results)
+
+        // Confirmation différée (#212) : le résultat contient des pilotes encore
+        // absents de `drivers` (remplaçant qu'OpenF1 connaît avant Jolpica) —
+        // leurs lignes ont été écartées, et une session confirmée n'est plus
+        // revisitée. On retente au prochain passage (la phase 1 rattrape les
+        // pilotes dès que Jolpica les liste), dans la limite de la fenêtre de
+        // grâce. Essais libres uniquement — jamais les sessions scorées.
+        if (shouldDeferSessionConfirmation(unknownDriverCodes, sessionType, startsAt, Date.now())) {
+          sessionsDeferred++
+          continue
+        }
+
         await confirmSessionResults(row.id)
         sessionsConfirmed++
       } catch (error) {
@@ -380,6 +394,7 @@ async function handler(request: Request): Promise<Response> {
       {
         gps: calendar.length,
         sessionsConfirmed,
+        sessionsDeferred,
         gridsSynced,
         lineupNotifs,
         notified: gpsToNotify.length,

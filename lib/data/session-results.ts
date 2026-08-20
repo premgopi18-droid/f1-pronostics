@@ -57,11 +57,17 @@ export async function getConstructorDriversMap(
 
 // ── Écriture ──────────────────────────────────────────────────────────────
 
+/**
+ * Retourne les codes pilotes du résultat absents de `drivers` pour la saison :
+ * leurs lignes sont écartées (pas de FK possible). L'appelant décide s'il peut
+ * confirmer la session ou s'il doit différer pour retenter au passage suivant
+ * (#212 — cf. lib/data/session-confirmation.ts).
+ */
 export async function upsertSessionResults(
   sessionId: string,
   season: number,
   results: Map<string, DriverResult>,
-): Promise<void> {
+): Promise<string[]> {
   const supabase = createServiceClient()
 
   // Résolution code → UUID pour les pilotes de cette saison
@@ -75,6 +81,16 @@ export async function upsertSessionResults(
   if (driversError) throw driversError
 
   const codeToId = new Map((drivers ?? []).map((d) => [d.code, d.id]))
+
+  // Remplaçant vu par la source de résultats (OpenF1) mais pas encore listé par
+  // Jolpica : lignes écartées, tracées pour rester observables dans les logs du
+  // cron (même patron que upsertGPLineup).
+  const unknownCodes = codes.filter((code) => !codeToId.has(code))
+  if (unknownCodes.length > 0) {
+    console.warn(
+      `upsertSessionResults : pilotes absents de drivers pour la saison ${season} — ${unknownCodes.join(', ')} (session ${sessionId})`,
+    )
+  }
 
   const rows = Array.from(results.entries())
     .filter(([code]) => codeToId.has(code))
@@ -90,9 +106,13 @@ export async function upsertSessionResults(
       constructor_code: result.constructorCode ?? null,
     }))
 
-  const { error } = await supabase
-    .from('session_results')
-    .upsert(rows, { onConflict: 'session_id,driver_id' })
+  if (rows.length > 0) {
+    const { error } = await supabase
+      .from('session_results')
+      .upsert(rows, { onConflict: 'session_id,driver_id' })
 
-  if (error) throw error
+    if (error) throw error
+  }
+
+  return unknownCodes
 }

@@ -9,6 +9,7 @@ import { t } from '@/lib/i18n'
 import { getCountryCode } from '@/lib/f1/country-codes'
 import { findUpcomingGp, findCurrentOrLastGp, findCurrentItemsGp, getLastFinalizedGps } from '@/lib/leagues/league-detail'
 import { LeaderboardRealtime } from './leaderboard-realtime'
+import { ReadinessSection } from './readiness-section'
 import { buildStandings } from '@/lib/leagues/standings'
 import { ItemBubble } from '@/app/components/item-bubble'
 import { GP_ITEM_TYPES, type GpItemType } from '@/lib/leagues/league-list'
@@ -65,7 +66,7 @@ export default async function LeaguePage({
       .eq('season', season),
     supabase
       .from('grands_prix')
-      .select('id, name, country, round, scoring_finalized_at, weekend_starts_at')
+      .select('id, name, country, circuit, round, is_sprint_weekend, scoring_finalized_at, weekend_starts_at')
       .eq('season', season)
       .eq('is_cancelled', false)
       .order('round', { ascending: false }),
@@ -146,6 +147,10 @@ export default async function LeaguePage({
   // ≠ upcomingGp) : reste le GP en cours pendant tout son week-end, jusqu'à finalisation.
   const itemsGp = findCurrentItemsGp(gpList as Parameters<typeof findCurrentItemsGp>[0])
 
+  // GP du bloc « Qui est prêt ? » — même définition (GP en cours ou à venir).
+  // Relu depuis gpList : le helper renvoie un GrandPrixSummary sans circuit/sprint.
+  const readinessGp = itemsGp ? (gpList.find((gp) => gp.id === itemsGp.id) ?? null) : null
+
   // --- Deadline ---
   const upcomingGp = findUpcomingGp(gpList as Parameters<typeof findUpcomingGp>[0], now)
   const qualifying = (nextQualifying ?? [])[0]
@@ -203,6 +208,28 @@ export default async function LeaguePage({
           season={season}
           currentUserId={userId}
         />
+
+        {/* Qui est prêt ? — pastilles de soumission pour le GP en cours / à venir */}
+        {readinessGp && (
+          <ReadinessSection
+            gp={{
+              id: readinessGp.id,
+              name: readinessGp.name,
+              country: readinessGp.country,
+              circuit: readinessGp.circuit,
+              isSprintWeekend: readinessGp.is_sprint_weekend,
+              weekendStartsAt: readinessGp.weekend_starts_at,
+            }}
+            members={initialStandings.map((standing) => ({
+              userId: standing.user_id,
+              pseudo: standing.profile.pseudo,
+              avatarKey: standing.profile.avatarKey,
+              avatarUrl: standing.profile.avatarUrl,
+            }))}
+            currentUserId={userId}
+            nowMs={now.getTime()}
+          />
+        )}
 
         {/* Mes items disponibles */}
         <section aria-labelledby="items-heading">

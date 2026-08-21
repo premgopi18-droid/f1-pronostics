@@ -231,6 +231,14 @@ body {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 0.9; }
 }
+/* Feu « manquant » du bloc Qui est prêt ? — halo rouge qui pulse doucement.
+   color-mix depuis le token destructive : aucun rouge en dur, suit les thèmes.
+   Coupé par les règles reduced-motion ci-dessous : l'état 0% (halo statique)
+   reste visible, l'information ne repose pas sur l'animation. */
+@keyframes bx-light-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--destructive) 55%, transparent); }
+  50% { box-shadow: 0 0 10px 3px color-mix(in srgb, var(--destructive) 85%, transparent); }
+}
 /* Tracé de circuit qui se dessine au chargement (stroke-dashoffset). Le path pose
    pathLength=1 + stroke-dasharray:1 : l'état de base (offset:0) est le tracé complet
    visible → si l'animation est coupée (reduced-motion), le circuit reste affiché. */

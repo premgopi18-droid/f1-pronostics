@@ -303,8 +303,11 @@ function RaceForm({
 
   // Liste saison > partants (échange de baquet) : la course se classe à
   // exactement `expectedCount`, le surplus vit dans une section « non classés ».
+  // `canExchange` couvre aussi le cas défensif où des non-classés existent sans
+  // surplus (#229) — l'échange doit toujours être possible dès qu'il y a un banc.
   const unranked      = drivers.filter((d) => !selected.includes(d.code))
   const hasSpares     = drivers.length > expectedCount
+  const canExchange   = hasSpares || unranked.length > 0
   const isComplete    = selected.length === expectedCount
   const absentsRanked = rankedAbsentNames(selected, driverByCode)
 
@@ -384,11 +387,11 @@ function RaceForm({
       {/* Subtitle (+ compteur quand la liste dépasse le nombre de partants) */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-text-secondary">
-          {hasSpares
+          {canExchange
             ? t(reducedMotion ? 'predict.courseSubtitleCappedA11y' : 'predict.courseSubtitleCapped', { count: expectedCount })
             : reducedMotion ? t('predict.courseSubtitleA11y') : t('predict.courseSubtitle')}
         </p>
-        {hasSpares && (
+        {canExchange && (
           <span className={cn('text-xs font-semibold tabular-nums', isComplete ? 'text-success' : 'text-text-secondary')}>
             {selected.length}/{expectedCount}
           </span>
@@ -410,7 +413,7 @@ function RaceForm({
 
       {/* Sortable driver list */}
       <div className="flex flex-col gap-1">
-        {hasSpares && (
+        {canExchange && (
           <p className="px-1 text-2xs font-semibold tracking-widest text-text-secondary">
             {t('predict.ranked')}
           </p>
@@ -471,7 +474,7 @@ function RaceForm({
                         >
                           <GripVertical size={16} aria-hidden="true" />
                         </button>
-                        {hasSpares && (
+                        {canExchange && (
                           <button type="button"
                             onClick={(e) => { e.stopPropagation(); remove(i) }}
                             aria-label={`${t('predict.remove')} ${driver.firstName} ${driver.lastName}`}
@@ -596,7 +599,7 @@ function RaceForm({
         // Le 22/22 strict ne s'impose qu'en surplus de pilotes : à liste courte
         // (< 22, données incomplètes), l'enregistrement partiel reste possible
         // comme avant (le serveur accepte ≤ 22, is_valid seulement à 22).
-        disabled={isPending || (hasSpares && !isComplete)}
+        disabled={isPending || (canExchange && !isComplete)}
         aria-busy={isPending}
       >
         {isPending
@@ -905,7 +908,9 @@ export function PredictionForm({
         <div className="flex items-center justify-between">
           <p className="text-xs text-text-secondary">
             {isRaceMode
-              ? t('predict.courseSubtitle')
+              ? drivers.length > expectedCount
+                ? t('predict.courseSubtitleCapped', { count: expectedCount })
+                : t('predict.courseSubtitle')
               : `${t('predict.qualifsSubtitlePre')} ${expectedCount} ${t('predict.qualifsSubtitlePost')}`}
           </p>
           <Badge variant="neutral">{t('predict.locked')}</Badge>

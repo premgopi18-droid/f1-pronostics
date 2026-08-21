@@ -11,11 +11,18 @@ import { createServiceClient } from '@/lib/supabase'
  * notified_at remis à null → il redevient éligible à une notification.
  * Les pilotes disparus du line-up frais sont conservés (ils ont roulé ce
  * week-end — utile comme baseline du GP suivant), pas de purge.
+ *
+ * `fromTrustedSession` (#211) : le line-up vient d'une session « fiable »
+ * (cf. isLineupSessionTrusted) — les pilotes présents reçoivent observed_at
+ * (une fois, jamais remis à null) : ils ont réellement roulé ce week-end, par
+ * opposition au pré-seed nominal du jeudi. Sert au badge « absent du
+ * week-end ? » et à l'écurie affichée dans la liste de pronos.
  */
 export async function upsertGPLineup(
   gpId: string,
   season: number,
   lineup: Map<string, string>,
+  fromTrustedSession: boolean,
 ): Promise<void> {
   if (lineup.size === 0) return
   const supabase = createServiceClient()
@@ -47,12 +54,13 @@ export async function upsertGPLineup(
   // on renseigne donc la colonne pour toutes les lignes).
   const { data: existing, error: existingError } = await supabase
     .from('gp_lineups')
-    .select('driver_id, team_name, notified_at')
+    .select('driver_id, team_name, notified_at, observed_at')
     .eq('gp_id', gpId)
 
   if (existingError) throw existingError
 
   const existingByDriverId = new Map((existing ?? []).map((row) => [row.driver_id, row]))
+  const observationTime = new Date().toISOString()
 
   const rows = Array.from(lineup.entries())
     .filter(([code]) => codeToId.has(code))
@@ -66,15 +74,20 @@ export async function upsertGPLineup(
         driver_id:   driverId,
         team_name:   teamName,
         notified_at: teamUnchanged ? (previous?.notified_at ?? null) : null,
+        // Posé une seule fois, jamais remis à null : « a été vu en piste ce week-end ».
+        observed_at: previous?.observed_at ?? (fromTrustedSession ? observationTime : null),
       }
     })
 
-  // Rien de neuf (aucun pilote ajouté, aucune écurie modifiée) : pas d'écriture.
-  // La fonction tourne à chaque passage du cron pendant tout le week-end — cet
-  // early-return évite ~20 lignes réécrites à vide toutes les 10 minutes.
+  // Rien de neuf (aucun pilote ajouté, aucune écurie modifiée, aucune première
+  // observation fiable) : pas d'écriture. La fonction tourne à chaque passage
+  // du cron pendant tout le week-end — cet early-return évite ~20 lignes
+  // réécrites à vide toutes les 10 minutes.
   const hasChanges = rows.some((row) => {
     const previous = existingByDriverId.get(row.driver_id)
-    return !previous || previous.team_name !== row.team_name
+    return !previous
+      || previous.team_name !== row.team_name
+      || (previous.observed_at === null && row.observed_at !== null)
   })
   if (!hasChanges) return
 

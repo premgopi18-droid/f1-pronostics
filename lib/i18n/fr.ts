@@ -96,6 +96,7 @@ export const fr = {
   },
   predict: {
     back: "Retour",
+    absentFromWeekend: "Absent du week-end ?",
     noSessions: "Les sessions ne sont pas encore disponibles.",
     noPrediction: "Aucun pronostic soumis",
     emptyClassees: "Ajoute des pilotes ci-dessous",

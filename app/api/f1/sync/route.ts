@@ -15,7 +15,7 @@ import type { GridSessionName } from '@/lib/f1/openf1'
 import { GRID_SOURCE_SESSION_TYPE, type GridTargetSessionType } from '@/lib/f1/grid'
 import { upsertStartingGrid } from '@/lib/data/starting-grids'
 import { upsertGPLineup, getPreviousGPLineup, claimLineupChangeNotifications } from '@/lib/data/gp-lineups'
-import { diffLineup, formatLineupChangeBody, selectLineupSessionCandidates } from '@/lib/data/lineup-changes'
+import { diffLineup, formatLineupChangeBody, selectLineupSessionCandidates, isLineupSessionTrusted } from '@/lib/data/lineup-changes'
 import {
   confirmSessionResults,
   upsertConstructors,
@@ -306,17 +306,21 @@ async function handler(request: Request): Promise<Response> {
           )
 
           let lineup = new Map<string, string>()
+          let lineupFromTrustedSession = false
           for (const session of candidates) {
             lineup = await fetchSessionLineup(
               gp.season,
               LINEUP_OPENF1_SESSION_NAME[session.type as DbSessionType],
               session.startsAt,
             )
-            if (lineup.size > 0) break
+            if (lineup.size > 0) {
+              lineupFromTrustedSession = isLineupSessionTrusted(session.startsAt, Date.now())
+              break
+            }
           }
           if (lineup.size === 0) continue
 
-          await upsertGPLineup(gp.id, gp.season, lineup)
+          await upsertGPLineup(gp.id, gp.season, lineup, lineupFromTrustedSession)
           if (!pushReady) continue
 
           const previousLineup = await getPreviousGPLineup(gp.season, gp.round)

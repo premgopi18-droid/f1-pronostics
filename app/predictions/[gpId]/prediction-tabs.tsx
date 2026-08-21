@@ -5,16 +5,17 @@ import { PredictionForm, type Driver } from './prediction-form'
 import { buildTabLabel, type GridSource } from '@/lib/predictions/helpers'
 import { Badge } from '@/app/ui/badge'
 import { t } from '@/lib/i18n'
+import { SESSION_SHORT_LABEL_KEY } from '@/lib/i18n/session-labels'
 import { cn } from '@/lib/utils'
 import type { SessionType } from '@/lib/scoring/types'
 
 export { buildTabLabel }
 
 const TAB_LABELS: Record<SessionType, string> = {
-  qualifying:        t('predict.tab.qualifying'),
-  race:              t('predict.tab.race'),
-  sprint_qualifying: t('predict.tab.sprint_qualifying'),
-  sprint_race:       t('predict.tab.sprint_race'),
+  qualifying:        t(SESSION_SHORT_LABEL_KEY.qualifying),
+  race:              t(SESSION_SHORT_LABEL_KEY.race),
+  sprint_qualifying: t(SESSION_SHORT_LABEL_KEY.sprint_qualifying),
+  sprint_race:       t(SESSION_SHORT_LABEL_KEY.sprint_race),
 }
 
 export interface SessionData {

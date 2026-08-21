@@ -10,17 +10,12 @@ import {
 } from '@/lib/data/season-predictions'
 import { getCachedDriverStandings, getCachedConstructorStandings } from '@/lib/data/season'
 import { t } from '@/lib/i18n'
+import { formatParis } from '@/lib/dates'
 import { SeasonFormLoader } from './season-form-loader'
 import { SeasonComparison } from './season-comparison'
 
-const PARIS_TZ = 'Europe/Paris'
-
 function formatDeadline(d: Date): string {
-  return new Intl.DateTimeFormat('fr-FR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    timeZone: PARIS_TZ,
-  }).format(d)
+  return formatParis(d, { dateStyle: 'short', timeStyle: 'short' })
 }
 
 export default async function SeasonPage() {

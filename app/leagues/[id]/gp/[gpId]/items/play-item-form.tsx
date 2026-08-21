@@ -9,6 +9,7 @@ import { ALLOWED_SESSIONS, SESSION_TYPES } from '@/app/actions/items-payload'
 import type { ItemAvailability, ItemUnavailableReason } from '@/lib/items/availability'
 import type { SessionType } from '@/lib/scoring/types'
 import { t, type TranslationKey } from '@/lib/i18n'
+import { SESSION_LABEL_KEY } from '@/lib/i18n/session-labels'
 
 interface Driver {
   id:        string
@@ -67,10 +68,10 @@ const unavailableLabel = (reason: ItemUnavailableReason): string =>
   t(`items.unavailable.${reason}` as TranslationKey)
 
 const SESSION_LABELS: Record<SessionType, string> = {
-  qualifying:        'Qualifications',
-  race:              'Course',
-  sprint_qualifying: 'Sprint Qualifying',
-  sprint_race:       'Sprint Race',
+  qualifying:        t(SESSION_LABEL_KEY.qualifying),
+  race:              t(SESSION_LABEL_KEY.race),
+  sprint_qualifying: t(SESSION_LABEL_KEY.sprint_qualifying),
+  sprint_race:       t(SESSION_LABEL_KEY.sprint_race),
 }
 
 type Step = 'choose' | 'configure' | 'confirm'

@@ -6,6 +6,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { t } from '@/lib/i18n'
+import { formatParisWeekdayTime } from '@/lib/dates'
 import { getCountryCode } from '@/lib/f1/country-codes'
 import { findUpcomingGp, findCurrentOrLastGp, findCurrentItemsGp, getLastFinalizedGps } from '@/lib/leagues/league-detail'
 import { LeaderboardRealtime } from './leaderboard-realtime'
@@ -14,14 +15,6 @@ import { buildStandings } from '@/lib/leagues/standings'
 import { ItemBubble } from '@/app/components/item-bubble'
 import { GP_ITEM_TYPES, type GpItemType } from '@/lib/leagues/league-list'
 import type { MemberRow, ScoreRow, SeasonScoreRow, Standing } from '@/lib/leagues/standings'
-
-function formatDeadline(startsAt: string): string {
-  const date = new Date(startsAt)
-  // Fuseau épinglé : rendu côté serveur (UTC sur Vercel) sinon l'heure affichée serait fausse.
-  const day = date.toLocaleDateString('fr-FR', { weekday: 'short', timeZone: 'Europe/Paris' })
-  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
-  return `${day}. ${time}`
-}
 
 export default async function LeaguePage({
   params,
@@ -154,7 +147,7 @@ export default async function LeaguePage({
   // --- Deadline ---
   const upcomingGp = findUpcomingGp(gpList as Parameters<typeof findUpcomingGp>[0], now)
   const qualifying = (nextQualifying ?? [])[0]
-  const deadlineString = qualifying?.starts_at ? formatDeadline(qualifying.starts_at) : null
+  const deadlineString = qualifying?.starts_at ? formatParisWeekdayTime(qualifying.starts_at) : null
 
   return (
     <main className="flex flex-1 flex-col px-page pt-2 pb-6">

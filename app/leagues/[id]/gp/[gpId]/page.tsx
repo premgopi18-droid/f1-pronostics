@@ -4,7 +4,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { t } from '@/lib/i18n'
-import type { TranslationKey } from '@/lib/i18n'
+import { SESSION_SHORT_LABEL_KEY } from '@/lib/i18n/session-labels'
 import { getHelmet, DEFAULT_HELMET } from '@/lib/profile/avatars'
 import { buildGPFacts, countShieldedAttacksByTarget, type PlayerIdentity, type ResolvedItem } from '@/lib/items/facts'
 import { buildMemberItemLines, buildSessionDetail } from '@/lib/scoring/gp-detail'
@@ -259,7 +259,7 @@ export default async function GPScoresPage({
 
   const sessionViews: SessionView[] = orderedConfirmedTypes.map((type) => ({
     type,
-    label: t(`predict.tab.${type}` as TranslationKey),
+    label: t(SESSION_SHORT_LABEL_KEY[type]),
   }))
 
   const hasScores   = (scoreRows ?? []).length > 0

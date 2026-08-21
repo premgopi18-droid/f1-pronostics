@@ -13,26 +13,9 @@ import { Card, CardTitle } from '@/app/ui/card'
 import { Badge } from '@/app/ui/badge'
 import { buttonVariants } from '@/app/ui/button'
 import { cn } from '@/lib/utils'
-import { t, type TranslationKey } from '@/lib/i18n'
-import type { SessionType } from '@/lib/scoring/types'
-
-const PARIS_TZ = 'Europe/Paris'
-
-const SESSION_LABEL: Record<SessionType, TranslationKey> = {
-  qualifying:       'home.session.qualifying',
-  race:             'home.session.race',
-  sprint_qualifying: 'home.session.sprintQualifying',
-  sprint_race:      'home.session.sprint',
-}
-
-function formatDeadline(iso: string): string {
-  return new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: PARIS_TZ,
-  }).format(new Date(iso))
-}
+import { t } from '@/lib/i18n'
+import { SESSION_LABEL_KEY } from '@/lib/i18n/session-labels'
+import { formatParisWeekdayTime } from '@/lib/dates'
 
 export default async function PredictionsPage() {
   const userId = (await headers()).get('x-user-id')
@@ -148,7 +131,7 @@ export default async function PredictionsPage() {
                       className="flex items-center justify-between border-t border-border py-2.5 first:border-t-0"
                     >
                       <span className="text-sm font-medium text-foreground">
-                        {t(SESSION_LABEL[session.type])}
+                        {t(SESSION_LABEL_KEY[session.type])}
                       </span>
                       {status === 'submitted' && (
                         <Badge variant="success">{t('myPronos.sessionSubmitted')}</Badge>
@@ -158,7 +141,7 @@ export default async function PredictionsPage() {
                       )}
                       {status === 'open' && (
                         <Badge variant="warning">
-                          {t('myPronos.sessionOpen')} · {formatDeadline(session.startsAt)}
+                          {t('myPronos.sessionOpen')} · {formatParisWeekdayTime(session.startsAt)}
                         </Badge>
                       )}
                     </li>

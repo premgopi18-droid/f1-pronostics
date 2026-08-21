@@ -1,6 +1,8 @@
 import { UserAvatar } from '@/app/components/user-avatar'
 import { Badge } from '@/app/ui/badge'
 import { t, type TranslationKey } from '@/lib/i18n'
+import { SESSION_SHORT_LABEL_KEY } from '@/lib/i18n/session-labels'
+import { formatParisWeekday } from '@/lib/dates'
 import { getCountryCode } from '@/lib/f1/country-codes'
 import { getGpSubmissionStatus } from '@/lib/data/predictions'
 import {
@@ -8,15 +10,7 @@ import {
   type ReadinessLightState,
   type ReadinessMember,
 } from '@/lib/leagues/readiness'
-import type { SessionType } from '@/lib/scoring/types'
 import { cn } from '@/lib/utils'
-
-const SESSION_LABEL_KEY: Record<SessionType, TranslationKey> = {
-  qualifying: 'predict.tab.qualifying',
-  race: 'predict.tab.race',
-  sprint_qualifying: 'predict.tab.sprint_qualifying',
-  sprint_race: 'predict.tab.sprint_race',
-}
 
 const LIGHT_LABEL_KEY: Record<ReadinessLightState, TranslationKey> = {
   submitted: 'leagueDetail.readinessStateSubmitted',
@@ -32,14 +26,6 @@ const LIGHT_CLASS: Record<ReadinessLightState, string> = {
     'bg-success shadow-[0_0_8px_2px_color-mix(in_srgb,var(--success)_55%,transparent)]',
   missing: 'bg-destructive animate-[bx-light-pulse_2s_ease-in-out_infinite]',
   missed: 'bg-muted',
-}
-
-function formatSessionDay(startsAt: string): string {
-  // Fuseau épinglé : rendu côté serveur (UTC sur Vercel), même raison que la deadline.
-  return new Date(startsAt).toLocaleDateString('fr-FR', {
-    weekday: 'short',
-    timeZone: 'Europe/Paris',
-  })
 }
 
 function ReadinessLight({ state }: { state: ReadinessLightState }) {
@@ -124,10 +110,10 @@ export async function ReadinessSection({
               {sessions.map((session) => (
                 <th key={session.id} scope="col" className="w-11 pb-1.5 align-bottom">
                   <span className="block text-2xs font-semibold leading-tight text-text-secondary">
-                    {t(SESSION_LABEL_KEY[session.type])}
+                    {t(SESSION_SHORT_LABEL_KEY[session.type])}
                   </span>
                   <span className="block text-2xs font-normal lowercase text-text-muted">
-                    {formatSessionDay(session.startsAt)}
+                    {formatParisWeekday(session.startsAt)}
                   </span>
                 </th>
               ))}

@@ -5,19 +5,39 @@
 // Les deux maps comparées viennent de la MÊME source (OpenF1 /drivers) : les
 // libellés d'écurie sont donc directement comparables, sans normalisation.
 
+import type { DbSessionType } from '@/lib/scoring/types'
+
 export interface LineupChange {
   driverCode: string
   from:       string | null   // null = pilote absent du GP précédent (réserviste, retour)
   to:         string
 }
 
+const HOUR_MS = 60 * 60 * 1000
+
 /**
- * Délai après le DÉBUT d'une session au bout duquel son /drivers OpenF1 est
- * réputé refléter les participants réels : durée maximale de séance (~2 h pour
- * une course) + ~1 h de latence de mise à jour constatée après la fin (#214).
- * Avant ce délai, le /drivers peut encore être le pré-seed nominal périmé.
+ * Délai PAR TYPE de session après son DÉBUT au bout duquel son /drivers OpenF1
+ * est réputé refléter les participants réels (#218) : durée maximale réelle de
+ * la séance + latence de bascule OpenF1 (mesurée 30 à 64 min après la fin au
+ * GP Pays-Bas 2026, #214). Avant ce délai, le /drivers peut encore être le
+ * pré-seed nominal périmé.
+ *
+ * - Course : jusqu'à ~3 h d'épreuve (drapeaux rouges, limite règlementaire)
+ *   → H+4. Un H+3 uniforme pouvait déclarer fiable une course encore en cours.
+ * - Autres sessions : durée ≤ ~1 h 30 (qualifs à drapeaux rouges comprises)
+ *   → H+2 h 30, valeur conservatrice. Ne PAS descendre sous ce seuil sans
+ *   avoir calibré la latence de bascule sur plusieurs GP (warnings #215) :
+ *   le tampon observed_at est permanent, la marge doit rester large.
  */
-export const LINEUP_SESSION_TRUST_DELAY_MS = 3 * 60 * 60 * 1000
+export const LINEUP_SESSION_TRUST_DELAY_MS: Record<DbSessionType, number> = {
+  practice_1:        2.5 * HOUR_MS,
+  practice_2:        2.5 * HOUR_MS,
+  practice_3:        2.5 * HOUR_MS,
+  qualifying:        2.5 * HOUR_MS,
+  sprint_qualifying: 2.5 * HOUR_MS,
+  sprint_race:       2.5 * HOUR_MS,
+  race:              4 * HOUR_MS,
+}
 
 /**
  * Sessions candidates à l'interrogation OpenF1. OpenF1 PRÉ-SEEDE les /drivers
@@ -46,11 +66,15 @@ export const LINEUP_SESSION_TRUST_DELAY_MS = 3 * 60 * 60 * 1000
  * distinguer une OBSERVATION fiable du week-end (gp_lineups.observed_at, #211)
  * d'un simple semis de baseline.
  */
-export function isLineupSessionTrusted(sessionStartsAt: string, now: number): boolean {
-  return new Date(sessionStartsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS <= now
+export function isLineupSessionTrusted(
+  sessionType: DbSessionType,
+  sessionStartsAt: string,
+  now: number,
+): boolean {
+  return new Date(sessionStartsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS[sessionType] <= now
 }
 
-export function selectLineupSessionCandidates<T extends { startsAt: string }>(
+export function selectLineupSessionCandidates<T extends { type: DbSessionType; startsAt: string }>(
   sessions: T[],
   now: number,
   horizonMs: number,
@@ -59,7 +83,7 @@ export function selectLineupSessionCandidates<T extends { startsAt: string }>(
     new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime()
 
   const trusted = sessions
-    .filter((session) => new Date(session.startsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS <= now)
+    .filter((session) => isLineupSessionTrusted(session.type, session.startsAt, now))
     .sort(byStartDescending)
   if (trusted.length > 0) return trusted
 

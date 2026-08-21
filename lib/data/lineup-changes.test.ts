@@ -6,12 +6,13 @@ import {
   isLineupSessionTrusted,
   LINEUP_SESSION_TRUST_DELAY_MS,
 } from './lineup-changes'
+import type { DbSessionType } from '@/lib/scoring/types'
 
 describe('selectLineupSessionCandidates', () => {
   const horizon = 24 * 60 * 60 * 1000
 
   // Week-end sprint du GP Pays-Bas 2026 — le cas réel de #214.
-  const weekend = [
+  const weekend: { type: DbSessionType; startsAt: string }[] = [
     { type: 'practice_1',        startsAt: '2026-08-21T10:30:00Z' },  // vendredi
     { type: 'sprint_qualifying', startsAt: '2026-08-21T14:30:00Z' },  // vendredi
     { type: 'sprint_race',       startsAt: '2026-08-22T10:00:00Z' },  // samedi
@@ -49,20 +50,43 @@ describe('selectLineupSessionCandidates', () => {
     const monday = new Date('2026-08-17T09:00:00Z').getTime()
     expect(selectLineupSessionCandidates(weekend, monday, horizon)).toEqual([])
   })
+
+  it('dimanche pendant une course à rallonge : la course démarrée non fiable ne masque pas les qualifs fiables (#218)', () => {
+    // Course partie à 13:00, drapeaux rouges — à 16:30 (H+3h30) un délai
+    // uniforme H+3 l'aurait déclarée fiable alors qu'elle peut encore courir.
+    // Avec H+4 elle reste non fiable : les qualifs de samedi (fiables) font foi.
+    const sundayDuringLongRace = new Date('2026-08-23T16:30:00Z').getTime()
+    expect(selectLineupSessionCandidates(weekend, sundayDuringLongRace, horizon).map((s) => s.type))
+      .toEqual(['qualifying', 'sprint_race', 'sprint_qualifying', 'practice_1'])
+  })
 })
 
 describe('isLineupSessionTrusted', () => {
   const startsAt = '2026-08-21T10:30:00Z' // EL1 du GP Pays-Bas 2026
 
-  it('fiable une fois le délai de confiance écoulé après le DÉBUT (durée de séance + latence de bascule OpenF1)', () => {
-    const atTrustBoundary = new Date(startsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS
-    expect(isLineupSessionTrusted(startsAt, atTrustBoundary)).toBe(true)
-    expect(isLineupSessionTrusted(startsAt, atTrustBoundary - 1)).toBe(false)
+  it('fiable une fois le délai de confiance de SON type écoulé après le DÉBUT', () => {
+    const atTrustBoundary = new Date(startsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS.practice_1
+    expect(isLineupSessionTrusted('practice_1', startsAt, atTrustBoundary)).toBe(true)
+    expect(isLineupSessionTrusted('practice_1', startsAt, atTrustBoundary - 1)).toBe(false)
   })
 
   it('une session en cours ou à peine finie n\'est pas fiable (son /drivers peut être le pré-seed)', () => {
     const duringSession = new Date('2026-08-21T11:00:00Z').getTime()
-    expect(isLineupSessionTrusted(startsAt, duringSession)).toBe(false)
+    expect(isLineupSessionTrusted('practice_1', startsAt, duringSession)).toBe(false)
+  })
+
+  it('la course exige H+4 : une course à drapeaux rouges encore possible à H+3 n\'est pas fiable (#218)', () => {
+    const raceStart = '2026-08-23T13:00:00Z'
+    const threeHoursIn = new Date('2026-08-23T16:00:00Z').getTime()
+    const fourHoursIn  = new Date('2026-08-23T17:00:00Z').getTime()
+    expect(isLineupSessionTrusted('race', raceStart, threeHoursIn)).toBe(false)
+    expect(isLineupSessionTrusted('race', raceStart, fourHoursIn)).toBe(true)
+  })
+
+  it('les sessions courtes basculent fiables dès H+2h30 (badge posé plus tôt le vendredi)', () => {
+    const twoAndAHalfHoursIn = new Date('2026-08-21T13:00:00Z').getTime()
+    expect(isLineupSessionTrusted('practice_1', startsAt, twoAndAHalfHoursIn)).toBe(true)
+    expect(isLineupSessionTrusted('sprint_qualifying', '2026-08-21T14:30:00Z', twoAndAHalfHoursIn)).toBe(false)
   })
 })
 

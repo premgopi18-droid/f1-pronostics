@@ -227,3 +227,61 @@ export async function getCurrentGpSessionStatuses(
     startsAt: s.starts_at,
   }))
 }
+
+/**
+ * Sessions pronosticables d'un GP + qui (parmi `userIds`) a soumis un prono
+ * valide pour chacune — pour le bloc « Qui est prêt ? » de la page ligue
+ * (product-specs §7). Client service role : la RLS interdit de lire les pronos
+ * des co-membres avant le début de session, on n'expose donc QUE des booléens
+ * de soumission, jamais les `entries`. Appelé uniquement depuis la page ligue,
+ * dont l'accès est déjà restreint aux membres.
+ */
+export async function getGpSubmissionStatus(
+  userIds: string[],
+  gpId: string,
+): Promise<{
+  sessions: { id: string; type: SessionType; startsAt: string }[]
+  submittedBySession: Map<string, Set<string>>
+}> {
+  const supabase = createServiceClient()
+
+  const { data: sessionRows, error: sessionsError } = await supabase
+    .from('sessions')
+    .select('id, type, starts_at')
+    .eq('gp_id', gpId)
+    .in('type', SCOREABLE_SESSION_TYPES)
+    .order('starts_at', { ascending: true })
+
+  if (sessionsError) {
+    console.error('[data/predictions] sessions (readiness)', sessionsError)
+    return { sessions: [], submittedBySession: new Map() }
+  }
+
+  const sessions = (sessionRows ?? []).map((s) => ({
+    id: s.id,
+    type: s.type as SessionType,
+    startsAt: s.starts_at,
+  }))
+  const sessionIds = sessions.map((s) => s.id)
+
+  const { data: predictionRows, error: predictionsError } =
+    sessionIds.length && userIds.length
+      ? await supabase
+          .from('predictions')
+          .select('user_id, session_id')
+          .in('user_id', userIds)
+          .in('session_id', sessionIds)
+          .eq('is_valid', true)
+      : { data: [] as { user_id: string; session_id: string }[], error: null }
+
+  if (predictionsError) console.error('[data/predictions] predictions (readiness)', predictionsError)
+
+  const submittedBySession = new Map<string, Set<string>>()
+  for (const row of predictionRows ?? []) {
+    const users = submittedBySession.get(row.session_id) ?? new Set<string>()
+    users.add(row.user_id)
+    submittedBySession.set(row.session_id, users)
+  }
+
+  return { sessions, submittedBySession }
+}

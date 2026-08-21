@@ -302,6 +302,13 @@ export const fr = {
     gpStatusProvisional: "Provisoire",
     gpStatusNext: "Prochain",
     gpStatusUpcoming: "À venir",
+    readinessTitle: "QUI EST PRÊT ?",
+    readinessSprintWeekend: "Week-end sprint",
+    readinessInProgress: "En cours",
+    readinessCaption: "Pronos remplis par membre et par session — le contenu reste caché jusqu'au verrouillage",
+    readinessStateSubmitted: "Envoyé",
+    readinessStateMissing: "Manquant",
+    readinessStateMissed: "Trop tard",
   },
   admin: {
     pageTitle: "Paramètres admin",

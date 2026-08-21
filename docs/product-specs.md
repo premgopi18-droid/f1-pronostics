@@ -663,6 +663,27 @@ Palmarès (vide en v1, structure en place)
 2. Configurer (cible membre si offensif / session / pilote selon l'item)
 3. Récap + confirmation irréversible
 
+### Bloc « Qui est prêt ? » (décision 2026-08-21, maquette validée le même jour)
+
+Sur la **page détail d'une ligue** (une occurrence par ligue — si l'utilisateur a plusieurs ligues, chaque page montre ses propres membres), un bloc récapitulatif montrant qui a rempli ses pronos pour le **GP en cours ou à venir**, sans jamais révéler leur contenu.
+
+**Design validé sur maquette** (canvas « Qui est prêt ? ») :
+- Placement : **juste sous le classement**, dans une card standard (`rounded-2xl border bg-card`), section avec heading uppercase habituel
+- En-tête de card : code pays (font-numeric) + nom du GP + sous-titre circuit/« Week-end sprint » + badge d'état (« En cours » gold-soft)
+- Pastilles façon **rampe de feux F1** : boîtier sombre circulaire (`#0D0D14`, bord `border`) contenant le feu — vert avec halo (glow) = envoyé ; rouge avec **pulse doux** (respecte `prefers-reduced-motion`/`.reduce-motion`) = manquant, encore temps ; éteint (gris sombre, sans halo) = verrouillé sans prono
+- Colonnes : libellés sessions existants (Sprint Qualifs / Sprint / Qualifs / Course) + jour abrégé ; lignes : avatar (UserAvatar 26px) + pseudo (« Toi » pour soi)
+- Légende sous la grille (Envoyé / Manquant / Trop tard), séparée par un trait `border-t`
+
+- **Grille membres × sessions pronosticables** du GP (week-end sprint : qualifs sprint, course sprint, qualifs, course ; sinon qualifs + course)
+- **Pastilles façon feux F1** :
+  - 🟢 vert = prono soumis (valide)
+  - 🔴 rouge = pas de prono et la session n'a pas commencé → actionnable, on peut encore prévenir la personne
+  - ⚫ éteint/gris = session verrouillée sans prono → trop tard, purement informatif
+- Ne montre **que des booléens** (soumis / pas soumis) — jamais les entrées. Implémentation : RPC ou server action (service role) qui renvoie uniquement `membre × session → soumis`, car la RLS actuelle sur `predictions` interdit de lire les pronos des co-membres avant le début de session
+- Le prono fastest lap n'est pas représenté en v1 (une seule pastille par session)
+- La règle « pas de "X membres ont pronostiqué" sur les **cards** de ligue » reste valable — ce bloc vit dans le détail de la ligue
+- **Différé (pas en v1)** : bouton « pinger » un membre en retard (push « X te rappelle de remplir tes pronos »)
+
 ### Tab Mes Pronos
 
 **Structure de la page** (scrollable) :

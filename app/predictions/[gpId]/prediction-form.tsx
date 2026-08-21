@@ -586,7 +586,10 @@ function RaceForm({
       <Button
         size="block"
         onClick={save}
-        disabled={isPending || !isComplete}
+        // Le 22/22 strict ne s'impose qu'en surplus de pilotes : à liste courte
+        // (< 22, données incomplètes), l'enregistrement partiel reste possible
+        // comme avant (le serveur accepte ≤ 22, is_valid seulement à 22).
+        disabled={isPending || (hasSpares && !isComplete)}
         aria-busy={isPending}
       >
         {isPending

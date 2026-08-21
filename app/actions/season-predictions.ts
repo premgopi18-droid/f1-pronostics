@@ -51,6 +51,10 @@ export async function submitSeasonPredictionAction(
     validCodes = new Set((constructors ?? []).map((c) => c.code))
   }
 
+  // Table pas encore synchronisée : refuser plutôt que d'accepter une soumission
+  // vide (min(constante, 0) = 0 validerait un tableau []).
+  if (validCodes.size === 0) return { error: 'serverError' }
+
   // Longueur attendue bornée par la table réelle (#225) : en début de saison la
   // liste peut être incomplète — exiger la constante brute bloquerait toute
   // soumission (même gène que le bug course #223). Le client applique le même min.

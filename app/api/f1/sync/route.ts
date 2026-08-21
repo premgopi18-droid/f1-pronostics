@@ -300,7 +300,10 @@ async function handler(request: Request): Promise<Response> {
           if (gpSessionsError) throw gpSessionsError
 
           const candidates = selectLineupSessionCandidates(
-            (gpSessions ?? []).map((session) => ({ type: session.type, startsAt: session.starts_at })),
+            (gpSessions ?? []).map((session) => ({
+              type: session.type as DbSessionType,
+              startsAt: session.starts_at,
+            })),
             Date.now(),
             LINEUP_SESSION_HORIZON_MS,
           )
@@ -310,11 +313,11 @@ async function handler(request: Request): Promise<Response> {
           for (const session of candidates) {
             lineup = await fetchSessionLineup(
               gp.season,
-              LINEUP_OPENF1_SESSION_NAME[session.type as DbSessionType],
+              LINEUP_OPENF1_SESSION_NAME[session.type],
               session.startsAt,
             )
             if (lineup.size > 0) {
-              lineupFromTrustedSession = isLineupSessionTrusted(session.startsAt, Date.now())
+              lineupFromTrustedSession = isLineupSessionTrusted(session.type, session.startsAt, Date.now())
               break
             }
           }

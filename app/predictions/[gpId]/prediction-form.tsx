@@ -367,7 +367,14 @@ function RaceForm({
           }
         }
       }
-      setMessage({ type: 'ok', text: t('predict.savedOk') })
+      // Prono partiel (liste saison < 22) : enregistré mais is_valid=false côté
+      // serveur → 0 point tant qu'il n'est pas complété. Le dire honnêtement.
+      setMessage({
+        type: 'ok',
+        text: isComplete
+          ? t('predict.savedOk')
+          : t('predict.savedDraft', { count: selected.length, total: expectedCount }),
+      })
       onSaved?.(selected)
     })
   }
@@ -693,7 +700,14 @@ function QualifsForm({
         setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
         return
       }
-      setMessage({ type: 'ok', text: t('predict.savedOk') })
+      // Prono partiel : enregistré mais is_valid=false côté serveur → 0 point
+      // tant qu'il n'est pas complété. Le dire honnêtement (audit 21/08/2026).
+      setMessage({
+        type: 'ok',
+        text: isComplete
+          ? t('predict.savedOk')
+          : t('predict.savedDraft', { count: selected.length, total: expectedCount }),
+      })
       onSaved?.(selected)
     })
   }

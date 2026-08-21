@@ -220,6 +220,7 @@ Même barème **par position** (5/2/1) pour les qualifications et la course. En 
 - Un pronostic incomplet (moins de positions remplies que la longueur attendue de la session : 10 en qualif, toute la grille engagée en course, 5 en sprint qualif, 8 en sprint race) est **invalide** — traité comme une non-soumission
 - Score = **0 point** pour la session concernée
 - Un statut spécifique est affiché dans le classement pour signaler la non-participation (libellé humoristique à définir dans l'UI)
+- **Feedback honnête sur le partiel** (décision 21\08\2026, audit) : un enregistrement incomplet reste possible (sauvegarde progressive) mais est présenté comme un **brouillon** — message « Brouillon enregistré (n\/total) — complète ton prono pour qu'il rapporte des points » au lieu de « Pronostic enregistré ! », et le **✓ d'onglet n'apparaît que pour un prono complet**. Il ne doit jamais être possible de croire un prono validé alors qu'il vaudra 0 point.
 
 #### Changements de pilotes / écuries en cours de saison
 

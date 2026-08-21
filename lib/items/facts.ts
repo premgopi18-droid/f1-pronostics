@@ -120,7 +120,7 @@ export function buildGPFacts(
         } else if (loss < 0) {
           facts.push({
             ...common, deltaText: formatSignedDelta(loss), deltaKind: 'neg',
-            chain: [t('gpResults.chainBlockRemoved', { driver, session: sLabel ?? '', pts: Math.abs(loss) })],
+            chain: [t('gpResults.chainBlockRemoved', { driver, session: sLabel ?? '', target: target.pseudo, pts: Math.abs(loss) })],
           })
         } else {
           facts.push({
@@ -178,7 +178,7 @@ export function buildGPFacts(
           deltaText: gain > 0 ? formatSignedDelta(gain) : undefined,
           deltaKind: gain > 0 ? 'pos' : 'nil',
           chain: [gain > 0
-            ? t('gpResults.chainDoubleApplied', { session: sLabel ?? '', pts: gain })
+            ? t('gpResults.chainDoubleApplied', { session: sLabel ?? '', actor: actor.pseudo, pts: gain })
             : t('gpResults.chainDoubleNoEffect')],
         })
         break

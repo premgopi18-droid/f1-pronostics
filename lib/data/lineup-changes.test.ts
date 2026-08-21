@@ -4,34 +4,39 @@ import { diffLineup, formatLineupChangeBody, selectLineupSessionCandidates } fro
 describe('selectLineupSessionCandidates', () => {
   const horizon = 24 * 60 * 60 * 1000
 
+  // Week-end sprint du GP Pays-Bas 2026 — le cas réel de #214.
   const weekend = [
-    { type: 'practice_1', startsAt: '2026-08-21T10:30:00Z' },  // vendredi
-    { type: 'qualifying', startsAt: '2026-08-22T14:00:00Z' },  // samedi
-    { type: 'race',       startsAt: '2026-08-23T13:00:00Z' },  // dimanche
+    { type: 'practice_1',        startsAt: '2026-08-21T10:30:00Z' },  // vendredi
+    { type: 'sprint_qualifying', startsAt: '2026-08-21T14:30:00Z' },  // vendredi
+    { type: 'sprint_race',       startsAt: '2026-08-22T10:00:00Z' },  // samedi
+    { type: 'qualifying',        startsAt: '2026-08-22T14:00:00Z' },  // samedi
+    { type: 'race',              startsAt: '2026-08-23T13:00:00Z' },  // dimanche
   ]
 
-  it('sessions démarrées uniquement, la plus fraîche d\'abord — une session future ne masque jamais une session courue (#214)', () => {
-    // Régression GP Pays-Bas 2026 : OpenF1 pré-seede les /drivers des sessions
-    // futures avec le line-up nominal périmé. Samedi matin, la qualif de 14h
-    // (future, dans l'horizon) répondrait avec des données périmées et
-    // masquerait la vérité des EL1 courues.
-    const saturdayMorning = new Date('2026-08-22T09:00:00Z').getTime()
-    expect(selectLineupSessionCandidates(weekend, saturdayMorning, horizon).map((s) => s.type))
-      .toEqual(['practice_1'])
+  it('sessions fiables uniquement, la plus fraîche d\'abord — ni future ni fraîchement démarrée ne les masque (#214)', () => {
+    // Samedi 14:05 : la qualif vient de démarrer (14:00) → son /drivers est
+    // encore le pré-seed périmé, elle ne doit PAS masquer le sprint couru le
+    // matin (fiable depuis 13:00). La course de dimanche (future) non plus.
+    const saturdayAfterQualifyingStart = new Date('2026-08-22T14:05:00Z').getTime()
+    expect(selectLineupSessionCandidates(weekend, saturdayAfterQualifyingStart, horizon).map((s) => s.type))
+      .toEqual(['sprint_race', 'sprint_qualifying', 'practice_1'])
   })
 
-  it('plusieurs sessions démarrées → ordre décroissant, les futures exclues', () => {
-    const sundayMorning = new Date('2026-08-23T09:00:00Z').getTime()
-    expect(selectLineupSessionCandidates(weekend, sundayMorning, horizon).map((s) => s.type))
-      .toEqual(['qualifying', 'practice_1'])
+  it('aucune session fiable → une session démarrée est consultée (sa donnée peut avoir déjà basculé), jamais une future', () => {
+    // Vendredi 12:40 : EL1 courues (10:30-11:30) mais pas encore « fiables »
+    // (< 3 h) — leur /drivers a pu basculer, c'est la meilleure source
+    // disponible. Le sprint qualif de 14:30 (futur, pré-seed) est exclu.
+    const fridayAfterPractice = new Date('2026-08-21T12:40:00Z').getTime()
+    expect(selectLineupSessionCandidates(weekend, fridayAfterPractice, horizon).map((s) => s.type))
+      .toEqual(['practice_1'])
   })
 
   it('aucune session démarrée → repli sur le pré-seed des sessions à venir dans l\'horizon, la plus proche d\'abord', () => {
-    // Jeudi/vendredi matin : le pré-seed OpenF1 est la seule donnée disponible
-    // — il sert à semer la baseline du GP.
+    // Jeudi / vendredi matin : le pré-seed OpenF1 est la seule donnée
+    // disponible — il sert à semer la baseline du GP.
     const fridayBeforePractice = new Date('2026-08-21T08:00:00Z').getTime()
     expect(selectLineupSessionCandidates(weekend, fridayBeforePractice, horizon).map((s) => s.type))
-      .toEqual(['practice_1'])
+      .toEqual(['practice_1', 'sprint_qualifying'])
   })
 
   it('aucune session démarrée ni à venir dans l\'horizon → liste vide', () => {

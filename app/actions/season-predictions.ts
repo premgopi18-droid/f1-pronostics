@@ -27,9 +27,8 @@ export async function submitSeasonPredictionAction(
     return { error: 'seasonPredictionsLocked' }
   }
 
-  const expectedCount = type === 'wdc' ? WDC_COUNT : WCC_COUNT
-  if (!Array.isArray(entries) || entries.length !== expectedCount) {
-    return { error: 'entriesCountRequired', errorVars: { count: expectedCount } }
+  if (!Array.isArray(entries)) {
+    return { error: 'entriesCountRequired', errorVars: { count: type === 'wdc' ? WDC_COUNT : WCC_COUNT } }
   }
 
   // Codes valides depuis la DB
@@ -50,6 +49,18 @@ export async function submitSeasonPredictionAction(
       .eq('season', season)
     if (error) return { error: 'serverError' }
     validCodes = new Set((constructors ?? []).map((c) => c.code))
+  }
+
+  // Table pas encore synchronisée : refuser plutôt que d'accepter une soumission
+  // vide (min(constante, 0) = 0 validerait un tableau []).
+  if (validCodes.size === 0) return { error: 'serverError' }
+
+  // Longueur attendue bornée par la table réelle (#225) : en début de saison la
+  // liste peut être incomplète — exiger la constante brute bloquerait toute
+  // soumission (même gène que le bug course #223). Le client applique le même min.
+  const expectedCount = Math.min(type === 'wdc' ? WDC_COUNT : WCC_COUNT, validCodes.size)
+  if (entries.length !== expectedCount) {
+    return { error: 'entriesCountRequired', errorVars: { count: expectedCount } }
   }
 
   for (const code of entries) {
@@ -92,7 +103,10 @@ export async function applySeasonItemAction(
     return { error: 'invalidPositions' }
   }
 
-  const { submissionDeadline, itemDeadline } = await getSeasonDeadlines(season)
+  // Deadline PAR UTILISATEUR (#226), comme la soumission : pour un joueur inscrit
+  // en cours de saison, la fenêtre de soumission reste ouverte jusqu'à son propre
+  // verrou — jouer l'item avant serait le gaspiller (le classement est encore libre).
+  const { submissionDeadline, itemDeadline } = await getSeasonDeadlines(season, user.id)
   if (submissionDeadline && new Date() < submissionDeadline) {
     return { error: 'seasonPredictionsNotLockedYet' }
   }

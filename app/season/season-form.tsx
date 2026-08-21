@@ -20,11 +20,8 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import {
-  submitSeasonPredictionAction,
-  applySeasonItemAction,
-} from '@/app/actions/season-predictions'
-import { BottomSheet } from '@/app/ui/bottom-sheet'
+import { submitSeasonPredictionAction } from '@/app/actions/season-predictions'
+import { WDC_COUNT, WCC_COUNT } from '@/lib/season/constants'
 import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
 import { useTapSelect } from '@/lib/hooks/use-tap-select'
 import { cn } from '@/lib/utils'
@@ -42,19 +39,12 @@ interface Constructor {
   name: string
 }
 
-interface SeasonItems {
-  wdcMove: number
-  wccMove: number
-}
-
 interface Props {
   drivers:          Driver[]
   constructors:     Constructor[]
   initialWdc:       string[] | null
   initialWcc:       string[] | null
   isSubmissionOpen: boolean
-  isItemsOpen:      boolean
-  seasonItems:      SeasonItems
 }
 
 const DRAG_ACTIVATION_DISTANCE = 6
@@ -78,13 +68,18 @@ export function SeasonForm({
   initialWdc,
   initialWcc,
   isSubmissionOpen,
-  isItemsOpen,
-  seasonItems,
 }: Props) {
   const [tab, setTab] = useState<Tab>('wdc')
 
   const allDriverCodes      = drivers.map((d) => d.code)
   const allConstructorCodes = constructors.map((c) => c.code)
+
+  // Nombre de positions soumises — dérivé des constantes partagées (#225, même
+  // gène que le bug course #223 : jamais de 10/11 en dur face à une liste
+  // dynamique), borné par la taille réelle de la liste (table incomplète en
+  // début de saison → on soumet ce qui existe, le serveur applique le même min).
+  const wdcPredictionCount = Math.min(WDC_COUNT, allDriverCodes.length)
+  const wccPredictionCount = Math.min(WCC_COUNT, allConstructorCodes.length)
 
   // State remonté ici pour survivre aux switch d'onglet
   const [wdcEntries, setWdcEntries] = useState<string[]>(() =>
@@ -118,17 +113,12 @@ export function SeasonForm({
       {tab === 'wdc' && (
         <RankingPanel
           type="wdc"
-          label="Top 10 pilotes en fin de saison — glisse les 10 premiers"
-          predictionCount={10}
+          label={`Top ${wdcPredictionCount} pilotes en fin de saison — glisse les ${wdcPredictionCount} premiers`}
+          predictionCount={wdcPredictionCount}
           entries={wdcEntries}
           onEntriesChange={setWdcEntries}
           labels={driverLabels}
           isSubmissionOpen={isSubmissionOpen}
-          isItemsOpen={isItemsOpen}
-          itemUsesRemaining={seasonItems.wdcMove}
-          itemType="wdc_move"
-          itemEmoji="🔧"
-          itemName="Coup de clé à molette"
           hasSaved={initialWdc !== null}
         />
       )}
@@ -136,17 +126,12 @@ export function SeasonForm({
       {tab === 'wcc' && (
         <RankingPanel
           type="wcc"
-          label="Classement complet des 11 écuries"
-          predictionCount={11}
+          label={`Classement complet des ${wccPredictionCount} écuries`}
+          predictionCount={wccPredictionCount}
           entries={wccEntries}
           onEntriesChange={setWccEntries}
           labels={constructorLabels}
           isSubmissionOpen={isSubmissionOpen}
-          isItemsOpen={isItemsOpen}
-          itemUsesRemaining={seasonItems.wccMove}
-          itemType="wcc_move"
-          itemEmoji="🚀"
-          itemName="Boost turbo"
           hasSaved={initialWcc !== null}
         />
       )}
@@ -165,11 +150,6 @@ function RankingPanel({
   onEntriesChange,
   labels,
   isSubmissionOpen,
-  isItemsOpen,
-  itemUsesRemaining,
-  itemType,
-  itemEmoji,
-  itemName,
   hasSaved,
 }: {
   type:               'wdc' | 'wcc'
@@ -179,25 +159,12 @@ function RankingPanel({
   onEntriesChange:    (entries: string[]) => void
   labels:             Map<string, string>
   isSubmissionOpen:   boolean
-  isItemsOpen:        boolean
-  itemUsesRemaining:  number
-  itemType:           'wdc_move' | 'wcc_move'
-  itemEmoji:          string
-  itemName:           string
   hasSaved:           boolean
 }) {
   const [message, setMessage]       = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [itemFrom,       setItemFrom]       = useState<number>(1)
-  const [itemTo,         setItemTo]         = useState<number>(2)
-  const [fromSheetOpen,  setFromSheetOpen]  = useState(false)
-  const [toSheetOpen,    setToSheetOpen]    = useState(false)
-  const [showItem,       setShowItem]       = useState(false)
   // Suit si une prédiction a été soumise au moins une fois dans cette session
   const [savedOnce, setSavedOnce]   = useState(hasSaved)
-  // Stock d'item suivi côté client pour refléter immédiatement une utilisation
-  // (le prop initial vient du serveur ; on décrémente après un usage réussi).
-  const [usesLeft, setUsesLeft]     = useState(itemUsesRemaining)
 
   const reducedMotion = usePrefersReducedMotion()
 
@@ -237,26 +204,6 @@ function RankingPanel({
       } else {
         setMessage({ type: 'ok', text: t('season.savedOk') })
         setSavedOnce(true)
-      }
-    })
-  }
-
-  const applyItem = () => {
-    setMessage(null)
-    startTransition(async () => {
-      const result = await applySeasonItemAction(itemType, itemFrom, itemTo)
-      if ('error' in result) {
-        setMessage({ type: 'error', text: translateActionError(result.error, result.errorVars) })
-      } else {
-        onEntriesChange((() => {
-          const next = [...entries]
-          const [extracted] = next.splice(itemFrom - 1, 1)
-          next.splice(itemTo - 1, 0, extracted)
-          return next
-        })())
-        setMessage({ type: 'ok', text: `${itemName} utilisé !` })
-        setShowItem(false)
-        setUsesLeft((u) => u - 1)
       }
     })
   }
@@ -304,125 +251,9 @@ function RankingPanel({
         </button>
       )}
 
-      {/* Section item saison — disponible uniquement une fois les pronostics verrouillés */}
-      {isItemsOpen && !isSubmissionOpen && usesLeft > 0 && savedOnce && (
-        <div className="border border-zinc-800 rounded-xl px-4 py-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-white">{itemEmoji} {itemName}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">{t('season.itemPanelSubtitle')}</p>
-            </div>
-            <span className="text-xs text-zinc-500">×{usesLeft}</span>
-          </div>
-
-          {!showItem ? (
-            <button type="button"
-              onClick={() => setShowItem(true)}
-              className="text-sm text-destructive hover:text-destructive/80 transition-colors cursor-pointer text-left"
-            >
-              {t('season.use')} →
-            </button>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <div className="flex gap-3">
-                <div className="flex flex-col gap-1 flex-1">
-                  {/* <span> et non <label> : le déclencheur est un bouton (ouvre une sheet),
-                      pas un champ — l'association se fait par aria-labelledby (libellé + valeur). */}
-                  <span id="season-item-from-label" className="text-xs text-zinc-400">{t('season.itemFromLabel')}</span>
-                  <button
-                    type="button"
-                    id="season-item-from-button"
-                    aria-labelledby="season-item-from-label season-item-from-button"
-                    onClick={() => setFromSheetOpen(true)}
-                    className="flex items-center justify-between rounded-xl bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800 cursor-pointer text-white"
-                  >
-                    <span className="font-mono">P{itemFrom} · {labels.get(entries[itemFrom - 1]) ?? entries[itemFrom - 1]}</span>
-                    <span aria-hidden="true" className="text-zinc-500">›</span>
-                  </button>
-                  <BottomSheet open={fromSheetOpen} onClose={() => setFromSheetOpen(false)} title={t('season.moveFromTitle')}>
-                    <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
-                      {entries.slice(0, predictionCount).map((code, i) => {
-                        const pos = i + 1
-                        return (
-                          <button
-                            key={code}
-                            type="button"
-                            onClick={() => {
-                              setItemFrom(pos)
-                              // Garde `itemTo` valide : il ne doit jamais égaler `itemFrom`
-                              if (itemTo === pos) setItemTo(pos === 1 ? 2 : 1)
-                              setFromSheetOpen(false)
-                            }}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-left transition-colors cursor-pointer ${
-                              itemFrom === pos
-                                ? 'bg-red-600 text-white'
-                                : 'bg-zinc-800 hover:bg-zinc-700 text-white'
-                            }`}
-                          >
-                            <span className="font-mono text-xs w-6 shrink-0">P{pos}</span>
-                            <span className="truncate">{labels.get(code) ?? code}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </BottomSheet>
-                </div>
-                <div className="flex flex-col gap-1 flex-1">
-                  <span id="season-item-to-label" className="text-xs text-zinc-400">{t('season.itemToLabel')}</span>
-                  <button
-                    type="button"
-                    id="season-item-to-button"
-                    aria-labelledby="season-item-to-label season-item-to-button"
-                    onClick={() => setToSheetOpen(true)}
-                    className="flex items-center justify-between rounded-xl bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800 cursor-pointer text-white"
-                  >
-                    <span className="font-mono">P{itemTo} · {labels.get(entries[itemTo - 1]) ?? entries[itemTo - 1]}</span>
-                    <span aria-hidden="true" className="text-zinc-500">›</span>
-                  </button>
-                  <BottomSheet open={toSheetOpen} onClose={() => setToSheetOpen(false)} title={t('season.moveToTitle')}>
-                    <div className="flex flex-col gap-1 overflow-y-auto p-4" style={{ maxHeight: '60vh' }}>
-                      {entries.slice(0, predictionCount).map((code, i) => {
-                        const pos = i + 1
-                        if (pos === itemFrom) return null
-                        return (
-                          <button
-                            key={code}
-                            type="button"
-                            onClick={() => { setItemTo(pos); setToSheetOpen(false) }}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-left transition-colors cursor-pointer ${
-                              itemTo === pos
-                                ? 'bg-red-600 text-white'
-                                : 'bg-zinc-800 hover:bg-zinc-700 text-white'
-                            }`}
-                          >
-                            <span className="font-mono text-xs w-6 shrink-0">P{pos}</span>
-                            <span className="truncate">{labels.get(code) ?? code}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </BottomSheet>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button type="button"
-                  onClick={applyItem}
-                  disabled={isPending || itemFrom === itemTo}
-                  className="flex-1 bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
-                >
-                  {isPending ? t('season.sending') : t('season.confirm')}
-                </button>
-                <button type="button"
-                  onClick={() => setShowItem(false)}
-                  className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 cursor-pointer"
-                >
-                  {t('season.cancel')}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Le jeu d'item saison (Coup de clé à molette / Boost turbo) vit dans la
+          vue comparaison (SeasonComparison), seule affichée une fois les pronos
+          verrouillés — un panneau dupliqué ici était inatteignable (#226). */}
     </div>
   )
 }

@@ -71,6 +71,16 @@ export async function submitFastestLapAction(
   if (session.type !== 'race') return { error: 'fastestLapRaceOnly' }
   if (new Date(session.starts_at) <= new Date()) return { error: 'sessionLocked' }
 
+  // Le pilote doit appartenir à la saison de la session (#227) : la FK seule
+  // accepterait un id d'une autre saison, qui vaudrait silencieusement 0 point.
+  const { data: driverRow } = await supabase
+    .from('drivers')
+    .select('id')
+    .eq('id', driverId)
+    .eq('season', session.season)
+    .maybeSingle()
+  if (!driverRow) return { error: 'driverUnknown' }
+
   try {
     await submitFastestLap(user.id, sessionId, session.season, driverId)
     return { ok: true }

@@ -154,6 +154,27 @@ export async function playItemAction(
     if (!constructorRow) return { error: 'constructorUnknown' }
   }
 
+  // Même règle pour les codes pilotes (#227) : block_driver, dnf_prediction et
+  // underdog_top5 portent un driverCode saisi côté client — un code forgé serait
+  // stocké tel quel, l'usage décrémenté, et la résolution ne matcherait jamais.
+  const playedDriverCode =
+    input.itemType === 'block_driver' ||
+    input.itemType === 'dnf_prediction' ||
+    input.itemType === 'underdog_top5'
+      ? input.payload.driverCode
+      : null
+  if (playedDriverCode) {
+    const { data: driverRow, error: driverError } = await createServiceClient()
+      .from('drivers')
+      .select('id')
+      .eq('season', season)
+      .eq('code', playedDriverCode)
+      .maybeSingle()
+
+    if (driverError) return { error: 'serverError' }
+    if (!driverRow) return { error: 'driverUnknown' }
+  }
+
   // Pour les items offensifs : la cible doit être un autre membre de la ligue
   if (OFFENSIVE_ITEMS.has(input.itemType)) {
     const offensivePayload = input.payload as BlockDriverPayload | WildCardPayload

@@ -35,31 +35,59 @@ describe('buildRaceOrder', () => {
 
 describe('buildPrefilledRaceOrder', () => {
   const allCodes = ['VER', 'LEC', 'NOR', 'HAM', 'RUS']
+  const expectedCount = allCodes.length
 
   it('un prono enregistré est prioritaire — la grille est ignorée', () => {
-    expect(buildPrefilledRaceOrder(['NOR', 'LEC'], ['HAM', 'VER', 'RUS'], allCodes))
+    expect(buildPrefilledRaceOrder(['NOR', 'LEC'], ['HAM', 'VER', 'RUS'], allCodes, expectedCount))
       .toEqual(['NOR', 'LEC', 'VER', 'HAM', 'RUS'])
   })
 
   it("sans prono, pré-remplit dans l'ordre de la grille", () => {
-    expect(buildPrefilledRaceOrder([], ['HAM', 'RUS', 'VER', 'NOR', 'LEC'], allCodes))
+    expect(buildPrefilledRaceOrder([], ['HAM', 'RUS', 'VER', 'NOR', 'LEC'], allCodes, expectedCount))
       .toEqual(['HAM', 'RUS', 'VER', 'NOR', 'LEC'])
   })
 
   it('filtre les codes de la grille inconnus et ajoute les pilotes hors grille à la fin', () => {
     // 'XXX' inconnu de allCodes → filtré ; LEC et RUS absents de la grille → ajoutés en fin.
-    expect(buildPrefilledRaceOrder([], ['HAM', 'XXX', 'VER', 'NOR'], allCodes))
+    expect(buildPrefilledRaceOrder([], ['HAM', 'XXX', 'VER', 'NOR'], allCodes, expectedCount))
       .toEqual(['HAM', 'VER', 'NOR', 'LEC', 'RUS'])
   })
 
   it('sans prono ni grille, retombe sur le comportement historique (allCodes)', () => {
-    expect(buildPrefilledRaceOrder([], [], allCodes)).toEqual(allCodes)
+    expect(buildPrefilledRaceOrder([], [], allCodes, expectedCount)).toEqual(allCodes)
   })
 
   it('ne produit pas de doublons quand un pilote figure dans la grille et allCodes', () => {
-    const result = buildPrefilledRaceOrder([], ['NOR', 'VER'], allCodes)
+    const result = buildPrefilledRaceOrder([], ['NOR', 'VER'], allCodes, expectedCount)
     expect(new Set(result).size).toBe(result.length)
     expect(result).toHaveLength(allCodes.length)
+  })
+
+  // Cap à expectedCount : liste saison > partants (échange de baquet — cas
+  // Zandvoort 2026 : 23 pilotes saison pour 22 partants). Sans le cap, le
+  // formulaire envoyait toute la liste et le serveur rejetait (tooManyDrivers).
+  describe('liste saison plus longue que le nombre de partants', () => {
+    // ABS = pilote badgé absent, relégué en fin de liste par la page.
+    const withAbsent = [...allCodes, 'ABS']
+    const grid = ['HAM', 'RUS', 'VER', 'NOR', 'LEC']
+
+    it('plafonne à expectedCount — le pilote en fin de liste (absent) est exclu', () => {
+      const order = buildPrefilledRaceOrder([], grid, withAbsent, expectedCount)
+      expect(order).toHaveLength(expectedCount)
+      expect(order).not.toContain('ABS')
+    })
+
+    it('sans grille : ordre fourni plafonné, absent exclu', () => {
+      expect(buildPrefilledRaceOrder([], [], withAbsent, expectedCount)).toEqual(allCodes)
+    })
+
+    it("un prono d'avant l'échange (contenant l'absent) est conservé, le remplaçant coupé", () => {
+      // Prono historique : ABS classé, RUS (remplaçant tardif) inconnu à l'époque.
+      const existing = ['ABS', 'VER', 'LEC', 'NOR', 'HAM']
+      const order = buildPrefilledRaceOrder(existing, grid, withAbsent, expectedCount)
+      expect(order).toEqual(existing)
+      expect(order).not.toContain('RUS')
+    })
   })
 })
 

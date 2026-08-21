@@ -208,6 +208,27 @@ function DriverInfo({ driver, position, large }: { driver: Driver; position?: nu
   )
 }
 
+// ─── Avertissement « absent classé » (partagé course / qualifs / sprint) ───
+
+/** Noms complets des pilotes classés alors qu'ils sont badgés absents du week-end. */
+function rankedAbsentNames(selected: string[], driverByCode: Map<string, Driver>): string[] {
+  return selected
+    .map((code) => driverByCode.get(code))
+    .filter((driver): driver is Driver => Boolean(driver?.absentFromWeekend))
+    .map((driver) => `${driver.firstName} ${driver.lastName}`)
+}
+
+/** Nudge non bloquant : classer un absent reste permis (le signal est une
+ *  déduction), mais la conséquence — 0 point s'il ne court pas — est rappelée. */
+function AbsentRankedWarning({ names }: { names: string[] }) {
+  if (names.length === 0) return null
+  return (
+    <p role="status" className="rounded-xl bg-warning-soft px-3 py-2.5 text-sm text-warning">
+      {t('predict.rankedAbsentWarning', { names: names.join(', ') })}
+    </p>
+  )
+}
+
 // ─── Locked state ──────────────────────────────────────────────────────────
 
 function LockedView({ selected, driverByCode }: {
@@ -240,6 +261,7 @@ function LockedView({ selected, driverByCode }: {
 function RaceForm({
   sessionId,
   drivers,
+  expectedCount,
   existingEntries,
   existingFastestLap,
   gridOrder,
@@ -248,6 +270,7 @@ function RaceForm({
 }: {
   sessionId:          string
   drivers:            Driver[]
+  expectedCount:      number
   existingEntries:    string[]
   existingFastestLap: string | null
   gridOrder:          string[]
@@ -256,7 +279,7 @@ function RaceForm({
 }) {
   const allCodes = drivers.map((d) => d.code)
 
-  const [selected,            setSelected]            = useState<string[]>(() => buildPrefilledRaceOrder(existingEntries, gridOrder, allCodes))
+  const [selected,            setSelected]            = useState<string[]>(() => buildPrefilledRaceOrder(existingEntries, gridOrder, allCodes, expectedCount))
   const [fastestLap,          setFastestLap]          = useState(existingFastestLap ?? '')
   const [fastestLapSheetOpen, setFastestLapSheetOpen] = useState(false)
   const [message,             setMessage]             = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -278,6 +301,13 @@ function RaceForm({
 
   const driverByCode = new Map(drivers.map((d) => [d.code, d]))
 
+  // Liste saison > partants (échange de baquet) : la course se classe à
+  // exactement `expectedCount`, le surplus vit dans une section « non classés ».
+  const unranked      = drivers.filter((d) => !selected.includes(d.code))
+  const hasSpares     = drivers.length > expectedCount
+  const isComplete    = selected.length === expectedCount
+  const absentsRanked = rankedAbsentNames(selected, driverByCode)
+
   const { selectedCode, onRowTap, onDragStart } = useTapSelect(
     selected,
     (newItems) => { setSelected(newItems); setMessage(null) },
@@ -298,11 +328,22 @@ function RaceForm({
     setMessage(null)
   }
 
+  const add = (code: string) => {
+    if (isComplete || selected.includes(code)) return
+    setSelected((prev) => [...prev, code])
+    setMessage(null)
+  }
+
+  const remove = (index: number) => {
+    setSelected((prev) => prev.filter((_, i) => i !== index))
+    setMessage(null)
+  }
+
   // Réinitialise l'ordre LOCAL sur la grille — rien n'est enregistré tant que
   // l'utilisateur ne valide pas. Le message role="status" annonce l'action aux
   // lecteurs d'écran.
   const resetToGrid = () => {
-    setSelected(buildPrefilledRaceOrder([], gridOrder, allCodes))
+    setSelected(buildPrefilledRaceOrder([], gridOrder, allCodes, expectedCount))
     setMessage({
       type: 'ok',
       text: gridSource === 'grid' ? t('predict.gridResetDone') : t('predict.gridResetDoneQualifying'),
@@ -333,10 +374,19 @@ function RaceForm({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Subtitle */}
-      <p className="text-xs text-text-secondary">
-        {reducedMotion ? t('predict.courseSubtitleA11y') : t('predict.courseSubtitle')}
-      </p>
+      {/* Subtitle (+ compteur quand la liste dépasse le nombre de partants) */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-text-secondary">
+          {hasSpares
+            ? t(reducedMotion ? 'predict.courseSubtitleCappedA11y' : 'predict.courseSubtitleCapped', { count: expectedCount })
+            : reducedMotion ? t('predict.courseSubtitleA11y') : t('predict.courseSubtitle')}
+        </p>
+        {hasSpares && (
+          <span className={cn('text-xs font-semibold tabular-nums', isComplete ? 'text-success' : 'text-text-secondary')}>
+            {selected.length}/{expectedCount}
+          </span>
+        )}
+      </div>
 
       {/* A11y hint — premier lancement, mode drag actif */}
       {showHint && <A11yHintBanner onActivate={activateA11y} onDismiss={dismissHint} />}
@@ -352,70 +402,122 @@ function RaceForm({
       )}
 
       {/* Sortable driver list */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <SortableContext items={selected} strategy={verticalListSortingStrategy}>
-          <ol className="flex flex-col gap-1">
-            {selected.map((code, i) => {
-              const driver = driverByCode.get(code)
-              if (!driver) return null
-              const isSelected = selectedCode === code
-              return (
-                <SortableRow key={code} id={code} reducedMotion={reducedMotion}>
-                  {(dragHandleProps, isDragging) => (
-                    /* Tap = raccourci pointeur uniquement : l'équivalent clavier existe
-                       (poignée dnd-kit + boutons Monter/Descendre focusables dans la ligne).
-                       Rendre le <li> focusable dupliquerait chaque ligne dans l'ordre de tab. */
-                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
-                    <li
-                      onClick={() => onRowTap(code)}
-                      className={cn(
-                        'flex cursor-pointer select-none items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 transition-shadow',
-                        isDragging && 'shadow-lg opacity-80',
-                        isSelected && 'ring-2 ring-primary bg-primary/5',
-                      )}
-                    >
-                      <span
-                        className={cn('w-5 shrink-0 text-right tabular-nums text-text-secondary', reducedMotion ? 'text-base' : 'text-sm')}
-                        style={positionStyle(i + 1)}
+      <div className="flex flex-col gap-1">
+        {hasSpares && (
+          <p className="px-1 text-2xs font-semibold tracking-widest text-text-secondary">
+            {t('predict.ranked')}
+          </p>
+        )}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+          <SortableContext items={selected} strategy={verticalListSortingStrategy}>
+            <ol className="flex flex-col gap-1">
+              {selected.map((code, i) => {
+                const driver = driverByCode.get(code)
+                if (!driver) return null
+                const isSelected = selectedCode === code
+                return (
+                  <SortableRow key={code} id={code} reducedMotion={reducedMotion}>
+                    {(dragHandleProps, isDragging) => (
+                      /* Tap = raccourci pointeur uniquement : l'équivalent clavier existe
+                         (poignée dnd-kit + boutons Monter/Descendre focusables dans la ligne).
+                         Rendre le <li> focusable dupliquerait chaque ligne dans l'ordre de tab. */
+                      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+                      <li
+                        onClick={() => onRowTap(code)}
+                        className={cn(
+                          'flex cursor-pointer select-none items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 transition-shadow',
+                          isDragging && 'shadow-lg opacity-80',
+                          isSelected && 'ring-2 ring-primary bg-primary/5',
+                        )}
                       >
-                        {i + 1}
-                      </span>
-                      <DriverInfo driver={driver} position={i + 1} large={reducedMotion} />
-                      {reducedMotion && (
-                        <>
+                        <span
+                          className={cn('w-5 shrink-0 text-right tabular-nums text-text-secondary', reducedMotion ? 'text-base' : 'text-sm')}
+                          style={positionStyle(i + 1)}
+                        >
+                          {i + 1}
+                        </span>
+                        <DriverInfo driver={driver} position={i + 1} large={reducedMotion} />
+                        {reducedMotion && (
+                          <>
+                            <button type="button"
+                              onClick={(e) => { e.stopPropagation(); moveDriverUp(i) }}
+                              aria-label={`${t('predict.moveUp')} ${driver.firstName} ${driver.lastName}`}
+                              disabled={i === 0}
+                              className="shrink-0 p-1 text-text-secondary transition-colors hover:text-foreground disabled:opacity-30"
+                            >
+                              <ChevronUp size={16} aria-hidden="true" />
+                            </button>
+                            <button type="button"
+                              onClick={(e) => { e.stopPropagation(); moveDriverDown(i) }}
+                              aria-label={`${t('predict.moveDown')} ${driver.firstName} ${driver.lastName}`}
+                              disabled={i === selected.length - 1}
+                              className="shrink-0 p-1 text-text-secondary transition-colors hover:text-foreground disabled:opacity-30"
+                            >
+                              <ChevronDown size={16} aria-hidden="true" />
+                            </button>
+                          </>
+                        )}
+                        <button type="button"
+                          {...dragHandleProps}
+                          aria-label={t('predict.reorder')}
+                          className="shrink-0 touch-none cursor-grab p-1 text-text-secondary active:cursor-grabbing hover:text-foreground"
+                        >
+                          <GripVertical size={16} aria-hidden="true" />
+                        </button>
+                        {hasSpares && (
                           <button type="button"
-                            onClick={(e) => { e.stopPropagation(); moveDriverUp(i) }}
-                            aria-label={`${t('predict.moveUp')} ${driver.firstName} ${driver.lastName}`}
-                            disabled={i === 0}
-                            className="shrink-0 p-1 text-text-secondary transition-colors hover:text-foreground disabled:opacity-30"
+                            onClick={(e) => { e.stopPropagation(); remove(i) }}
+                            aria-label={`${t('predict.remove')} ${driver.firstName} ${driver.lastName}`}
+                            className="shrink-0 p-1 text-text-secondary transition-colors hover:text-destructive"
                           >
-                            <ChevronUp size={16} aria-hidden="true" />
+                            <span aria-hidden="true" className="text-base leading-none">×</span>
                           </button>
-                          <button type="button"
-                            onClick={(e) => { e.stopPropagation(); moveDriverDown(i) }}
-                            aria-label={`${t('predict.moveDown')} ${driver.firstName} ${driver.lastName}`}
-                            disabled={i === selected.length - 1}
-                            className="shrink-0 p-1 text-text-secondary transition-colors hover:text-foreground disabled:opacity-30"
-                          >
-                            <ChevronDown size={16} aria-hidden="true" />
-                          </button>
-                        </>
-                      )}
-                      <button type="button"
-                        {...dragHandleProps}
-                        aria-label={t('predict.reorder')}
-                        className="shrink-0 touch-none cursor-grab p-1 text-text-secondary active:cursor-grabbing hover:text-foreground"
-                      >
-                        <GripVertical size={16} aria-hidden="true" />
-                      </button>
-                    </li>
-                  )}
-                </SortableRow>
-              )
-            })}
-          </ol>
-        </SortableContext>
-      </DndContext>
+                        )}
+                      </li>
+                    )}
+                  </SortableRow>
+                )
+              })}
+            </ol>
+          </SortableContext>
+        </DndContext>
+      </div>
+
+      {/* Non classés — surplus de la liste saison (absents en tête de file) */}
+      {unranked.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="px-1 text-2xs font-semibold tracking-widest text-text-secondary">
+            {t('predict.unranked')}
+          </p>
+          {unranked.some((d) => d.absentFromWeekend) && (
+            <p className="px-1 text-xs text-text-muted">{t('predict.absentHint')}</p>
+          )}
+          <ul className="flex flex-col gap-1">
+            {unranked.map((driver) => (
+              <li key={driver.code} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
+                <span
+                  aria-hidden="true"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-sm text-text-secondary"
+                >
+                  +
+                </span>
+                <DriverInfo driver={driver} />
+                <button type="button"
+                  onClick={() => add(driver.code)}
+                  disabled={isComplete}
+                  aria-label={`${t('predict.add')} ${driver.firstName} ${driver.lastName}`}
+                  className="shrink-0 text-sm font-semibold text-primary-text transition-colors hover:text-primary-text/80 disabled:pointer-events-none disabled:opacity-30"
+                >
+                  {t('predict.add')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Nudge : un absent est classé — permis, mais conséquence rappelée */}
+      <AbsentRankedWarning names={absentsRanked} />
 
       {/* Meilleur tour */}
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
@@ -484,10 +586,14 @@ function RaceForm({
       <Button
         size="block"
         onClick={save}
-        disabled={isPending}
+        disabled={isPending || !isComplete}
         aria-busy={isPending}
       >
-        {isPending ? t('predict.saving') : t('predict.save')}
+        {isPending
+          ? t('predict.saving')
+          : isComplete
+          ? t('predict.save')
+          : `${t('predict.save')} (${selected.length}/${expectedCount})`}
       </Button>
     </div>
   )
@@ -704,6 +810,9 @@ function QualifsForm({
           <p className="px-1 text-2xs font-semibold tracking-widest text-text-secondary">
             {t('predict.unranked')}
           </p>
+          {unranked.some((d) => d.absentFromWeekend) && (
+            <p className="px-1 text-xs text-text-muted">{t('predict.absentHint')}</p>
+          )}
           <ul className="flex flex-col gap-1">
             {unranked.map((driver) => (
               <li key={driver.code} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
@@ -727,6 +836,9 @@ function QualifsForm({
           </ul>
         </div>
       )}
+
+      {/* Nudge : un absent est classé — permis, mais conséquence rappelée */}
+      <AbsentRankedWarning names={rankedAbsentNames(selected, driverByCode)} />
 
       {/* Feedback */}
       {message && (
@@ -791,6 +903,7 @@ export function PredictionForm({
       <RaceForm
         sessionId={sessionId}
         drivers={drivers}
+        expectedCount={expectedCount}
         existingEntries={existingEntries}
         existingFastestLap={existingFastestLap}
         gridOrder={gridOrder}

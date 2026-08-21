@@ -17,14 +17,23 @@ export function isGridPrefilled(existingEntries: string[], gridOrder: string[]):
 
 /** Ordre initial du formulaire course avec pré-remplissage grille : un prono
  *  enregistré est prioritaire ; sinon la grille (restreinte aux pilotes connus,
- *  pilotes hors grille ajoutés à la fin) ; sinon l'ordre des pilotes fourni. */
+ *  pilotes hors grille ajoutés à la fin) ; sinon l'ordre des pilotes fourni.
+ *
+ *  Plafonné à `expectedCount` : la liste saison peut dépasser le nombre de
+ *  partants (échange de baquet → 23 pilotes, cas Zandvoort 2026) alors que le
+ *  serveur rejette tout envoi au-delà. `allCodes` arrive absents en fin de
+ *  liste (tri de la page) → le surplus coupé est bien le pilote absent, qui
+ *  démarre dans la section « non classés ». */
 export function buildPrefilledRaceOrder(
   existingEntries: string[],
   gridOrder: string[],
   allCodes: string[],
+  expectedCount: number,
 ): string[] {
-  if (existingEntries.length > 0) return buildRaceOrder(existingEntries, allCodes)
-  return buildRaceOrder(gridOrder.filter((code) => allCodes.includes(code)), allCodes)
+  const base = existingEntries.length > 0
+    ? buildRaceOrder(existingEntries, allCodes)
+    : buildRaceOrder(gridOrder.filter((code) => allCodes.includes(code)), allCodes)
+  return base.slice(0, expectedCount)
 }
 
 /** Sélection initiale du formulaire « top N » (Sprint Race) avec pré-remplissage

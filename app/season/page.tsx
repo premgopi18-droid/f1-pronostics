@@ -90,8 +90,6 @@ export default async function SeasonPage() {
             initialWdc={wdcEntries}
             initialWcc={wccEntries}
             isSubmissionOpen={isSubmissionOpen}
-            isItemsOpen={isItemsOpen}
-            seasonItems={seasonItems}
           />
         </div>
       ) : (

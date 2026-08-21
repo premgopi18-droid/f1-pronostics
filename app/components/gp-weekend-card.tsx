@@ -3,16 +3,9 @@ import { Card, CardTitle } from "@/app/ui/card";
 import { Badge } from "@/app/ui/badge";
 import { buttonVariants } from "@/app/ui/button";
 import { cn } from "@/lib/utils";
-import { t, type TranslationKey } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
+import { SESSION_LABEL_KEY } from "@/lib/i18n/session-labels";
 import type { WeekendSession } from "@/lib/home-phase";
-import type { SessionType } from "@/lib/scoring/types";
-
-const SESSION_LABEL_KEY: Record<SessionType, TranslationKey> = {
-  qualifying: "home.session.qualifying",
-  race: "home.session.race",
-  sprint_qualifying: "home.session.sprintQualifying",
-  sprint_race: "home.session.sprint",
-};
 
 export function GpWeekendCard({
   name,

@@ -6,6 +6,21 @@
  * aux écrans (les appels `t('…')` restent identiques).
  */
 export const fr = {
+  // Libellés de sessions — jeu unique (#221), consommé via lib/i18n/session-labels.ts.
+  session: {
+    long: {
+      qualifying: "Qualifications",
+      race: "Course",
+      sprint_qualifying: "Sprint Qualifs",
+      sprint_race: "Sprint",
+    },
+    short: {
+      qualifying: "Qualifs",
+      race: "Course",
+      sprint_qualifying: "Sprint Qualifs",
+      sprint_race: "Sprint",
+    },
+  },
   common: {
     loading: "Chargement…",
     next: "Suivant →",
@@ -51,12 +66,6 @@ export const fr = {
     viewResults: "Voir les résultats",
     sessionLocked: "Verrouillé",
     sessionOpen: "Ouvert",
-    session: {
-      qualifying: "Qualifications",
-      race: "Course",
-      sprintQualifying: "Sprint Qualifs",
-      sprint: "Sprint",
-    },
     createLeague: "Créer une ligue",
     joinLeague: "Rejoindre 🔗",
     myLeagues: "Mes ligues",
@@ -132,12 +141,6 @@ export const fr = {
     gridResetQualifying: "Repartir de l'ordre des qualifications",
     gridResetDone: "Ordre réinitialisé sur la grille de départ.",
     gridResetDoneQualifying: "Ordre réinitialisé sur l'ordre des qualifications.",
-    tab: {
-      qualifying: "Qualifs",
-      race: "Course",
-      sprint_qualifying: "Sprint Qualifs",
-      sprint_race: "Sprint",
-    },
     circuit: {
       alt: "Tracé du circuit — {name}",
       lengthLabel: "Longueur",

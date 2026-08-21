@@ -6,17 +6,10 @@ import { getCurrentSeason } from '@/lib/api/cron'
 import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import { TEAM_COLORS } from '@/lib/f1/team-colors'
 import { t } from '@/lib/i18n'
-import type { TranslationKey } from '@/lib/i18n'
+import { SESSION_LABEL_KEY } from '@/lib/i18n/session-labels'
 import { SCOREABLE_SESSION_TYPES, type SessionType, type BreakdownEntry } from '@/lib/scoring/types'
 
 const SESSION_ORDER: SessionType[] = ['sprint_qualifying', 'qualifying', 'sprint_race', 'race']
-
-const SESSION_LABEL_KEYS: Record<SessionType, TranslationKey> = {
-  qualifying:        'home.session.qualifying',
-  race:              'home.session.race',
-  sprint_qualifying: 'home.session.sprintQualifying',
-  sprint_race:       'home.session.sprint',
-}
 
 const PODIUM_POSITION_LABELS = ['P1', 'P2', 'P3'] as const
 
@@ -381,7 +374,7 @@ export default async function RecapGPPage({
                 <div key={session.type} className="flex items-start justify-between px-4 py-3 gap-4">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-medium text-white">
-                      {t(SESSION_LABEL_KEYS[session.type])}
+                      {t(SESSION_LABEL_KEY[session.type])}
                     </span>
                     <span className="text-xs text-zinc-500">
                       {session.exactCount > 0 && (

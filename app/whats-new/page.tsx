@@ -2,18 +2,17 @@ import Link from 'next/link'
 import { ChevronLeft, Megaphone } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { t } from '@/lib/i18n'
+import { formatParis } from '@/lib/dates'
 
 // Page « Nouveautés » : liste les annonces produit déjà diffusées. Alimentée par la table
 // `announcements` via le client cookie/RLS → la policy `announcements_select_sent` ne rend
 // visibles que les annonces envoyées (sent_at non null). Rattrape ceux qui n'ont pas reçu
 // le push (iOS non installé, opt-out, appareil hors ligne).
 
+// Fuseau désormais épinglé via formatParis : l'ancien format sans timeZone
+// affichait le jour UTC — faux autour de minuit pour une annonce du soir.
 function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(iso))
+  return formatParis(iso, { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 export default async function WhatsNewPage() {

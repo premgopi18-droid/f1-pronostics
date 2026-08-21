@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { t } from '@/lib/i18n'
-import type { TranslationKey } from '@/lib/i18n'
+import { SESSION_SHORT_LABEL_KEY } from '@/lib/i18n/session-labels'
 import { cn } from '@/lib/utils'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import { classifyPositionDelta } from '@/lib/scoring/position-mark'
@@ -28,13 +28,6 @@ type Props = {
   currentUserId:  string
 }
 
-// Réutilise les libellés courts déjà traduits dans `predict.tab.*` (i18n approche A).
-const SESSION_TAB_LABEL_KEYS: Record<SessionType, TranslationKey> = {
-  qualifying:        'predict.tab.qualifying',
-  race:              'predict.tab.race',
-  sprint_qualifying: 'predict.tab.sprint_qualifying',
-  sprint_race:       'predict.tab.sprint_race',
-}
 
 function matchQuality(
   predicted:   string | undefined,
@@ -249,7 +242,7 @@ export function PredictionCompareClient({
                   : 'text-text-secondary hover:text-foreground',
               )}
             >
-              {t(SESSION_TAB_LABEL_KEYS[s.type])}
+              {t(SESSION_SHORT_LABEL_KEY[s.type])}
             </button>
           ))}
         </div>

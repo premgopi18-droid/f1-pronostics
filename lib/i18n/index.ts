@@ -25,7 +25,21 @@ export type TranslationKey = DotKeys<Messages>;
 export function t(key: TranslationKey, vars?: Record<string, string | number>): string {
   const message = key
     .split(".")
-    .reduce<unknown>((node, segment) => (node as Record<string, unknown>)?.[segment], fr) as string;
+    .reduce<unknown>((node, segment) => (node as Record<string, unknown>)?.[segment], fr);
+  // Clé introuvable — possible malgré le typage via un cast `as TranslationKey`
+  // sur clé dynamique ou une clé supprimée du catalogue (#228, vécu sur
+  // `predict.tab.*`) : crier en dev, rendre la clé brute plutôt qu'`undefined`.
+  if (typeof message !== "string") {
+    if (process.env.NODE_ENV !== "production") {
+      console.error(`[i18n] clé introuvable : ${key}`);
+    }
+    return key;
+  }
   if (!vars) return message;
-  return message.replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? ""));
+  return message.replace(/\{(\w+)\}/g, (_, name: string) => {
+    if (process.env.NODE_ENV !== "production" && vars[name] === undefined) {
+      console.error(`[i18n] placeholder {${name}} non fourni pour la clé ${key}`);
+    }
+    return String(vars[name] ?? "");
+  });
 }

@@ -30,8 +30,12 @@ export function buildPrefilledRaceOrder(
   allCodes: string[],
   expectedCount: number,
 ): string[] {
-  const base = existingEntries.length > 0
-    ? buildRaceOrder(existingEntries, allCodes)
+  // Codes fantômes filtrés (#229) : un prono enregistré peut référencer un
+  // pilote qui a disparu de la liste — le garder produirait une ligne invisible
+  // qui éjecte un vrai partant via le cap et un envoi rejeté (unknownDriver).
+  const knownEntries = existingEntries.filter((code) => allCodes.includes(code))
+  const base = knownEntries.length > 0
+    ? buildRaceOrder(knownEntries, allCodes)
     : buildRaceOrder(gridOrder.filter((code) => allCodes.includes(code)), allCodes)
   return base.slice(0, expectedCount)
 }
@@ -45,7 +49,9 @@ export function buildPrefilledTopEntries(
   allCodes: string[],
   expectedCount: number,
 ): string[] {
-  if (existingEntries.length > 0) return existingEntries
+  // Même filtrage des codes fantômes que le formulaire course (#229).
+  const knownEntries = existingEntries.filter((code) => allCodes.includes(code))
+  if (knownEntries.length > 0) return knownEntries
   return gridOrder.filter((code) => allCodes.includes(code)).slice(0, expectedCount)
 }
 

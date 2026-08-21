@@ -89,6 +89,22 @@ describe('buildPrefilledRaceOrder', () => {
       expect(order).not.toContain('RUS')
     })
   })
+
+  // Codes fantômes (#229) : un prono enregistré peut référencer un pilote qui a
+  // disparu de la liste — il doit être filtré, sinon il éjecte un vrai partant
+  // via le cap et l'envoi est rejeté (unknownDriver).
+  describe('code pilote fantôme dans un prono enregistré', () => {
+    it('le fantôme est filtré, tous les vrais partants restent classés', () => {
+      const existing = ['GHO', 'NOR', 'LEC']
+      const order = buildPrefilledRaceOrder(existing, [], allCodes, expectedCount)
+      expect(order).toEqual(['NOR', 'LEC', 'VER', 'HAM', 'RUS'])
+    })
+
+    it('un prono composé uniquement de fantômes retombe sur la grille', () => {
+      const grid = ['HAM', 'RUS', 'VER', 'NOR', 'LEC']
+      expect(buildPrefilledRaceOrder(['GHO'], grid, allCodes, expectedCount)).toEqual(grid)
+    })
+  })
 })
 
 describe('buildPrefilledTopEntries', () => {

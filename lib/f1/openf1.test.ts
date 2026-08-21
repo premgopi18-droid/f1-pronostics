@@ -135,6 +135,30 @@ describe('openf1 — sélection de session par date', () => {
       ])
     })
 
+    it('un tour chronométré inattribuable (numéro hors /drivers) → [] plutôt qu\'un classement partiel (#215)', async () => {
+      // Régression EL1 Zandvoort 2026 : le /drivers de la session servait encore
+      // le pré-seed périmé (sans le n°22 de Tsunoda) au moment du fetch — ses 34
+      // tours étaient écartés en silence et le classement confirmé FAUX
+      // (21 lignes, positions décalées). Un classement partiel ne doit jamais
+      // être retourné : « pas encore dispo », le cron retente.
+      mockOpenF1({
+        sessions: [
+          { session_key: 100, session_name: 'Practice 1', year: 2025,
+            circuit_short_name: 'Zandvoort', date_start: '2025-08-22T10:30:00+00:00', date_end: '2025-08-22T11:30:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 1, name_acronym: 'VER', session_key: 100 },
+        ],
+        laps: [
+          { driver_number: 1,  lap_duration: 78.5, date_start: '2025-08-22T10:40:00+00:00' },
+          { driver_number: 22, lap_duration: 75.1, date_start: '2025-08-22T10:42:00+00:00' }, // numéro absent du /drivers
+        ],
+      })
+
+      const results = await fetchPracticeResults(2025, 'Practice 1', '2025-08-22T10:30:00Z')
+      expect(results).toEqual([])
+    })
+
     it('formate le meilleur tour en m:ss.mmm (padding secondes et millisecondes)', async () => {
       mockOpenF1({
         sessions: [
@@ -186,6 +210,27 @@ describe('openf1 — sélection de session par date', () => {
 
     it('renvoie une Map vide si aucune session proche', async () => {
       mockOpenF1({ sessions: [] })
+      const results = await fetchSprintQualifyingResults(2025, '2025-03-21T07:30:00Z')
+      expect(results.size).toBe(0)
+    })
+
+    it('une position inattribuable (numéro hors /drivers) → Map vide plutôt qu\'un classement partiel (#215)', async () => {
+      // Même famille de bug que fetchPracticeResults, mais ici la session est
+      // SCORÉE : un classement partiel scorerait faussement 0 le pilote écarté.
+      mockOpenF1({
+        sessions: [
+          { session_key: 200, session_name: 'Sprint Qualifying', year: 2025,
+            circuit_short_name: 'Shanghai', date_start: '2025-03-21T07:30:00+00:00', date_end: '2025-03-21T08:14:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 1, name_acronym: 'VER', session_key: 200 },
+        ],
+        positions: [
+          { driver_number: 1,  position: 2, date: '2025-03-21T08:00:00+00:00' },
+          { driver_number: 22, position: 1, date: '2025-03-21T08:00:00+00:00' }, // numéro absent du /drivers
+        ],
+      })
+
       const results = await fetchSprintQualifyingResults(2025, '2025-03-21T07:30:00Z')
       expect(results.size).toBe(0)
     })

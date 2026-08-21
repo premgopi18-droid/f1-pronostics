@@ -2,31 +2,39 @@ import { describe, it, expect } from 'vitest'
 import { diffLineup, formatLineupChangeBody, selectLineupSessionCandidates } from './lineup-changes'
 
 describe('selectLineupSessionCandidates', () => {
-  const now = new Date('2026-08-23T09:00:00Z').getTime()   // dimanche matin
   const horizon = 24 * 60 * 60 * 1000
 
   const weekend = [
-    { type: 'practice_1', startsAt: '2026-08-21T10:30:00Z' },  // vendredi — passée
-    { type: 'qualifying', startsAt: '2026-08-22T14:00:00Z' },  // samedi — passée
-    { type: 'race',       startsAt: '2026-08-23T13:00:00Z' },  // dimanche — dans 4 h
+    { type: 'practice_1', startsAt: '2026-08-21T10:30:00Z' },  // vendredi
+    { type: 'qualifying', startsAt: '2026-08-22T14:00:00Z' },  // samedi
+    { type: 'race',       startsAt: '2026-08-23T13:00:00Z' },  // dimanche
   ]
 
-  it('ordre décroissant : la session la plus fraîche d\'abord (remplacement du dimanche)', () => {
-    // Régression : en ordre croissant, les EL1 du vendredi (toujours publiées)
-    // répondraient en premier et masqueraient un remplacement de dernière minute
-    // visible uniquement dans les /drivers de la course.
-    expect(selectLineupSessionCandidates(weekend, now, horizon).map((s) => s.type))
-      .toEqual(['race', 'qualifying', 'practice_1'])
-  })
-
-  it('exclut les sessions au-delà de l\'horizon, garde les sessions passées', () => {
-    const friday = new Date('2026-08-21T08:00:00Z').getTime()
-    // Vendredi matin : EL1 dans 2h30 (dans l'horizon), qualif samedi 14h (30 h → exclue)
-    expect(selectLineupSessionCandidates(weekend, friday, horizon).map((s) => s.type))
+  it('sessions démarrées uniquement, la plus fraîche d\'abord — une session future ne masque jamais une session courue (#214)', () => {
+    // Régression GP Pays-Bas 2026 : OpenF1 pré-seede les /drivers des sessions
+    // futures avec le line-up nominal périmé. Samedi matin, la qualif de 14h
+    // (future, dans l'horizon) répondrait avec des données périmées et
+    // masquerait la vérité des EL1 courues.
+    const saturdayMorning = new Date('2026-08-22T09:00:00Z').getTime()
+    expect(selectLineupSessionCandidates(weekend, saturdayMorning, horizon).map((s) => s.type))
       .toEqual(['practice_1'])
   })
 
-  it('aucune session dans l\'horizon → liste vide', () => {
+  it('plusieurs sessions démarrées → ordre décroissant, les futures exclues', () => {
+    const sundayMorning = new Date('2026-08-23T09:00:00Z').getTime()
+    expect(selectLineupSessionCandidates(weekend, sundayMorning, horizon).map((s) => s.type))
+      .toEqual(['qualifying', 'practice_1'])
+  })
+
+  it('aucune session démarrée → repli sur le pré-seed des sessions à venir dans l\'horizon, la plus proche d\'abord', () => {
+    // Jeudi/vendredi matin : le pré-seed OpenF1 est la seule donnée disponible
+    // — il sert à semer la baseline du GP.
+    const fridayBeforePractice = new Date('2026-08-21T08:00:00Z').getTime()
+    expect(selectLineupSessionCandidates(weekend, fridayBeforePractice, horizon).map((s) => s.type))
+      .toEqual(['practice_1'])
+  })
+
+  it('aucune session démarrée ni à venir dans l\'horizon → liste vide', () => {
     const monday = new Date('2026-08-17T09:00:00Z').getTime()
     expect(selectLineupSessionCandidates(weekend, monday, horizon)).toEqual([])
   })

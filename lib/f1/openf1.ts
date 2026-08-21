@@ -143,9 +143,17 @@ export async function fetchSprintQualifyingResults(
   const result = new Map<string, DriverResult>()
   for (const [number, position] of finalPositions) {
     const code = numberToCode.get(number)
-    if (code) {
-      result.set(code, { position, fastestLap: false })
+    // Position inattribuable (numéro absent du /drivers de la session) = le
+    // /drivers est encore le pré-seed périmé d'OpenF1 (mis à jour ~1 h après la
+    // séance — #215). Un classement partiel serait structurellement faux — et
+    // ici SCORÉ : on renvoie « pas encore dispo », le cron retentera.
+    if (!code) {
+      console.warn(
+        `fetchSprintQualifyingResults : numéro ${number} absent du /drivers de la session ${session.session_key} — classement différé`,
+      )
+      return new Map()
     }
+    result.set(code, { position, fastestLap: false })
   }
   return result
 }
@@ -274,7 +282,17 @@ export async function fetchPracticeResults(
   let position = 1
   for (const [number, lap] of ranked) {
     const code = numberToCode.get(number)
-    if (!code) continue
+    // Tour chronométré inattribuable (numéro absent du /drivers de la session) =
+    // le /drivers est encore le pré-seed périmé d'OpenF1 (mis à jour ~1 h après
+    // la séance — #215, EL1 Zandvoort 2026 : les 34 tours de Tsunoda écartés en
+    // silence, classement confirmé faux). Les positions d'un classement partiel
+    // sont structurellement fausses : « pas encore dispo », le cron retentera.
+    if (!code) {
+      console.warn(
+        `fetchPracticeResults : numéro ${number} absent du /drivers de la session ${session.session_key} — classement différé`,
+      )
+      return []
+    }
     results.push({ position: position++, driverCode: code, bestLapTime: formatLapTime(lap.duration) })
   }
 

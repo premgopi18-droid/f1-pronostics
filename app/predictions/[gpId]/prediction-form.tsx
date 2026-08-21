@@ -48,6 +48,9 @@ export interface Driver {
   number:    number | null
   teamCode:  string
   teamName:  string
+  /** #211 : jamais vu sur une session fiable du week-end alors que d'autres
+   *  l'ont été — badge « Absent du week-end ? », sélection jamais bloquée. */
+  absentFromWeekend: boolean
 }
 
 interface Props {
@@ -187,11 +190,16 @@ function DriverInfo({ driver, position, large }: { driver: Driver; position?: nu
   const teamColor = TEAM_COLORS[driver.teamCode] ?? '#888'
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <span
-        className={cn('truncate font-semibold text-foreground', large ? 'text-base' : 'text-sm')}
-        style={position ? positionStyle(position) : undefined}
-      >
-        {driver.firstName} {driver.lastName}
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span
+          className={cn('truncate font-semibold text-foreground', large ? 'text-base' : 'text-sm')}
+          style={position ? positionStyle(position) : undefined}
+        >
+          {driver.firstName} {driver.lastName}
+        </span>
+        {driver.absentFromWeekend && (
+          <Badge variant="warning" className="shrink-0">{t('predict.absentFromWeekend')}</Badge>
+        )}
       </span>
       <span className="text-2xs font-medium" style={{ color: teamColor }}>
         {driver.teamName}
@@ -456,7 +464,10 @@ function RaceForm({
                 )}
               >
                 <span className="w-8 shrink-0 font-mono font-semibold">{d.code}</span>
-                <span>{d.firstName} {d.lastName}</span>
+                <span className="truncate">{d.firstName} {d.lastName}</span>
+                {d.absentFromWeekend && (
+                  <Badge variant="warning" className="ml-auto shrink-0">{t('predict.absentFromWeekend')}</Badge>
+                )}
               </button>
             ))}
           </div>

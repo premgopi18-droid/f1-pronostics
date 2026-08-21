@@ -5,6 +5,7 @@ import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import { getCachedDrivers, getCachedConstructors, getCachedLatestRaceConstructorCodes } from '@/lib/f1/cached'
+import { constructorCodeFromOpenF1TeamName } from '@/lib/f1/team-names'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import { t } from '@/lib/i18n'
 import { PredictionTabs, type SessionData } from './prediction-tabs'
@@ -77,6 +78,7 @@ export default async function PredictPage({
     { data: fastestLapRows },
     startingGrids,
     { data: fallbackResultRows },
+    { data: observedLineupRows },
   ] = await Promise.all([
     bacingerId
       ? supabase.from('circuit_tracks').select('geojson').eq('id', bacingerId).single()
@@ -115,6 +117,13 @@ export default async function PredictPage({
           .not('position', 'is', null)
           .order('position', { ascending: true })
       : { data: [] },
+    // Line-up observé du week-end (#211) : pilotes réellement vus en piste sur
+    // une session fiable de CE GP, avec leur écurie du moment (libellé OpenF1).
+    supabase
+      .from('gp_lineups')
+      .select('team_name, drivers!driver_id(code)')
+      .eq('gp_id', gpId)
+      .not('observed_at', 'is', null),
   ])
 
   const circuitFeature = (track?.geojson as CircuitFeature | undefined) ?? null
@@ -128,21 +137,37 @@ export default async function PredictPage({
     constructorsRaw.map((c) => [c.code, c.name]),
   )
 
-  // Écurie affichée = celle de la dernière course disputée (#205, gère les
-  // échanges de baquet) ; fallback : constructor_id saison (pilote sans course).
+  // Line-up observé du week-end (#211) : code pilote → libellé écurie OpenF1.
+  // Vide tant qu'aucune session fiable du GP n'a été observée (jeudi, vendredi
+  // matin) — dans ce cas, ni écurie week-end ni signal d'absence.
+  const observedTeamNameByCode = new Map<string, string>()
+  for (const row of observedLineupRows ?? []) {
+    if (row.drivers) observedTeamNameByCode.set(row.drivers.code, row.team_name)
+  }
+  const hasWeekendObservation = observedTeamNameByCode.size > 0
+
+  // Écurie affichée = line-up observé du week-end (#211, gère l'échange de
+  // baquet AVANT la course) > dernière course disputée (#205) > mapping saison.
+  // Un pilote de la saison jamais observé alors que d'autres l'ont été est
+  // signalé « absent du week-end ? » et relégué en fin de liste — jamais bloqué.
   const drivers: Driver[] = driversRaw.map((d) => {
     const seasonConstructor = constructorById.get(d.constructor_id ?? '') ?? { code: '', name: '' }
-    const latestCode = latestRaceConstructorCodes[d.code]
+    const observedTeamName  = observedTeamNameByCode.get(d.code)
+    const weekendCode       = observedTeamName ? constructorCodeFromOpenF1TeamName(observedTeamName) : null
+    const teamCode          = weekendCode ?? latestRaceConstructorCodes[d.code] ?? seasonConstructor.code
     return {
-      id:        d.id,
-      code:      d.code,
-      firstName: d.first_name,
-      lastName:  d.last_name,
-      number:    d.number,
-      teamCode:  latestCode ?? seasonConstructor.code,
-      teamName:  latestCode ? (constructorNameByCode.get(latestCode) ?? seasonConstructor.name) : seasonConstructor.name,
+      id:                d.id,
+      code:              d.code,
+      firstName:         d.first_name,
+      lastName:          d.last_name,
+      number:            d.number,
+      teamCode,
+      teamName:          constructorNameByCode.get(teamCode) ?? seasonConstructor.name,
+      absentFromWeekend: hasWeekendObservation && !observedTeamNameByCode.has(d.code),
     }
   })
+  // Tri stable : ordre par code préservé au sein de chaque groupe.
+  drivers.sort((a, b) => Number(a.absentFromWeekend) - Number(b.absentFromWeekend))
 
   const predictionsBySession = new Map(
     (predictions ?? []).map((p) => [p.session_id, p.entries as string[]]),

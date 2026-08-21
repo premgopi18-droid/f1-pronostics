@@ -40,6 +40,16 @@ export const LINEUP_SESSION_TRUST_DELAY_MS = 3 * 60 * 60 * 1000
  * répercuté par OpenF1 qu'après le départ de la course — indétectable avant,
  * aucune donnée OpenF1 pré-course ne portant l'écurie.
  */
+/**
+ * true = la session a démarré depuis assez longtemps pour que son /drivers
+ * OpenF1 reflète les participants réels (et plus le pré-seed nominal). Sert à
+ * distinguer une OBSERVATION fiable du week-end (gp_lineups.observed_at, #211)
+ * d'un simple semis de baseline.
+ */
+export function isLineupSessionTrusted(sessionStartsAt: string, now: number): boolean {
+  return new Date(sessionStartsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS <= now
+}
+
 export function selectLineupSessionCandidates<T extends { startsAt: string }>(
   sessions: T[],
   now: number,

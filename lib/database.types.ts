@@ -767,6 +767,7 @@ export type Database = {
           gp_id: string
           id: string
           notified_at: string | null
+          observed_at: string | null
           season: number
           team_name: string
         }
@@ -776,6 +777,7 @@ export type Database = {
           gp_id: string
           id?: string
           notified_at?: string | null
+          observed_at?: string | null
           season: number
           team_name: string
         }
@@ -785,6 +787,7 @@ export type Database = {
           gp_id?: string
           id?: string
           notified_at?: string | null
+          observed_at?: string | null
           season?: number
           team_name?: string
         }

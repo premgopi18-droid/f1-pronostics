@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { diffLineup, formatLineupChangeBody, selectLineupSessionCandidates } from './lineup-changes'
+import {
+  diffLineup,
+  formatLineupChangeBody,
+  selectLineupSessionCandidates,
+  isLineupSessionTrusted,
+  LINEUP_SESSION_TRUST_DELAY_MS,
+} from './lineup-changes'
 
 describe('selectLineupSessionCandidates', () => {
   const horizon = 24 * 60 * 60 * 1000
@@ -42,6 +48,21 @@ describe('selectLineupSessionCandidates', () => {
   it('aucune session démarrée ni à venir dans l\'horizon → liste vide', () => {
     const monday = new Date('2026-08-17T09:00:00Z').getTime()
     expect(selectLineupSessionCandidates(weekend, monday, horizon)).toEqual([])
+  })
+})
+
+describe('isLineupSessionTrusted', () => {
+  const startsAt = '2026-08-21T10:30:00Z' // EL1 du GP Pays-Bas 2026
+
+  it('fiable une fois le délai de confiance écoulé après le DÉBUT (durée de séance + latence de bascule OpenF1)', () => {
+    const atTrustBoundary = new Date(startsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS
+    expect(isLineupSessionTrusted(startsAt, atTrustBoundary)).toBe(true)
+    expect(isLineupSessionTrusted(startsAt, atTrustBoundary - 1)).toBe(false)
+  })
+
+  it('une session en cours ou à peine finie n\'est pas fiable (son /drivers peut être le pré-seed)', () => {
+    const duringSession = new Date('2026-08-21T11:00:00Z').getTime()
+    expect(isLineupSessionTrusted(startsAt, duringSession)).toBe(false)
   })
 })
 

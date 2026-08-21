@@ -12,23 +12,58 @@ export interface LineupChange {
 }
 
 /**
- * Sessions candidates à l'interrogation OpenF1, de la PLUS RÉCENTE à la plus
- * ancienne parmi celles déjà dans l'horizon (démarrées, ou démarrant dans
- * moins de `horizonMs`). L'ordre décroissant est essentiel : la session la
- * plus fraîche disponible fait foi — un remplacement du dimanche matin n'est
- * visible que dans les /drivers de la course ; en ordre croissant, les EL1 du
- * vendredi (toujours publiées) répondraient en premier et masqueraient le
- * changement tout le week-end. Le repli sur les sessions précédentes couvre
- * celles qu'OpenF1 n'a pas encore publiées.
+ * Délai après le DÉBUT d'une session au bout duquel son /drivers OpenF1 est
+ * réputé refléter les participants réels : durée maximale de séance (~2 h pour
+ * une course) + ~1 h de latence de mise à jour constatée après la fin (#214).
+ * Avant ce délai, le /drivers peut encore être le pré-seed nominal périmé.
+ */
+export const LINEUP_SESSION_TRUST_DELAY_MS = 3 * 60 * 60 * 1000
+
+/**
+ * Sessions candidates à l'interrogation OpenF1. OpenF1 PRÉ-SEEDE les /drivers
+ * de toutes les sessions du meeting avec le line-up nominal (constaté dès le
+ * jeudi) et ne les met à jour qu'au passage réel de la séance, ~1 h après sa
+ * FIN (#214, GP Pays-Bas 2026) — une session future OU fraîchement démarrée
+ * porte donc une donnée suspecte de péremption, qui ne doit jamais écraser
+ * celle d'une session réellement courue.
+ *
+ * Trois niveaux de confiance :
+ * 1. Sessions FIABLES (démarrées depuis plus de LINEUP_SESSION_TRUST_DELAY_MS),
+ *    de la plus récente à la plus ancienne — s'il en existe, elles seules sont
+ *    consultées : rien ne peut re-écraser leur vérité.
+ * 2. Sinon, sessions démarrées pas encore fiables — leur /drivers peut avoir
+ *    déjà basculé, jamais pire que le pré-seed d'une session future.
+ * 3. Sinon (jeudi, vendredi avant EL1) : pré-seed des sessions à venir dans
+ *    l'horizon, de la plus proche à la plus lointaine — semis de baseline.
+ *
+ * Limite connue : un remplacement de dernière minute le dimanche matin n'est
+ * répercuté par OpenF1 qu'après le départ de la course — indétectable avant,
+ * aucune donnée OpenF1 pré-course ne portant l'écurie.
  */
 export function selectLineupSessionCandidates<T extends { startsAt: string }>(
   sessions: T[],
   now: number,
   horizonMs: number,
 ): T[] {
+  const byStartDescending = (a: T, b: T) =>
+    new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime()
+
+  const trusted = sessions
+    .filter((session) => new Date(session.startsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS <= now)
+    .sort(byStartDescending)
+  if (trusted.length > 0) return trusted
+
+  const started = sessions
+    .filter((session) => new Date(session.startsAt).getTime() <= now)
+    .sort(byStartDescending)
+  if (started.length > 0) return started
+
   return sessions
-    .filter((session) => new Date(session.startsAt).getTime() <= now + horizonMs)
-    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime())
+    .filter((session) => {
+      const startsAt = new Date(session.startsAt).getTime()
+      return startsAt > now && startsAt <= now + horizonMs
+    })
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
 }
 
 /**

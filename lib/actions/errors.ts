@@ -26,6 +26,7 @@ export const ACTION_ERROR_CODES = [
   'targetNotLeagueMember',
   'targetRequired',
   'driverRequired',
+  'driverUnknown',
   'constructorRequired',
   'constructorUnknown',
   'invalidSession',

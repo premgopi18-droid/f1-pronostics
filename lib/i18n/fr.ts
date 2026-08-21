@@ -578,6 +578,7 @@ export const fr = {
     targetNotLeagueMember: "La cible n'est pas membre de cette ligue",
     targetRequired: "Cible requise",
     driverRequired: "Pilote requis",
+    driverUnknown: "Pilote inconnu pour cette saison",
     constructorRequired: "Écurie requise",
     constructorUnknown: "Écurie inconnue pour cette saison",
     invalidSession: "Session invalide",

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
+import { formatParis } from '@/lib/dates'
 import { getCachedDrivers, getCachedConstructors } from '@/lib/f1/cached'
 import { getUserGPItems, getPlayedGPItemForUser } from '@/lib/data/items'
 import { getCurrentGp } from '@/lib/data/current-gp'
@@ -134,7 +135,9 @@ export default async function ItemsPage({
   }))
 
   const isSprintWeekend = gp.is_sprint_weekend
-  const formatDeadline = (d: Date) => d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+  // Fuseau épinglé via lib/dates : le rendu serveur (UTC sur Vercel) affichait
+  // les deadlines d'items avec 2 h de retard — seul site oublié par #221.
+  const formatDeadline = (d: Date) => formatParis(d, { dateStyle: 'short', timeStyle: 'short' })
 
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-8">

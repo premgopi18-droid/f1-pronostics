@@ -25,14 +25,15 @@ import { computeSessionBaseScore } from '@/lib/scoring/base-score'
 import { applyItemEffects, buildConstructorDrivers } from '@/lib/scoring/resolve-items'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import { isPushConfigured, sendPushToAll, sendPushToUser } from '@/lib/push/send'
-import type { ResolutionContext } from '@/lib/scoring/types'
+import { SCOREABLE_SESSION_TYPES, type ResolutionContext } from '@/lib/scoring/types'
+import { t } from '@/lib/i18n'
+import { SESSION_LABEL_KEY } from '@/lib/i18n/session-labels'
 
-const SESSION_TYPE_LABELS: Record<string, string> = {
-  qualifying:        'Qualifications',
-  race:              'Course',
-  sprint_qualifying: 'Sprint Qualifying',
-  sprint_race:       'Sprint',
-}
+// Libellés des notifs push — jeu unique de libellés (#221), formes longues.
+// Fallback `?? session.type` conservé aux sites d'usage pour les types non scorés.
+const SESSION_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  SCOREABLE_SESSION_TYPES.map((type) => [type, t(SESSION_LABEL_KEY[type])]),
+)
 
 // Accepte GET (crons Vercel — toujours en GET) et POST (cron-job.org, curl).
 async function handler(request: Request): Promise<Response> {

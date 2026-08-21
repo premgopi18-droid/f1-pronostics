@@ -79,10 +79,13 @@ export function PredictionTabs({ sessions, drivers }: Props) {
   const activeEntries = savedEntries.get(activeSession.id) ?? activeSession.existingEntries
   const isComplete    = activeEntries.length === activeSession.expectedCount
 
+  // Le ✓ n'apparaît que pour un prono COMPLET : un prono partiel est enregistré
+  // en brouillon (is_valid=false côté serveur) et ne rapporte aucun point — un ✓
+  // sur un 8/10 laissait croire que tout était en règle (audit 21/08/2026).
   const tabLabel = (session: SessionData, index: number) =>
     buildTabLabel(
       TAB_LABELS[session.type],
-      (savedEntries.get(session.id) ?? session.existingEntries).length > 0,
+      (savedEntries.get(session.id) ?? session.existingEntries).length === session.expectedCount,
       index === activeIndex,
     )
 

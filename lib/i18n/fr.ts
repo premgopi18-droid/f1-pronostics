@@ -139,6 +139,7 @@ export const fr = {
     save: "Enregistrer",
     saving: "Enregistrement…",
     savedOk: "Pronostic enregistré !",
+    savedDraft: "Brouillon enregistré ({count}/{total}) — complète ton prono pour qu'il rapporte des points.",
     gridPrefilled: "Pré-rempli avec la grille de départ — enregistre pour valider ton prono.",
     gridPrefilledQualifying: "Pré-rempli avec l'ordre des qualifications — enregistre pour valider ton prono.",
     gridReset: "Repartir de la grille de départ",

@@ -209,14 +209,17 @@ export const fr = {
       secretNoteOpponent: "Résolu après la course du dimanche. {opponent} ne saura rien avant.",
       submit:             "Confirmer et jouer",
       cancel:             "Annuler",
+      sending:            "Envoi…",
+      // {bonus} = ITEM_BONUS_POINTS (lib/scoring/constants.ts) — jamais de valeur
+      // de points en dur ici, la spec les déclare ajustables.
       recap: {
         shield:         "Tu vas jouer {item} : tous les items offensifs reçus ce week-end seront annulés.",
         block_driver:   "Tu vas jouer {item} contre {opponent} : {driver} ne lui rapportera aucun point de position en {session}.",
         wild_card:      "Tu vas jouer {item} contre {opponent} : tu lui voleras la moitié de ses points en {session}.",
         double_points:  "Tu vas jouer {item} : tes points en {session} seront doublés.",
-        dnf_prediction: "Tu vas jouer {item} : +8 pts si {driver} abandonne la course.",
-        underdog_top5:  "Tu vas jouer {item} : +8 pts si {driver} finit dans le top 5 de la course.",
-        no_points_team: "Tu vas jouer {item} : +12 pts si aucun des 2 pilotes {team} ne marque de point en course.",
+        dnf_prediction: "Tu vas jouer {item} : +{bonus} pts si {driver} abandonne la course.",
+        underdog_top5:  "Tu vas jouer {item} : +{bonus} pts si {driver} finit dans le top 5 de la course.",
+        no_points_team: "Tu vas jouer {item} : +{bonus} pts si aucun des 2 pilotes {team} ne marque de point en course.",
       },
     },
     shield:         { name: "Bouclier",                     description: "Annule tous les items offensifs reçus ce week-end" },

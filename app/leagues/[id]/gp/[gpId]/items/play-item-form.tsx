@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { BottomSheet } from '@/app/ui/bottom-sheet'
 import { playItemAction, type PlayItemInput } from '@/app/actions/items'
 import { ALLOWED_SESSIONS, SESSION_TYPES } from '@/app/actions/items-payload'
+import { ITEM_BONUS_POINTS } from '@/lib/scoring/constants'
 import type { ItemAvailability, ItemUnavailableReason } from '@/lib/items/availability'
 import type { SessionType } from '@/lib/scoring/types'
 import { t, tSegments, type TranslationKey } from '@/lib/i18n'
@@ -430,6 +431,9 @@ function ConfirmSheet({
   if (targetDriver)      recapVariables.driver      = `${targetDriver.code} · ${targetDriver.firstName} ${targetDriver.lastName}`
   if (targetConstructor) recapVariables.team        = targetConstructor.name
   if (draft.sessionType) recapVariables.session     = SESSION_LABELS[draft.sessionType]
+  if (itemType in ITEM_BONUS_POINTS) {
+    recapVariables.bonus = String(ITEM_BONUS_POINTS[itemType as keyof typeof ITEM_BONUS_POINTS])
+  }
 
   const recapSegments = tSegments(`items.confirm.recap.${itemType}` as TranslationKey, recapVariables)
 
@@ -438,7 +442,7 @@ function ConfirmSheet({
       <div className="flex flex-col gap-4 p-5">
         <div className="flex items-start gap-3.5">
           <span className="text-3xl shrink-0" aria-hidden="true">{itemLabel?.emoji}</span>
-          <p className="text-zinc-400 text-[0.95rem] leading-relaxed">
+          <p className="text-zinc-400 text-base leading-relaxed">
             {recapSegments.map((segment, index) =>
               segment.emphasis
                 ? <strong key={index} className="text-white font-semibold">{segment.text}</strong>
@@ -466,7 +470,7 @@ function ConfirmSheet({
             disabled={isPending}
             className="bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold rounded-lg px-4 py-3 transition-colors cursor-pointer disabled:cursor-not-allowed"
           >
-            {isPending ? 'Envoi…' : t('items.confirm.submit')}
+            {isPending ? t('items.confirm.sending') : t('items.confirm.submit')}
           </button>
           <button type="button"
             onClick={onClose}

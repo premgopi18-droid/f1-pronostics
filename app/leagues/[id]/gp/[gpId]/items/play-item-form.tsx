@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation'
 import { BottomSheet } from '@/app/ui/bottom-sheet'
 import { playItemAction, type PlayItemInput } from '@/app/actions/items'
 import { ALLOWED_SESSIONS, SESSION_TYPES } from '@/app/actions/items-payload'
+import { ITEM_BONUS_POINTS } from '@/lib/scoring/constants'
 import type { ItemAvailability, ItemUnavailableReason } from '@/lib/items/availability'
 import type { SessionType } from '@/lib/scoring/types'
-import { t, type TranslationKey } from '@/lib/i18n'
+import { t, tSegments, type TranslationKey } from '@/lib/i18n'
 import { SESSION_LABEL_KEY } from '@/lib/i18n/session-labels'
 
 interface Driver {
@@ -74,7 +75,9 @@ const SESSION_LABELS: Record<SessionType, string> = {
   sprint_race:       t(SESSION_LABEL_KEY.sprint_race),
 }
 
-type Step = 'choose' | 'configure' | 'confirm'
+// La confirmation n'est plus une étape à part entière : c'est une bottom sheet
+// par-dessus l'étape courante (#236 — rupture visuelle voulue, point de non-retour).
+type Step = 'choose' | 'configure'
 
 type Draft = {
   targetUserId?:    string
@@ -91,6 +94,7 @@ export function PlayItemForm({
   const [step, setStep]               = useState<Step>('choose')
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [draft, setDraft]             = useState<Draft>({})
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [message, setMessage]         = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [isPending, startTransition]  = useTransition()
 
@@ -104,15 +108,24 @@ export function PlayItemForm({
     setSelectedItem(itemType)
     setDraft({})
     setMessage(null)
-    // shield n'a pas de configuration — passe directement au confirm
-    setStep(itemType === 'shield' ? 'confirm' : 'configure')
+    // shield n'a pas de configuration — la sheet de confirmation s'ouvre directement
+    if (itemType === 'shield') { setConfirmOpen(true); return }
+    setStep('configure')
   }
 
   const back = () => {
-    if (step === 'confirm') { setStep(selectedItem === 'shield' ? 'choose' : 'configure'); return }
     setStep('choose')
     setSelectedItem(null)
     setDraft({})
+  }
+
+  // Annuler ne perd rien : la configuration reste en place derrière la sheet.
+  // Cas shield (ouverte depuis le choix) : on désélectionne aussi l'item.
+  const closeConfirm = () => {
+    if (isPending) return
+    setConfirmOpen(false)
+    setMessage(null)
+    if (step === 'choose') setSelectedItem(null)
   }
 
   const submit = () => {
@@ -237,7 +250,7 @@ export function PlayItemForm({
 
           {isConfigureComplete && (
             <button type="button"
-              onClick={() => setStep('confirm')}
+              onClick={() => setConfirmOpen(true)}
               className="bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg px-4 py-2.5 transition-colors cursor-pointer"
             >
               Continuer →
@@ -246,34 +259,21 @@ export function PlayItemForm({
         </section>
       )}
 
-      {/* Étape 3 — Confirmer */}
-      {step === 'confirm' && selectedItem && (
-        <section className="flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={back} className="text-zinc-500 hover:text-zinc-300 text-sm cursor-pointer">←</button>
-            <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Confirmer</h2>
-          </div>
-
-          <ConfirmSummary
-            draft={draft}
-            itemLabel={itemLabels[selectedItem]}
-            members={members}
-            drivers={drivers}
-            constructors={constructors}
-          />
-
-          {message?.type === 'error' && (
-            <p className="text-destructive text-sm">{message.text}</p>
-          )}
-
-          <button type="button"
-            onClick={submit}
-            disabled={isPending}
-            className="bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium rounded-lg px-4 py-2.5 transition-colors cursor-pointer disabled:cursor-not-allowed"
-          >
-            {isPending ? 'Envoi…' : 'Jouer cet item'}
-          </button>
-        </section>
+      {/* Confirmation — bottom sheet par-dessus l'étape courante (#236) */}
+      {selectedItem && (
+        <ConfirmSheet
+          open={confirmOpen}
+          onClose={closeConfirm}
+          itemType={selectedItem}
+          draft={draft}
+          itemLabel={itemLabels[selectedItem]}
+          members={members}
+          drivers={drivers}
+          constructors={constructors}
+          errorText={message?.type === 'error' ? message.text : null}
+          isPending={isPending}
+          onConfirm={submit}
+        />
       )}
 
     </div>
@@ -400,37 +400,88 @@ function ConfigureStep({
   }
 }
 
-// ── Résumé de confirmation ─────────────────────────────────────────────────
+// ── Sheet de confirmation ──────────────────────────────────────────────────
+// Récap en phrase complète (l'effet du coup, valeurs en gras) + irréversibilité
+// explicite. Cf. product-specs § « Étape de confirmation renforcée » (#236).
 
-function ConfirmSummary({
-  draft, itemLabel, members, drivers, constructors,
+function ConfirmSheet({
+  open, onClose, itemType, draft, itemLabel, members, drivers, constructors,
+  errorText, isPending, onConfirm,
 }: {
+  open:         boolean
+  onClose:      () => void
+  itemType:     string
   draft:        Draft
   itemLabel:    ItemLabel | undefined
   members:      Member[]
   drivers:      Driver[]
   constructors: Constructor[]
+  errorText:    string | null
+  isPending:    boolean
+  onConfirm:    () => void
 }) {
-  const targetMember   = members.find((m) => m.userId === draft.targetUserId)
-  const targetDriver   = drivers.find((d) => d.code === draft.driverCode)
+  const targetMember      = members.find((m) => m.userId === draft.targetUserId)
+  const targetDriver      = drivers.find((d) => d.code === draft.driverCode)
   const targetConstructor = constructors.find((c) => c.code === draft.constructorCode)
 
+  // Une phrase par item (items.confirm.recap.*) — seuls les placeholders présents
+  // dans le message sont consommés, les vars superflues sont ignorées.
+  const recapVariables: Record<string, string> = { item: itemLabel?.name ?? itemType }
+  if (targetMember)      recapVariables.opponent    = targetMember.pseudo
+  if (targetDriver)      recapVariables.driver      = `${targetDriver.code} · ${targetDriver.firstName} ${targetDriver.lastName}`
+  if (targetConstructor) recapVariables.team        = targetConstructor.name
+  if (draft.sessionType) recapVariables.session     = SESSION_LABELS[draft.sessionType]
+  if (itemType in ITEM_BONUS_POINTS) {
+    recapVariables.bonus = String(ITEM_BONUS_POINTS[itemType as keyof typeof ITEM_BONUS_POINTS])
+  }
+
+  const recapSegments = tSegments(`items.confirm.recap.${itemType}` as TranslationKey, recapVariables)
+
   return (
-    <div className="bg-zinc-900 rounded-xl px-4 py-4 flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <span className="text-3xl">{itemLabel?.emoji}</span>
-        <div>
-          <p className="text-white font-medium">{itemLabel?.name}</p>
-          {targetMember   && <p className="text-zinc-400 text-sm">→ {targetMember.pseudo}</p>}
-          {targetDriver   && <p className="text-zinc-400 text-sm">Pilote : {targetDriver.code} · {targetDriver.firstName} {targetDriver.lastName}</p>}
-          {targetConstructor && <p className="text-zinc-400 text-sm">Écurie : {targetConstructor.name}</p>}
-          {draft.sessionType && <p className="text-zinc-400 text-sm">Session : {SESSION_LABELS[draft.sessionType]}</p>}
+    <BottomSheet open={open} onClose={onClose} title={t('items.confirm.title')}>
+      <div className="flex flex-col gap-4 p-5">
+        <div className="flex items-start gap-3.5">
+          <span className="text-3xl shrink-0" aria-hidden="true">{itemLabel?.emoji}</span>
+          <p className="text-zinc-400 text-base leading-relaxed">
+            {recapSegments.map((segment, index) =>
+              segment.emphasis
+                ? <strong key={index} className="text-white font-semibold">{segment.text}</strong>
+                : <span key={index}>{segment.text}</span>,
+            )}
+          </p>
+        </div>
+
+        <div className="flex items-start gap-2.5 bg-warning-soft border border-warning/40 rounded-lg px-3.5 py-2.5">
+          <span aria-hidden="true">⚠️</span>
+          <p className="text-warning text-sm leading-relaxed">{t('items.confirm.irreversible')}</p>
+        </div>
+
+        <p className="text-xs text-zinc-500">
+          {targetMember
+            ? t('items.confirm.secretNoteOpponent', { opponent: targetMember.pseudo })
+            : t('items.confirm.secretNote')}
+        </p>
+
+        {errorText && <p className="text-destructive text-sm">{errorText}</p>}
+
+        <div className="flex flex-col gap-2 pb-1">
+          <button type="button"
+            onClick={onConfirm}
+            disabled={isPending}
+            className="bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold rounded-lg px-4 py-3 transition-colors cursor-pointer disabled:cursor-not-allowed"
+          >
+            {isPending ? t('items.confirm.sending') : t('items.confirm.submit')}
+          </button>
+          <button type="button"
+            onClick={onClose}
+            disabled={isPending}
+            className="text-zinc-400 hover:text-white disabled:text-zinc-600 rounded-lg px-4 py-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
+          >
+            {t('items.confirm.cancel')}
+          </button>
         </div>
       </div>
-      <p className="text-xs text-zinc-600">
-        Cet item sera résolu après la course du dimanche. Ton adversaire ne saura pas avant.
-      </p>
-    </div>
+    </BottomSheet>
   )
 }
 

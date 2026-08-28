@@ -670,6 +670,13 @@ Palmarès (vide en v1, structure en place)
 2. Configurer (cible membre si offensif / session / pilote selon l'item)
 3. Récap + confirmation irréversible
 
+**Étape de confirmation renforcée** (décidé 2026-08-28 — retour utilisateur : la confirmation existante n'était pas *perçue* comme un point de non-retour) :
+- Le récap s'ouvre dans une **bottom sheet** (composant `BottomSheet` existant) au clic sur « Continuer → » — rupture visuelle nette avec le formulaire, au lieu d'une section inline qui ressemble à une étape de plus.
+- **Récap en phrase complète** décrivant l'effet concret de l'item (ex. « Tu vas jouer **Blocage pilote** contre **Victor** : **VER** ne lui rapportera aucun point sur la **Course**. »), pas une liste de champs.
+- **Avertissement d'irréversibilité explicite** : « Action définitive — tu n'as qu'un item ce week-end. » (en plus de la note existante sur la résolution dimanche / adversaire non prévenu).
+- Bouton de soumission renommé **« Confirmer et jouer »** (au lieu de « Jouer cet item »), plus un bouton secondaire « Annuler » qui referme la sheet sans rien perdre de la configuration.
+- Non retenu : double confirmation supplémentaire (checkbox, hold-to-confirm) — deux paliers suffisent, le problème était la lisibilité du second, pas son absence.
+
 ### Bloc « Qui est prêt ? » (décision 2026-08-21, maquette validée le même jour)
 
 Sur la **page détail d'une ligue** (une occurrence par ligue — si l'utilisateur a plusieurs ligues, chaque page montre ses propres membres), un bloc récapitulatif montrant qui a rempli ses pronos pour le **GP en cours ou à venir**, sans jamais révéler leur contenu.

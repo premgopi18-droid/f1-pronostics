@@ -199,6 +199,29 @@ export const fr = {
     playedOk:       "Item joué ! Il sera résolu après la course.",
     chooseOpponent: "Choisir un adversaire",
     chooseSession:  "Choisir une session",
+    // Étape de confirmation en bottom sheet (#236 — product-specs § « Étape de
+    // confirmation renforcée »). Une phrase de récap par item jouable : elle décrit
+    // l'EFFET du coup, valeurs interpolées mises en gras via tSegments().
+    confirm: {
+      title:              "Confirmer ton coup",
+      irreversible:       "Action définitive — tu n'as qu'un item ce week-end.",
+      secretNote:         "Résolu après la course du dimanche. Tes adversaires ne sauront rien avant.",
+      secretNoteOpponent: "Résolu après la course du dimanche. {opponent} ne saura rien avant.",
+      submit:             "Confirmer et jouer",
+      cancel:             "Annuler",
+      sending:            "Envoi…",
+      // {bonus} = ITEM_BONUS_POINTS (lib/scoring/constants.ts) — jamais de valeur
+      // de points en dur ici, la spec les déclare ajustables.
+      recap: {
+        shield:         "Tu vas jouer {item} : tous les items offensifs reçus ce week-end seront annulés.",
+        block_driver:   "Tu vas jouer {item} contre {opponent} : {driver} ne lui rapportera aucun point de position en {session}.",
+        wild_card:      "Tu vas jouer {item} contre {opponent} : tu lui voleras la moitié de ses points en {session}.",
+        double_points:  "Tu vas jouer {item} : tes points en {session} seront doublés.",
+        dnf_prediction: "Tu vas jouer {item} : +{bonus} pts si {driver} abandonne la course.",
+        underdog_top5:  "Tu vas jouer {item} : +{bonus} pts si {driver} finit dans le top 5 de la course.",
+        no_points_team: "Tu vas jouer {item} : +{bonus} pts si aucun des 2 pilotes {team} ne marque de point en course.",
+      },
+    },
     shield:         { name: "Bouclier",                     description: "Annule tous les items offensifs reçus ce week-end" },
     block_driver:   { name: "Bloquer un pilote",            description: "Un pilote rapporte 0 pt de position à un adversaire pour une session choisie" },
     wild_card:      { name: "Wild Card",                    description: "Vole la moitié des points d'un adversaire sur une session" },

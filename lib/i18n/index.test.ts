@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { t, type TranslationKey } from './index'
+import { t, tSegments, type TranslationKey } from './index'
 
 // Les gardes de t() loguent en dev (NODE_ENV=test compris) — on les silencie
 // et on vérifie qu'ils se déclenchent.
@@ -30,5 +30,56 @@ describe('t', () => {
     const rendered = t('gpResults.chainBlockShielded', {})
     expect(rendered).not.toContain('{target}')
     expect(consoleError).toHaveBeenCalled()
+  })
+})
+
+describe('tSegments', () => {
+  it('découpe le message : valeurs interpolées en emphasis, texte fixe non', () => {
+    const segments = tSegments('items.confirm.recap.wild_card', {
+      item: 'Wild Card', opponent: 'Victor', session: 'Course',
+    })
+    expect(segments.map((s) => s.text).join('')).toBe(
+      'Tu vas jouer Wild Card contre Victor : tu lui voleras la moitié de ses points en Course.',
+    )
+    expect(segments.filter((s) => s.emphasis).map((s) => s.text)).toEqual([
+      'Wild Card', 'Victor', 'Course',
+    ])
+  })
+
+  it('vars superflues ignorées, sans cri', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    tSegments('items.confirm.recap.shield', { item: 'Bouclier', opponent: 'inutile' })
+    expect(consoleError).not.toHaveBeenCalled()
+  })
+
+  it('placeholder non fourni : segment vide et cri en dev', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const segments = tSegments('items.confirm.recap.shield', {})
+    expect(segments.map((s) => s.text).join('')).not.toContain('{item}')
+    expect(consoleError).toHaveBeenCalledOnce()
+  })
+
+  it('clé introuvable : rend la clé brute en un segment — jamais undefined', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const ghostKey = 'items.confirm.recap.ghost_item' as TranslationKey
+    expect(tSegments(ghostKey, {})).toEqual([{ text: ghostKey, emphasis: false }])
+    expect(consoleError).toHaveBeenCalledOnce()
+  })
+})
+
+describe('items.confirm.recap — couverture des items jouables', () => {
+  // Miroir de PLAYABLE_ITEMS (play-item-form.tsx). Le formulaire résout la clé de
+  // récap via un cast `as TranslationKey` sur clé dynamique — ce test est le
+  // garde-fou contre une clé manquante ou supprimée du catalogue (#228).
+  const playableItems = [
+    'shield', 'block_driver', 'wild_card', 'double_points',
+    'dnf_prediction', 'underdog_top5', 'no_points_team',
+  ]
+
+  it.each(playableItems)('une phrase de récap existe pour %s', (itemType) => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const key = `items.confirm.recap.${itemType}` as TranslationKey
+    expect(t(key)).not.toBe(key)
+    expect(consoleError).not.toHaveBeenCalled()
   })
 })

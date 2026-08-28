@@ -23,6 +23,48 @@ export type TranslationKey = DotKeys<Messages>;
  * l'implémentation (ex. next-intl) sans changer les appels côté composants.
  */
 export function t(key: TranslationKey, vars?: Record<string, string | number>): string {
+  const message = resolveMessage(key);
+  if (message === null) return key;
+  if (!vars) return message;
+  return message.replace(/\{(\w+)\}/g, (_, name: string) => {
+    warnMissingVar(key, name, vars);
+    return String(vars[name] ?? "");
+  });
+}
+
+/** Segment d'un message interpolé — `emphasis` marque une valeur substituée. */
+export interface MessageSegment {
+  text: string;
+  emphasis: boolean;
+}
+
+/**
+ * Variante de `t()` qui préserve la frontière texte/valeur : chaque placeholder
+ * substitué devient un segment `emphasis: true`, le texte fixe des segments
+ * `emphasis: false`. Permet aux composants de mettre les valeurs en valeur
+ * (ex. `<strong>`) sans balisage dans le catalogue ni interpolation maison.
+ */
+export function tSegments(
+  key: TranslationKey,
+  vars: Record<string, string | number>,
+): MessageSegment[] {
+  const message = resolveMessage(key);
+  if (message === null) return [{ text: key, emphasis: false }];
+
+  const segments: MessageSegment[] = [];
+  const pattern = /\{(\w+)\}/g;
+  let cursor = 0;
+  for (let match = pattern.exec(message); match !== null; match = pattern.exec(message)) {
+    if (match.index > cursor) segments.push({ text: message.slice(cursor, match.index), emphasis: false });
+    warnMissingVar(key, match[1], vars);
+    segments.push({ text: String(vars[match[1]] ?? ""), emphasis: true });
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < message.length) segments.push({ text: message.slice(cursor), emphasis: false });
+  return segments;
+}
+
+function resolveMessage(key: TranslationKey): string | null {
   const message = key
     .split(".")
     .reduce<unknown>((node, segment) => (node as Record<string, unknown>)?.[segment], fr);
@@ -33,13 +75,17 @@ export function t(key: TranslationKey, vars?: Record<string, string | number>): 
     if (process.env.NODE_ENV !== "production") {
       console.error(`[i18n] clé introuvable : ${key}`);
     }
-    return key;
+    return null;
   }
-  if (!vars) return message;
-  return message.replace(/\{(\w+)\}/g, (_, name: string) => {
-    if (process.env.NODE_ENV !== "production" && vars[name] === undefined) {
-      console.error(`[i18n] placeholder {${name}} non fourni pour la clé ${key}`);
-    }
-    return String(vars[name] ?? "");
-  });
+  return message;
+}
+
+function warnMissingVar(
+  key: TranslationKey,
+  name: string,
+  vars: Record<string, string | number>,
+): void {
+  if (process.env.NODE_ENV !== "production" && vars[name] === undefined) {
+    console.error(`[i18n] placeholder {${name}} non fourni pour la clé ${key}`);
+  }
 }

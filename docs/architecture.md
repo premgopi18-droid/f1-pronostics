@@ -84,7 +84,7 @@
 
   /f1/
     jolpica.ts                 → client Jolpica API + mappers → types domaine (+ jolpica.test.ts)
-    openf1.ts                  → client OpenF1 API (fallback sprint qualifying)
+    openf1.ts                  → client OpenF1 API (sprint qualifying, essais libres, grille, line-up, fallback meilleur tour course #239)
     cached.ts                  → cache Next.js pour pilotes/constructeurs (revalidateTag)
 
   /leagues/

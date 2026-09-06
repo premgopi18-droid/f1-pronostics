@@ -10,7 +10,7 @@ import {
   fetchRaceLaps,
   fetchSprintRaceResults,
 } from '@/lib/f1/jolpica'
-import { fetchSprintQualifyingResults, fetchPracticeResults, fetchStartingGrid, fetchSessionLineup } from '@/lib/f1/openf1'
+import { fetchSprintQualifyingResults, fetchPracticeResults, fetchRaceFastestLapDriver, fetchStartingGrid, fetchSessionLineup } from '@/lib/f1/openf1'
 import type { GridSessionName } from '@/lib/f1/openf1'
 import { GRID_SOURCE_SESSION_TYPE, type GridTargetSessionType } from '@/lib/f1/grid'
 import { upsertStartingGrid } from '@/lib/data/starting-grids'
@@ -26,7 +26,7 @@ import {
   setRaceLaps,
 } from '@/lib/data/f1-sync'
 import { upsertSessionResults } from '@/lib/data/session-results'
-import { shouldDeferSessionConfirmation } from '@/lib/data/session-confirmation'
+import { hasFastestLap, shouldDeferSessionConfirmation } from '@/lib/data/session-confirmation'
 import { createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import {
@@ -146,6 +146,16 @@ async function handler(request: Request): Promise<Response> {
       try {
         if (sessionType === 'race') {
           results = await fetchRaceResults(rowSeason, round)
+          // Jolpica publie parfois le classement AVANT le bloc FastestLap (#239,
+          // Monza 2026) : le mapping donne alors `false` sur toute la grille et le
+          // bonus +7 serait perdu, sans rattrapage possible une fois le GP
+          // finalisé. Fallback OpenF1 (min lap_duration sur /laps) ; s'il n'a
+          // rien non plus, la confirmation est différée (cf. session-confirmation).
+          if (results.size > 0 && !hasFastestLap(results)) {
+            const fastestLapDriverCode = await fetchRaceFastestLapDriver(rowSeason, startsAt)
+            const fastestLapResult = fastestLapDriverCode ? results.get(fastestLapDriverCode) : undefined
+            if (fastestLapResult) fastestLapResult.fastestLap = true
+          }
         } else if (sessionType === 'qualifying') {
           results = await fetchQualifyingResults(rowSeason, round)
         } else if (sessionType === 'sprint_race') {
@@ -168,16 +178,30 @@ async function handler(request: Request): Promise<Response> {
       try {
         const unknownDriverCodes = await upsertSessionResults(row.id, rowSeason, results)
 
-        // Confirmation différée (#212) : le résultat contient des pilotes encore
-        // absents de `drivers` (remplaçant qu'OpenF1 connaît avant Jolpica) —
-        // leurs lignes ont été écartées, et une session confirmée n'est plus
-        // revisitée. On retente au prochain passage (la phase 1 rattrape les
-        // pilotes dès que Jolpica les liste), dans la limite de la fenêtre de
-        // grâce. Essais libres uniquement — jamais les sessions scorées, sauf le
-        // garde-fou absolu « aucune ligne écrite » (cf. session-confirmation.ts).
-        if (shouldDeferSessionConfirmation(unknownDriverCodes, results.size, sessionType, startsAt, Date.now())) {
+        // Confirmation différée — une session confirmée n'est plus revisitée,
+        // on retente donc au prochain passage tant que le résultat est incomplet,
+        // dans la limite de la fenêtre de grâce (cf. session-confirmation.ts) :
+        // - #212 : pilotes encore absents de `drivers` (lignes écartées) —
+        //   essais libres uniquement, sauf garde-fou « aucune ligne écrite » ;
+        // - #239 : course sans meilleur tour connu (Jolpica ni OpenF1).
+        const fastestLapKnown = hasFastestLap(results)
+        if (shouldDeferSessionConfirmation({
+          unknownDriverCodes,
+          resultCount:     results.size,
+          sessionType,
+          sessionStartsAt: startsAt,
+          fastestLapKnown,
+          now:             Date.now(),
+        })) {
           sessionsDeferred++
           continue
+        }
+
+        // Fenêtre de grâce écoulée sans meilleur tour (#239) : on confirme pour ne
+        // pas retenir le scoring de tout le monde, mais le bonus est perdu pour ce
+        // GP — rattrapage manuel (fastest_lap + scores), cf. issue.
+        if (sessionType === 'race' && !fastestLapKnown) {
+          console.error(`[api/f1/sync] course confirmée SANS meilleur tour (session ${row.id}) — bonus meilleur tour perdu, rattrapage manuel requis`)
         }
 
         await confirmSessionResults(row.id)

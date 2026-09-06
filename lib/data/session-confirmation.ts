@@ -1,39 +1,66 @@
 import { PRACTICE_SESSION_TYPES } from '@/lib/scoring/types'
-import type { DbSessionType } from '@/lib/scoring/types'
+import type { DbSessionType, DriverResult } from '@/lib/scoring/types'
 
-// Décision de report de la confirmation des résultats d'une session (#212) —
-// logique PURE, même patron que lineup-changes : zéro I/O, testable en isolation.
+// Décision de report de la confirmation des résultats d'une session — logique
+// PURE, même patron que lineup-changes : zéro I/O, testable en isolation.
 //
-// Contexte : upsertSessionResults écarte les pilotes du résultat absents de
-// `drivers` (remplaçant qu'OpenF1 connaît mais que Jolpica n'a pas encore
-// listé), et une session confirmée n'est plus jamais revisitée par le cron —
-// confirmer dans cet état perdrait ces lignes définitivement.
+// Une session confirmée n'est plus jamais revisitée par le cron, et le scoring
+// finalise le GP quelques minutes après : tout ce qui manque au moment de la
+// confirmation est perdu définitivement. Deux cas de résultat incomplet :
 //
-// Le report ne concerne QUE les essais libres (informatifs, non scorés). Les
-// sessions scorées se confirment immédiatement : leur confirmation déclenche le
-// scoring et la grille de pré-remplissage, et un pilote filtré y est forcément
-// non pronostiquable (être dans `drivers` est requis par la validation des
-// pronos) — aucun point ne peut donc être faussé par une ligne écartée.
+// 1. Pilotes inconnus (#212) : upsertSessionResults écarte les pilotes du
+//    résultat absents de `drivers` (remplaçant qu'OpenF1 connaît mais que
+//    Jolpica n'a pas encore listé). Report réservé aux essais libres
+//    (informatifs, non scorés) : sur une session scorée, un pilote filtré est
+//    forcément non pronostiquable (être dans `drivers` est requis par la
+//    validation des pronos) — aucun point ne peut donc être faussé.
+//    Cas récurrent assumé (review #213) : les rookies des EL1 roulent avec un
+//    trigramme OpenF1 mais sont listés SANS code par Jolpica (9 pilotes en 2026)
+//    — ils n'arriveront jamais dans `drivers`, et chaque EL avec un run rookie
+//    reste donc « provisoire » jusqu'à la borne avant de se confirmer. Coût :
+//    re-fetchs OpenF1 + un warning par passage, aucun impact points.
 //
-// Cas récurrent assumé (review #213) : les rookies des EL1 roulent avec un
-// trigramme OpenF1 mais sont listés SANS code par Jolpica (9 pilotes en 2026)
-// — ils n'arriveront jamais dans `drivers`, et chaque EL avec un run rookie
-// reste donc « provisoire » jusqu'à la borne avant de se confirmer. Coût :
-// re-fetchs OpenF1 + un warning par passage, aucun impact points. Assumé plutôt
-// qu'une borne courte : la borne large couvre aussi une indisponibilité Jolpica
-// d'une journée pour le vrai cas cible (le remplaçant type Tsunoda).
+// 2. Meilleur tour absent sur une course (#239) : Jolpica publie parfois le
+//    classement AVANT le bloc FastestLap (Monza 2026 : toujours absent 6 h
+//    après l'arrivée). Une course terminée a forcément un meilleur tour — un
+//    résultat sans aucun `fastestLap: true` est une publication partielle, pas
+//    une information. Confirmer dans cet état perd le bonus +7 pour tout le
+//    monde, et un rattrapage après coup n'est pas possible proprement : Wild
+//    Card (moitié du score) et Double points (×2) dépendent du score de base,
+//    bonus inclus. Le fallback OpenF1 (fetchRaceFastestLapDriver) couvre le cas
+//    courant ; ce report n'est que le filet si les deux sources sont en retard.
 
 /**
- * Au-delà de cette fenêtre après le début de la session, on confirme malgré les
- * pilotes manquants : un pilote toujours inconnu de Jolpica 24 h après avoir
- * roulé est un réserviste sans trigramme officiel — il n'arrivera plus.
+ * Fenêtre de grâce commune aux deux cas, mesurée depuis le début de la session.
+ * Au-delà, on confirme malgré la donnée manquante : un pilote toujours inconnu
+ * de Jolpica 24 h après avoir roulé est un réserviste sans trigramme officiel ;
+ * un meilleur tour absent des deux sources 24 h après la course ne viendra
+ * plus — et retenir le scoring de tout le monde plus longtemps coûterait plus
+ * que le bonus perdu.
  */
-export const UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS = 24 * 60 * 60 * 1000
+export const SESSION_CONFIRMATION_GRACE_MS = 24 * 60 * 60 * 1000
+
+/** true si au moins un pilote du résultat porte le meilleur tour. */
+export function hasFastestLap(results: Map<string, DriverResult>): boolean {
+  for (const result of results.values()) {
+    if (result.fastestLap) return true
+  }
+  return false
+}
+
+export type SessionConfirmationInput = {
+  unknownDriverCodes: string[]
+  resultCount:        number
+  sessionType:        DbSessionType
+  sessionStartsAt:    string
+  /** Meilleur tour connu (Jolpica ou fallback OpenF1) — sans objet hors course. */
+  fastestLapKnown:    boolean
+  now:                number
+}
 
 /**
- * true = ne pas confirmer la session à ce passage : des lignes du résultat ont
- * été écartées et peuvent encore être rattrapées au passage suivant (la phase
- * pilotes du cron tourne avant la phase résultats).
+ * true = ne pas confirmer la session à ce passage : le résultat est incomplet
+ * et peut encore être complété au passage suivant.
  *
  * Garde-fou absolu (review #213) : si TOUTES les lignes ont été écartées, on ne
  * confirme jamais — quel que soit le type de session et même après la fenêtre
@@ -41,15 +68,16 @@ export const UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS = 24 * 60 * 60 * 1000
  * résultats inexistants (tout le monde à 0) ; rester « provisoire » est
  * toujours préférable à cet état.
  */
-export function shouldDeferSessionConfirmation(
-  unknownDriverCodes: string[],
-  resultCount: number,
-  sessionType: DbSessionType,
-  sessionStartsAt: string,
-  now: number,
-): boolean {
+export function shouldDeferSessionConfirmation(input: SessionConfirmationInput): boolean {
+  const { unknownDriverCodes, resultCount, sessionType, sessionStartsAt, fastestLapKnown, now } = input
+
+  if (unknownDriverCodes.length > 0 && unknownDriverCodes.length >= resultCount) return true
+
+  const withinGrace = now - new Date(sessionStartsAt).getTime() < SESSION_CONFIRMATION_GRACE_MS
+
+  if (sessionType === 'race' && !fastestLapKnown) return withinGrace
+
   if (unknownDriverCodes.length === 0) return false
-  if (unknownDriverCodes.length >= resultCount) return true
   if (!PRACTICE_SESSION_TYPES.includes(sessionType)) return false
-  return now - new Date(sessionStartsAt).getTime() < UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS
+  return withinGrace
 }

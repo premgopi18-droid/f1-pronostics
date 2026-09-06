@@ -1,15 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import {
   hasFastestLap,
+  markFastestLap,
   shouldDeferSessionConfirmation,
-  SESSION_CONFIRMATION_GRACE_MS,
+  RACE_FASTEST_LAP_GRACE_MS,
+  UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS,
   type SessionConfirmationInput,
 } from './session-confirmation'
 import type { DriverResult } from '@/lib/scoring/types'
 
-describe('hasFastestLap', () => {
-  const result = (fastestLap: boolean): DriverResult => ({ position: 1, fastestLap })
+const result = (fastestLap: boolean): DriverResult => ({ position: 1, fastestLap })
 
+describe('hasFastestLap', () => {
   it('true dès qu\'un pilote du résultat porte le meilleur tour', () => {
     expect(hasFastestLap(new Map([['VER', result(false)], ['ANT', result(true)]]))).toBe(true)
   })
@@ -20,10 +22,25 @@ describe('hasFastestLap', () => {
   })
 })
 
+describe('markFastestLap', () => {
+  it('pose le meilleur tour sur le pilote du résultat et renvoie true', () => {
+    const results = new Map([['VER', result(false)], ['ANT', result(false)]])
+    expect(markFastestLap(results, 'ANT')).toBe(true)
+    expect(results.get('ANT')?.fastestLap).toBe(true)
+    expect(results.get('VER')?.fastestLap).toBe(false)
+  })
+
+  it('pilote absent du résultat → false, rien n\'est modifié (désaccord entre sources à rendre visible)', () => {
+    const results = new Map([['VER', result(false)]])
+    expect(markFastestLap(results, 'ANT')).toBe(false)
+    expect(hasFastestLap(results)).toBe(false)
+  })
+})
+
 describe('shouldDeferSessionConfirmation', () => {
   const startsAt = '2026-08-21T10:30:00Z' // EL1 du GP Pays-Bas 2026
   const duringSession = new Date('2026-08-21T11:00:00Z').getTime()
-  const afterGrace = new Date(startsAt).getTime() + SESSION_CONFIRMATION_GRACE_MS
+  const afterGrace = new Date(startsAt).getTime() + UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS
   const justBeforeGraceEnd = afterGrace - 1
   const fullField = 22
 
@@ -72,7 +89,7 @@ describe('shouldDeferSessionConfirmation', () => {
     // course a été confirmée avec `fastest_lap = false` sur les 22 lignes et le
     // bonus +7 perdu — sans rattrapage possible une fois le GP finalisé.
     const raceStartsAt = '2026-09-06T13:00:00Z'
-    const afterRace = new Date('2026-09-06T21:20:00Z').getTime()
+    const afterRace = new Date('2026-09-06T16:00:00Z').getTime()
     const race = { sessionType: 'race' as const, sessionStartsAt: raceStartsAt, now: afterRace }
 
     it('course sans meilleur tour, fenêtre en cours → report', () => {
@@ -83,10 +100,13 @@ describe('shouldDeferSessionConfirmation', () => {
       expect(decide({ ...race, fastestLapKnown: true })).toBe(false)
     })
 
-    it('fenêtre de grâce écoulée → on confirme sans meilleur tour (bonus perdu, scoring débloqué)', () => {
-      const raceAfterGrace = new Date(raceStartsAt).getTime() + SESSION_CONFIRMATION_GRACE_MS
+    it('fenêtre dédiée (plus courte que #212) écoulée → on confirme sans meilleur tour', () => {
+      // Différer la course retient toutes les positions pour un bonus de 7 :
+      // on ne tient pas 24 h, on confirme et on logue pour rattrapage manuel.
+      const raceAfterGrace = new Date(raceStartsAt).getTime() + RACE_FASTEST_LAP_GRACE_MS
       expect(decide({ ...race, fastestLapKnown: false, now: raceAfterGrace })).toBe(false)
       expect(decide({ ...race, fastestLapKnown: false, now: raceAfterGrace - 1 })).toBe(true)
+      expect(RACE_FASTEST_LAP_GRACE_MS).toBeLessThan(UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS)
     })
 
     it('le signal est ignoré hors course : le bonus meilleur tour n\'existe que sur la course', () => {
@@ -108,7 +128,7 @@ describe('shouldDeferSessionConfirmation', () => {
     })
 
     it('toutes les lignes écartées → le report survit même à la fenêtre de grâce', () => {
-      const longAfterGrace = new Date(startsAt).getTime() + 10 * SESSION_CONFIRMATION_GRACE_MS
+      const longAfterGrace = new Date(startsAt).getTime() + 10 * UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS
       expect(decide({ unknownDriverCodes: allUnknown, resultCount: allUnknown.length, now: longAfterGrace })).toBe(true)
     })
   })

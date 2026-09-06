@@ -31,14 +31,25 @@ import type { DbSessionType, DriverResult } from '@/lib/scoring/types'
 //    courant ; ce report n'est que le filet si les deux sources sont en retard.
 
 /**
- * Fenêtre de grâce commune aux deux cas, mesurée depuis le début de la session.
- * Au-delà, on confirme malgré la donnée manquante : un pilote toujours inconnu
- * de Jolpica 24 h après avoir roulé est un réserviste sans trigramme officiel ;
- * un meilleur tour absent des deux sources 24 h après la course ne viendra
- * plus — et retenir le scoring de tout le monde plus longtemps coûterait plus
- * que le bonus perdu.
+ * Pilotes inconnus (#212) : au-delà de cette fenêtre après le début de la
+ * session, on confirme malgré les pilotes manquants — un pilote toujours
+ * inconnu de Jolpica 24 h après avoir roulé est un réserviste sans trigramme
+ * officiel, il n'arrivera plus. Large sans coût : différer un EL ne retient
+ * aucun score.
  */
-export const SESSION_CONFIRMATION_GRACE_MS = 24 * 60 * 60 * 1000
+export const UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Meilleur tour absent (#239) : fenêtre volontairement plus courte que #212,
+ * car différer la course retient TOUTES les positions (~70 pts) pour un bonus
+ * de 7. Le cas ne joue que si Jolpica ET OpenF1 manquent le meilleur tour ; les
+ * pannes OpenF1 connues sont courtes (pré-seed /drivers périmé ~1 h — #215,
+ * indisponibilité passagère) et le cron repasse toutes les 10 min le week-end.
+ * 6 h après le départ ≈ 4 h après l'arrivée ≈ 24 tentatives : au-delà, on
+ * confirme sans bonus (erreur loguée, rattrapage manuel) plutôt que de
+ * repousser les scores provisoires au lendemain.
+ */
+export const RACE_FASTEST_LAP_GRACE_MS = 6 * 60 * 60 * 1000
 
 /** true si au moins un pilote du résultat porte le meilleur tour. */
 export function hasFastestLap(results: Map<string, DriverResult>): boolean {
@@ -46,6 +57,19 @@ export function hasFastestLap(results: Map<string, DriverResult>): boolean {
     if (result.fastestLap) return true
   }
   return false
+}
+
+/**
+ * Pose le meilleur tour sur `driverCode` (fallback OpenF1, #239). Renvoie false
+ * — sans rien modifier — si le pilote est absent du résultat : désaccord entre
+ * les deux sources (trigramme différent, pilote écarté côté Jolpica) que
+ * l'appelant doit rendre visible, car il ne se résoudra pas en réessayant.
+ */
+export function markFastestLap(results: Map<string, DriverResult>, driverCode: string): boolean {
+  const result = results.get(driverCode)
+  if (!result) return false
+  result.fastestLap = true
+  return true
 }
 
 export type SessionConfirmationInput = {
@@ -73,11 +97,13 @@ export function shouldDeferSessionConfirmation(input: SessionConfirmationInput):
 
   if (unknownDriverCodes.length > 0 && unknownDriverCodes.length >= resultCount) return true
 
-  const withinGrace = now - new Date(sessionStartsAt).getTime() < SESSION_CONFIRMATION_GRACE_MS
+  const elapsedSinceStart = now - new Date(sessionStartsAt).getTime()
 
-  if (sessionType === 'race' && !fastestLapKnown) return withinGrace
+  if (sessionType === 'race' && !fastestLapKnown) {
+    return elapsedSinceStart < RACE_FASTEST_LAP_GRACE_MS
+  }
 
   if (unknownDriverCodes.length === 0) return false
   if (!PRACTICE_SESSION_TYPES.includes(sessionType)) return false
-  return withinGrace
+  return elapsedSinceStart < UNKNOWN_DRIVER_CONFIRMATION_GRACE_MS
 }

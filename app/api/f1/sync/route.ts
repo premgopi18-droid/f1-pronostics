@@ -26,7 +26,7 @@ import {
   setRaceLaps,
 } from '@/lib/data/f1-sync'
 import { upsertSessionResults } from '@/lib/data/session-results'
-import { hasFastestLap, shouldDeferSessionConfirmation } from '@/lib/data/session-confirmation'
+import { hasFastestLap, markFastestLap, shouldDeferSessionConfirmation } from '@/lib/data/session-confirmation'
 import { createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
 import {
@@ -151,10 +151,22 @@ async function handler(request: Request): Promise<Response> {
           // bonus +7 serait perdu, sans rattrapage possible une fois le GP
           // finalisé. Fallback OpenF1 (min lap_duration sur /laps) ; s'il n'a
           // rien non plus, la confirmation est différée (cf. session-confirmation).
+          // Isolé du fetch Jolpica : un échec du fallback n'est PAS un échec du
+          // résultat — on garde les positions et on laisse le report / la grâce
+          // décider, sinon une panne OpenF1 bloquerait la course sans borne.
           if (results.size > 0 && !hasFastestLap(results)) {
-            const fastestLapDriverCode = await fetchRaceFastestLapDriver(rowSeason, startsAt)
-            const fastestLapResult = fastestLapDriverCode ? results.get(fastestLapDriverCode) : undefined
-            if (fastestLapResult) fastestLapResult.fastestLap = true
+            try {
+              const fastestLapDriverCode = await fetchRaceFastestLapDriver(rowSeason, startsAt)
+              if (fastestLapDriverCode && !markFastestLap(results, fastestLapDriverCode)) {
+                // Désaccord entre sources (trigramme différent, pilote écarté côté
+                // Jolpica) : réessayer ne résoudra rien, il faut le voir tout de suite.
+                console.warn(
+                  `[api/f1/sync] meilleur tour OpenF1 ${fastestLapDriverCode} absent du résultat Jolpica (session ${row.id}) — codes : ${[...results.keys()].join(', ')}`,
+                )
+              }
+            } catch (error) {
+              console.warn('[api/f1/sync] fallback meilleur tour OpenF1', row.id, error)
+            }
           }
         } else if (sessionType === 'qualifying') {
           results = await fetchQualifyingResults(rowSeason, round)
@@ -193,6 +205,11 @@ async function handler(request: Request): Promise<Response> {
           fastestLapKnown,
           now:             Date.now(),
         })) {
+          // Le cas #212 est déjà tracé par le warn de upsertSessionResults ; sans
+          // celui-ci, une course non scorée serait indiscernable d'un Jolpica en retard.
+          if (sessionType === 'race' && !fastestLapKnown) {
+            console.warn(`[api/f1/sync] course différée : meilleur tour absent de Jolpica et OpenF1 (session ${row.id})`)
+          }
           sessionsDeferred++
           continue
         }

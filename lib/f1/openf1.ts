@@ -325,6 +325,11 @@ export async function fetchPracticeResults(
 // ⚠️ OpenF1 inclut les tours ensuite annulés (limites de piste) là où Jolpica
 // ne compte que les tours valides : Jolpica reste la source primaire, ce
 // fallback n'est consulté que quand il ne porte aucun meilleur tour.
+// Fiabilité du min brut en course (review PR #240) : vérifié sur les 12 courses
+// 2026 disputées avant Monza — 12/12 concordances avec le FastestLap Jolpica,
+// aucun tour < 80 % du meilleur temps (pit lane, neutralisation et restart
+// sortent en lap_duration null ou plus lents, jamais plus courts). Pas de
+// garde-fou de vraisemblance, donc — à réévaluer si un GP dément la mesure.
 // ============================================================
 
 export async function fetchRaceFastestLapDriver(
@@ -340,11 +345,13 @@ export async function fetchRaceFastestLapDriver(
     openf1Get<OpenF1Lap[]>(`/laps?session_key=${session.session_key}`),
   ])
 
+  const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
+
   const fastest = rankByBestLap(laps ?? [])[0]
   if (!fastest) return null
 
   const [number] = fastest
-  const code = (drivers ?? []).find((driver) => driver.driver_number === number)?.name_acronym
+  const code = numberToCode.get(number)
   // Même garde que les essais libres (#215) : un numéro absent du /drivers de
   // la session = pré-seed OpenF1 périmé, « pas encore dispo ».
   if (!code) {

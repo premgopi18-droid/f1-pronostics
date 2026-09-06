@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fetchPracticeResults, fetchSprintQualifyingResults, fetchStartingGrid, fetchSessionLineup } from './openf1'
+import { fetchPracticeResults, fetchRaceFastestLapDriver, fetchSprintQualifyingResults, fetchStartingGrid, fetchSessionLineup } from './openf1'
 
 // Les dates 2025 sont dans le passé (now = 2026) → sessions « terminées » par
 // défaut, sauf test dédié où l'on place date_end dans le futur.
@@ -391,6 +391,73 @@ describe('openf1 — sélection de session par date', () => {
 
       const lineup = await fetchSessionLineup(2026, 'Practice 1', '2026-10-01T10:30:00Z')
       expect(lineup.size).toBe(0)
+    })
+  })
+
+  // #239 — Monza 2026 : Jolpica a publié le classement de la course sans le
+  // bloc FastestLap ; OpenF1 avait le meilleur tour (Antonelli, 1:23.504 au
+  // 53ᵉ et dernier tour) dès la fin de la course.
+  describe('fetchRaceFastestLapDriver', () => {
+    const monzaRace = {
+      session_key: 500, session_name: 'Race', year: 2025,
+      circuit_short_name: 'Monza', date_start: '2025-09-07T13:00:00+00:00', date_end: '2025-09-07T15:00:00+00:00',
+    }
+    const drivers = [
+      { driver_number: 12, name_acronym: 'ANT', session_key: 500 },
+      { driver_number: 63, name_acronym: 'RUS', session_key: 500 },
+      { driver_number: 1,  name_acronym: 'VER', session_key: 500 },
+    ]
+
+    it('renvoie le pilote au meilleur tour de la course (min lap_duration, tours in/out ignorés)', async () => {
+      mockOpenF1({
+        sessions: [monzaRace],
+        drivers,
+        laps: [
+          { driver_number: 12, lap_duration: null,   date_start: null },                       // tour de formation
+          { driver_number: 63, lap_duration: 84.39,  date_start: '2025-09-07T14:40:00+00:00' },
+          { driver_number: 1,  lap_duration: 84.242, date_start: '2025-09-07T14:20:00+00:00' },
+          { driver_number: 12, lap_duration: 83.504, date_start: '2025-09-07T14:55:00+00:00' }, // dernier tour
+        ],
+      })
+
+      expect(await fetchRaceFastestLapDriver(2025, '2025-09-07T13:00:00Z')).toBe('ANT')
+    })
+
+    it('renvoie null tant que la course n\'est pas terminée (OpenF1 publie les tours en direct)', async () => {
+      mockOpenF1({
+        sessions: [{ ...monzaRace, year: 2099, date_start: '2099-09-07T13:00:00+00:00', date_end: '2099-09-07T15:00:00+00:00' }],
+        drivers,
+        laps: [{ driver_number: 12, lap_duration: 83.504, date_start: '2099-09-07T13:30:00+00:00' }],
+      })
+
+      expect(await fetchRaceFastestLapDriver(2099, '2099-09-07T13:00:00Z')).toBeNull()
+    })
+
+    it('renvoie null si aucune session Race ne tombe dans la fenêtre de 2 jours', async () => {
+      mockOpenF1({ sessions: [monzaRace], drivers, laps: [{ driver_number: 12, lap_duration: 83.504, date_start: null }] })
+
+      expect(await fetchRaceFastestLapDriver(2025, '2025-10-05T13:00:00Z')).toBeNull()
+    })
+
+    it('renvoie null sans tour chronométré (données OpenF1 pas encore dispo)', async () => {
+      mockOpenF1({ sessions: [monzaRace], drivers, laps: [] })
+
+      expect(await fetchRaceFastestLapDriver(2025, '2025-09-07T13:00:00Z')).toBeNull()
+    })
+
+    it('renvoie null si le numéro du meilleur tour est absent du /drivers (#215) plutôt qu\'un autre pilote', async () => {
+      // Le pré-seed /drivers d'OpenF1 peut ignorer un remplaçant : attribuer le
+      // meilleur tour au 2ᵉ meilleur temps serait faux — on attend.
+      mockOpenF1({
+        sessions: [monzaRace],
+        drivers,
+        laps: [
+          { driver_number: 22, lap_duration: 83.1,   date_start: '2025-09-07T14:50:00+00:00' }, // hors /drivers
+          { driver_number: 12, lap_duration: 83.504, date_start: '2025-09-07T14:55:00+00:00' },
+        ],
+      })
+
+      expect(await fetchRaceFastestLapDriver(2025, '2025-09-07T13:00:00Z')).toBeNull()
     })
   })
 })

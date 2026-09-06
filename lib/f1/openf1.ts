@@ -239,6 +239,34 @@ export async function fetchSessionLineup(
 }
 
 // ============================================================
+// Meilleur tour par pilote depuis /laps — partagé par le classement des essais
+// libres et le fallback « meilleur tour en course » (#239).
+// ============================================================
+
+type BestLap = { duration: number; setAt: string }
+
+// Les tours in/out ont lap_duration null → ignorés.
+function bestLapByDriver(laps: OpenF1Lap[]): Map<number, BestLap> {
+  const best = new Map<number, BestLap>()
+  for (const lap of laps) {
+    if (lap.lap_duration == null) continue
+    const current = best.get(lap.driver_number)
+    if (current === undefined || lap.lap_duration < current.duration) {
+      best.set(lap.driver_number, { duration: lap.lap_duration, setAt: lap.date_start ?? '' })
+    }
+  }
+  return best
+}
+
+// Numéros classés par meilleur tour croissant ; ex aequo départagés par le 1er
+// à avoir signé le temps (règle F1).
+function rankByBestLap(laps: OpenF1Lap[]): [number, BestLap][] {
+  return [...bestLapByDriver(laps).entries()].sort((a, b) =>
+    a[1].duration !== b[1].duration ? a[1].duration - b[1].duration : a[1].setAt.localeCompare(b[1].setAt),
+  )
+}
+
+// ============================================================
 // Essais libres (EL1/EL2/EL3) — non disponible dans Jolpica
 // Le classement d'une séance d'essais est trié par MEILLEUR TOUR (feuille de
 // temps), pas par position sur la piste — on dérive donc le classement depuis
@@ -261,23 +289,10 @@ export async function fetchPracticeResults(
 
   const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
 
-  // Meilleur tour par pilote (les tours in/out ont lap_duration null → ignorés).
-  const bestLapByDriver = new Map<number, { duration: number; setAt: string }>()
-  for (const lap of laps ?? []) {
-    if (lap.lap_duration == null) continue
-    const current = bestLapByDriver.get(lap.driver_number)
-    if (current === undefined || lap.lap_duration < current.duration) {
-      bestLapByDriver.set(lap.driver_number, { duration: lap.lap_duration, setAt: lap.date_start ?? '' })
-    }
-  }
-
-  // Classement par meilleur tour croissant ; ex aequo départagés par le 1er à
-  // avoir signé le temps (règle F1). Positions denses 1..N.
+  // Classement par meilleur tour, positions denses 1..N.
   // NB : une séance terminée a toujours des tours chronométrés — une liste vide
   // ici signifie donc « données OpenF1 pas encore dispo », et le cron retentera.
-  const ranked = [...bestLapByDriver.entries()].sort((a, b) =>
-    a[1].duration !== b[1].duration ? a[1].duration - b[1].duration : a[1].setAt.localeCompare(b[1].setAt),
-  )
+  const ranked = rankByBestLap(laps ?? [])
   const results: PracticeDriverResult[] = []
   let position = 1
   for (const [number, lap] of ranked) {
@@ -297,4 +312,53 @@ export async function fetchPracticeResults(
   }
 
   return results
+}
+
+// ============================================================
+// Meilleur tour en course — fallback quand Jolpica publie le classement SANS
+// le bloc FastestLap (#239, Monza 2026 : classement dispo, meilleur tour
+// toujours absent 6 h après l'arrivée). Retourne le code du pilote auteur du
+// meilleur tour, ou null tant que la donnée n'est pas exploitable (session
+// introuvable, en cours, sans tour chronométré, numéro inattribuable) — le
+// cron retentera, et la confirmation de la course est différée entre-temps
+// (cf. lib/data/session-confirmation.ts).
+// ⚠️ OpenF1 inclut les tours ensuite annulés (limites de piste) là où Jolpica
+// ne compte que les tours valides : Jolpica reste la source primaire, ce
+// fallback n'est consulté que quand il ne porte aucun meilleur tour.
+// Fiabilité du min brut en course (review PR #240) : vérifié sur les 12 courses
+// 2026 disputées avant Monza — 12/12 concordances avec le FastestLap Jolpica,
+// aucun tour < 80 % du meilleur temps (pit lane, neutralisation et restart
+// sortent en lap_duration null ou plus lents, jamais plus courts). Pas de
+// garde-fou de vraisemblance, donc — à réévaluer si un GP dément la mesure.
+// ============================================================
+
+export async function fetchRaceFastestLapDriver(
+  year: number,
+  expectedStartsAt: string,
+): Promise<string | null> {
+  const session = await findSessionByDate(year, 'Race', expectedStartsAt)
+  if (!session) return null
+  if (!isSessionFinished(session)) return null
+
+  const [drivers, laps] = await Promise.all([
+    openf1Get<OpenF1Driver[]>(`/drivers?session_key=${session.session_key}`),
+    openf1Get<OpenF1Lap[]>(`/laps?session_key=${session.session_key}`),
+  ])
+
+  const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
+
+  const fastest = rankByBestLap(laps ?? [])[0]
+  if (!fastest) return null
+
+  const [number] = fastest
+  const code = numberToCode.get(number)
+  // Même garde que les essais libres (#215) : un numéro absent du /drivers de
+  // la session = pré-seed OpenF1 périmé, « pas encore dispo ».
+  if (!code) {
+    console.warn(
+      `fetchRaceFastestLapDriver : numéro ${number} absent du /drivers de la session ${session.session_key} — meilleur tour différé`,
+    )
+    return null
+  }
+  return code
 }

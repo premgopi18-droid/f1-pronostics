@@ -84,7 +84,7 @@
 
   /f1/
     jolpica.ts                 → client Jolpica API + mappers → types domaine (+ jolpica.test.ts)
-    openf1.ts                  → client OpenF1 API (fallback sprint qualifying)
+    openf1.ts                  → client OpenF1 API (sprint qualifying, essais libres, grille, line-up, fallback meilleur tour course #239)
     cached.ts                  → cache Next.js pour pilotes/constructeurs (revalidateTag)
 
   /leagues/
@@ -341,9 +341,16 @@ Le cron ne sert à rien entre les sessions. On le fait tourner uniquement dans l
 | Trigger manuel admin | À la demande | Gratuit | < 1 min | ✅ Backup / dev |
 | Vercel Hobby cron | 1×/jour | Gratuit | Jusqu'à 24h | Filet de sécurité uniquement |
 
-**Stratégie v1 :** cron-job.org configure plusieurs jobs — un par type de session (qualif samedi, course dimanche). Chaque job tourne toutes les 10 min pendant ~3h autour de l'heure de session. En dehors de ces fenêtres : aucun polling. L'endpoint est idempotent — appelable N fois sans effet de bord.
+**Configuration réelle (cron-job.org, relevée le 07/09/2026)** — deux paires de jobs sur `/api/f1/sync` et `/api/scores/trigger` :
 
-> À valider lors des tests : latence réelle de Jolpica après chaque type de session. Le trigger manuel reste disponible en permanence comme backup.
+| Job | Cadence | Fenêtre |
+|---|---|---|
+| BoxBox F1 - Sync / Scores Trigger | toutes les 30 min | permanent |
+| Weekend GP - Sync / Trigger | toutes les 10 min | vendredi 00:00 → dimanche 23:59 (Paris) |
+
+Le polling ne s'arrête donc jamais : une session dont la confirmation est **différée** (pilotes inconnus #212, meilleur tour absent #239) est retentée toutes les 10 min le week-end, 30 min en semaine — c'est ce qui borne les fenêtres de grâce de `session-confirmation.ts`. Aucun cron Vercel (`vercel.json` : `crons: []`). Les endpoints sont idempotents — appelables N fois sans effet de bord.
+
+> Latence Jolpica observée : qualifs ~2 h 20 après la fin de session (Monza 2026), course jusqu'à > 6 h pour le classement et davantage pour le `FastestLap` (d'où le fallback OpenF1, #239). Le trigger manuel reste disponible en permanence comme backup.
 
 ---
 

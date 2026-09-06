@@ -112,7 +112,7 @@ Seuls les résultats officiels Jolpica sont stockés — pas de flag `is_officia
 | position | INTEGER | null si DNF |
 | dnf | BOOLEAN | défaut false |
 | dns | BOOLEAN | défaut false |
-| fastest_lap | BOOLEAN | défaut false |
+| fastest_lap | BOOLEAN | défaut false — course : `FastestLap.rank = 1` Jolpica, fallback OpenF1 `/laps` quand Jolpica publie le classement sans meilleur tour (#239) |
 | best_lap_time | TEXT | null — meilleur tour (essais) |
 | constructor_code | TEXT | null — écurie du pilote pour CETTE session (résultats Jolpica, ex. `RED_BULL`). Fiable en cas de remplacement/échange de baquet (#205). Null pour les sessions OpenF1 (sprint qualif, essais) |
 | created_at | TIMESTAMPTZ | |

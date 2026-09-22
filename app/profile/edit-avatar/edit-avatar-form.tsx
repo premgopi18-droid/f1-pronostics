@@ -56,7 +56,7 @@ export function EditAvatarForm({
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 active:scale-[0.98]"
+        className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground pressable hover:bg-primary/90 disabled:opacity-50"
       >
         {isPending ? t('profile.saving') : t('profile.save')}
       </button>

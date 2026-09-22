@@ -26,6 +26,16 @@ export const TEXT_XS_CLASS = 'h-3'
 export const BUTTON_BLOCK_CLASS = 'h-[54px] w-full rounded-xl'
 /** Bouton `size: sm` de `buttonVariants` (44px, cible tactile). */
 export const BUTTON_SM_CLASS = 'h-11 w-full rounded-xl'
+/** Bouton de formulaire `px-4 py-3 text-sm` (44px), largeur au contenu. */
+export const BUTTON_FORM_CLASS = 'h-11 w-32 rounded-xl'
+/** Champ de saisie `px-4 py-3 text-sm` (44px). */
+export const INPUT_CLASS = 'h-11 w-full rounded-xl'
+/** Champ de saisie large de l'onboarding (`h-[54px]`). */
+export const INPUT_LG_CLASS = 'h-[54px] w-full rounded-xl'
+/** `Card padding="sm"` à une ligne `text-sm` (16 + 20 + 16). */
+export const CARD_SM_ONE_LINE_CLASS = 'h-[52px] rounded-2xl'
+/** `Card padding="sm"` à deux lignes (`text-sm` + `text-xs`, 16 + 20 + 2 + 16 + 16 ≈ 72). */
+export const CARD_SM_TWO_LINES_CLASS = 'h-[72px] rounded-2xl'
 
 /** Header « titre + action à droite » (Ligues, Home). */
 export function SkeletonTitleHeader({ action = false, className }: { action?: boolean; className?: string }) {

@@ -276,7 +276,7 @@ export default async function RecapGPPage({
     .filter((l) => l.gpFinal > 0 || hasScores)
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8">
+    <main className="min-h-screen bg-background px-4 py-8">
       <div className="max-w-lg mx-auto flex flex-col gap-8">
 
         {/* Header */}

@@ -47,9 +47,10 @@ const HIDDEN_PREFIXES = ["/login", "/onboarding", "/join"];
 
 export function BottomNav() {
   const pathname = usePathname();
-  // Onglet dont la navigation est en cours (tap → arrivée de la page). Alimenté par
-  // chaque `TabContent` via `useLinkStatus` : l'onglet visé s'allume dès le tap, sans
-  // attendre que `pathname` change (#241). `null` hors navigation.
+  // Onglet dont la navigation est en cours (tap → changement d'URL). Alimenté par chaque
+  // `TabContent` via `useLinkStatus` : l'onglet visé s'allume dès le tap même quand le
+  // shell n'est pas préfetché (#241). Quand il l'est (cas courant grâce aux loading.tsx),
+  // `pathname` change immédiatement et Next saute l'état pending. `null` hors navigation.
   const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   if (isHiddenRoute(pathname, HIDDEN_PREFIXES)) return null;
@@ -124,11 +125,14 @@ function TabContent({
   return (
     <span
       className={cn(
-        "flex flex-col items-center gap-1 text-2xs font-semibold transition-colors",
+        // Remplit tout le Link (64px) : le survol de la zone hors icône + label change aussi la couleur.
+        "flex h-full w-full flex-col items-center justify-center gap-1 text-2xs font-semibold transition-colors",
         highlighted ? "text-primary-text" : "text-text-muted hover:text-text-secondary",
       )}
     >
-      {/* Pulse discret tant que la page visée n'est pas arrivée (coupé en mode réduit). */}
+      {/* Pulse discret tant que l'URL n'a pas changé (= tant que le skeleton n'est pas
+          affiché). Sauté par Next si le shell est déjà préfetché — n'intervient donc
+          que quand le préfetch n'a pas abouti (réseau lent). Coupé en mode réduit. */}
       <Icon
         size={TAB_ICON_SIZE}
         strokeWidth={highlighted ? TAB_ICON_STROKE_HIGHLIGHTED : TAB_ICON_STROKE_DEFAULT}

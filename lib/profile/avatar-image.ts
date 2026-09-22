@@ -101,3 +101,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     image.src = src;
   });
 }
+
+/** Taille (px) de l'aperçu de l'avatar dans l'éditeur — partagée avec son skeleton (module non-client). */
+export const AVATAR_PREVIEW_SIZE = 112;

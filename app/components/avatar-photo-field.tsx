@@ -12,9 +12,10 @@ import {
   cropAvatarToBlob,
   buildAvatarObjectPath,
   AVATARS_BUCKET,
+  AVATAR_PREVIEW_SIZE,
 } from '@/lib/profile/avatar-image'
 
-const PREVIEW_SIZE = 112 // px — aperçu de l'avatar dans l'éditeur
+const PREVIEW_SIZE = AVATAR_PREVIEW_SIZE
 
 /**
  * Champ photo d'avatar, partagé entre l'onboarding (étape 2) et le profil.

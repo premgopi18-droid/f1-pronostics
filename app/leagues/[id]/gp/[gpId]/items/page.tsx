@@ -140,7 +140,7 @@ export default async function ItemsPage({
   const formatDeadline = (d: Date) => formatParis(d, { dateStyle: 'short', timeStyle: 'short' })
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8">
+    <main className="min-h-screen bg-background px-4 py-8">
       <div className="max-w-lg mx-auto flex flex-col gap-8">
 
         {/* Header — le GP concerné est toujours affiché en évidence (jamais de report silencieux). */}

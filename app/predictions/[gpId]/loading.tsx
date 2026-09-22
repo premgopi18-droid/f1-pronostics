@@ -29,7 +29,9 @@ export default function PredictGpLoading() {
             <Skeleton className="h-5 w-16 rounded-md" />
           </div>
           <SkeletonTabBar tabs={SESSION_TABS} />
-          <SkeletonRows count={POSITIONS_TO_SCORE.race} rowClassName="h-12" />
+          {/* Onglet ouvert par défaut = première session non verrouillée, en général
+              les qualifs → leur nombre de positions, pas celui de la course. */}
+          <SkeletonRows count={POSITIONS_TO_SCORE.qualifying} rowClassName="h-12" />
         </div>
       </div>
     </SkeletonPage>

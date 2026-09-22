@@ -14,6 +14,11 @@ describe('isHighlightedTab', () => {
     expect(isHighlightedTab('/leagues/123', home, '/')).toBe(true)
     expect(isHighlightedTab('/leagues/123', leagues, '/')).toBe(false)
   })
+
+  it('navigation en cours : `exact` est ignoré, seul le href tapé compte', () => {
+    expect(isHighlightedTab('/leagues/1/gp/2', home, '/')).toBe(true)
+    expect(isHighlightedTab('/leagues', leagues, '/leagues')).toBe(true)
+  })
 })
 
 describe('isActiveRoute', () => {

@@ -64,7 +64,7 @@ export default async function PredictionComparePage({
 
   if (lockedSessionIds.length === 0) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-4 py-8">
+      <main className="min-h-screen bg-background px-4 py-8">
         <div className="max-w-lg mx-auto flex flex-col gap-8">
           <div className="flex flex-col gap-1">
             <Link
@@ -152,7 +152,7 @@ export default async function PredictionComparePage({
   })
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8">
+    <main className="min-h-screen bg-background px-4 py-8">
       <div className="max-w-lg mx-auto flex flex-col gap-6">
 
         {/* Header */}

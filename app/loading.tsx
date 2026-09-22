@@ -5,6 +5,7 @@ import {
   SkeletonRows,
   SkeletonSectionLabel,
   BUTTON_BLOCK_CLASS,
+  CARD_SM_ONE_LINE_CLASS,
   TEXT_SM_CLASS,
 } from '@/app/components/skeletons'
 
@@ -51,8 +52,8 @@ export default function HomeLoading() {
       {/* Accès rapides : mes ligues + lien saison */}
       <div className="flex flex-col gap-3 border-t border-border pt-5">
         <SkeletonSectionLabel />
-        <SkeletonRows count={LEAGUE_ROWS} rowClassName="h-14 rounded-2xl" />
-        <Skeleton className="h-[52px] w-full rounded-2xl" />
+        <SkeletonRows count={LEAGUE_ROWS} rowClassName={CARD_SM_ONE_LINE_CLASS} />
+        <Skeleton className={`${CARD_SM_ONE_LINE_CLASS} w-full`} />
       </div>
     </SkeletonPage>
   )

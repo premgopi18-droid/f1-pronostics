@@ -38,7 +38,7 @@ export function InstallBanner() {
         {!isIOS && (
           <button type="button"
             onClick={install}
-            className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary/90 active:scale-95"
+            className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white pressable hover:bg-primary/90"
           >
             {t('install.ctaAndroid')}
           </button>

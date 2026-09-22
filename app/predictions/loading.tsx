@@ -3,6 +3,8 @@ import {
   SkeletonRows,
   SkeletonSectionLabel,
   BUTTON_BLOCK_CLASS,
+  CARD_SM_ONE_LINE_CLASS,
+  CARD_SM_TWO_LINES_CLASS,
   TEXT_SM_CLASS,
 } from '@/app/components/skeletons'
 
@@ -21,7 +23,7 @@ export default function PredictionsLoading() {
 
       <section className="flex flex-col gap-3">
         <SkeletonSectionLabel />
-        <SkeletonRows count={SEASON_ROWS} rowClassName="h-[52px] rounded-2xl" className="gap-3" />
+        <SkeletonRows count={SEASON_ROWS} rowClassName={CARD_SM_ONE_LINE_CLASS} className="gap-3" />
         <SkeletonCard>
           <SkeletonSectionLabel className="mb-3" />
           <div className="flex flex-col gap-2.5">
@@ -58,7 +60,7 @@ export default function PredictionsLoading() {
 
       <section className="flex flex-col gap-3">
         <SkeletonSectionLabel />
-        <SkeletonRows count={HISTORY_ROWS} rowClassName="h-[72px] rounded-2xl" />
+        <SkeletonRows count={HISTORY_ROWS} rowClassName={CARD_SM_TWO_LINES_CLASS} />
       </section>
     </SkeletonPage>
   )

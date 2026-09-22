@@ -55,9 +55,15 @@ export async function getSeasonDeadlines(
 
   // Une seule vague (#243) : calendrier avec ses qualifs embarquées (filtre sur
   // l'embed, non-inner : un GP sans qualif en base garde un tableau vide) et date
-  // d'inscription lue dans `profiles.created_at` — posée par le trigger d'inscription,
-  // identique à `auth.users.created_at`, sans passer par l'API admin Auth (≈ 50 ms).
-  const [{ data: gps, error: gpError }, profileLookup] = await Promise.all([
+  // d'inscription en parallèle.
+  //
+  // ⚠️ La date d'inscription DOIT venir de `auth.users` (API admin), pas de
+  // `profiles.created_at` : la policy RLS « own profile update » laisse l'utilisateur
+  // modifier toutes les colonnes de sa ligne, donc `profiles.created_at` est
+  // falsifiable et rouvrirait la deadline saison à volonté (passe adversariale #247,
+  // verrouillage des colonnes en base suivi dans #249).
+  // L'appel admin (≈ 50 ms) est parallèle au calendrier : coût réel nul.
+  const [{ data: gps, error: gpError }, userLookup] = await Promise.all([
     supabase
       .from('grands_prix')
       .select('id, round, sessions(starts_at)')
@@ -65,13 +71,11 @@ export async function getSeasonDeadlines(
       .eq('is_cancelled', false)
       .eq('sessions.type', 'qualifying')
       .order('round', { ascending: true }),
-    userId
-      ? supabase.from('profiles').select('created_at').eq('id', userId).maybeSingle()
-      : Promise.resolve(null),
+    userId ? supabase.auth.admin.getUserById(userId) : Promise.resolve(null),
   ])
 
   if (gpError) throw gpError
-  if (profileLookup?.error) throw profileLookup.error
+  if (userLookup?.error) throw userLookup.error
   if (!gps || gps.length === 0) return { submissionDeadline: null, itemDeadline: null }
 
   // Q1 de chaque GP dans l'ordre du calendrier
@@ -85,8 +89,8 @@ export async function getSeasonDeadlines(
   // (b) user inscrit après le dernier Q1 (find renvoie undefined) → Q1 GP1 dans le passé
   //     → form verrouillée (saison terminée).
   let submissionDeadline: Date | null = orderedQuals[0] ?? null
-  if (userId && profileLookup?.data) {
-    const userCreatedAt = new Date(profileLookup.data.created_at)
+  if (userId && userLookup?.data) {
+    const userCreatedAt = new Date(userLookup.data.user.created_at)
     submissionDeadline = orderedQuals.find((d) => d > userCreatedAt) ?? orderedQuals[0] ?? null
   }
 

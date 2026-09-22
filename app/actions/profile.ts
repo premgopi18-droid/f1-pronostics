@@ -1,12 +1,14 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { HELMET_IDS, DEFAULT_HELMET } from '@/lib/profile/avatars'
 import { validatePseudo } from '@/lib/profile/pseudo'
 import { objectPathFromPublicUrl, AVATARS_BUCKET } from '@/lib/profile/avatar-image'
 import type { ActionErrorCode } from '@/lib/actions/errors'
+import { ONBOARDED_COOKIE } from '@/lib/auth/onboarding-cookie'
 
 // `error` est un code typé (traduit côté form via translateActionError) — convention #181.
 export type ProfileActionState = { error?: ActionErrorCode; success?: boolean }
@@ -119,5 +121,6 @@ export async function deleteAccount(
   }
 
   await supabase.auth.signOut()
+  ;(await cookies()).delete(ONBOARDED_COOKIE)
   redirect('/login')
 }

@@ -58,7 +58,7 @@ export default async function WhatsNewPage() {
               <li key={row.id}>
                 <Link
                   href={target}
-                  className="flex flex-col gap-1.5 rounded-2xl bg-card px-4 py-4 transition-colors hover:bg-muted/50 active:bg-muted"
+                  className="flex flex-col gap-1.5 rounded-2xl bg-card px-4 py-4 pressable hover:bg-muted/50 active:bg-muted"
                 >
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {formatDate(row.sent_at)}

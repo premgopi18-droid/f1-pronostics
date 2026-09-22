@@ -252,7 +252,7 @@ export default async function LeaguePage({
             {itemsGp && (
               <Link
                 href={`/leagues/${id}/gp/${itemsGp.id}/items`}
-                className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground pressable hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <span aria-hidden>🎮</span>
                 {t('leagueDetail.playItem')}
@@ -275,7 +275,7 @@ export default async function LeaguePage({
                 <Link
                   key={gp.id}
                   href={`/leagues/${id}/gp/${gp.id}`}
-                  className="flex items-center gap-4 rounded-xl bg-card px-4 py-3 transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="flex items-center gap-4 rounded-xl bg-card px-4 py-3 pressable hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <div className="flex flex-col items-center w-8 shrink-0">
                     <span className="font-numeric text-sm font-bold text-text-secondary">
@@ -331,7 +331,7 @@ export default async function LeaguePage({
                   <Link
                     key={gp.id}
                     href={isPast ? `/leagues/${id}/gp/${gp.id}` : `/predictions/${gp.id}`}
-                    className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 pressable hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <span className="w-6 shrink-0 text-right font-numeric text-xs tabular-nums text-text-muted">
                       R{gp.round}

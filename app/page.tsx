@@ -156,7 +156,7 @@ export default async function HomePage() {
         {leagues.length > 0 ? (
           <div className="flex flex-col gap-2">
             {leagues.map((league) => (
-              <Link key={league.id} href={`/leagues/${league.id}`}>
+              <Link key={league.id} href={`/leagues/${league.id}`} className="pressable block rounded-2xl">
                 <Card padding="sm" className="flex items-center justify-between">
                   <span className="font-semibold text-foreground">{league.name}</span>
                   <span className="text-text-muted">→</span>
@@ -171,7 +171,7 @@ export default async function HomePage() {
           </Card>
         )}
 
-        <Link href="/season">
+        <Link href="/season" className="pressable block rounded-2xl">
           <Card padding="sm" className="flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">{t('home.seasonLink')}</span>
             <span className="text-text-muted">→</span>

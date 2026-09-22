@@ -2,7 +2,8 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-const cardVariants = cva("rounded-2xl border border-border", {
+// Exporté pour les skeletons (`app/ui/skeleton.tsx`) : même contour, même padding.
+export const cardVariants = cva("rounded-2xl border border-border", {
   variants: {
     variant: {
       default: "bg-card",

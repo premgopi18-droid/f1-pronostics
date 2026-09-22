@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { isActiveRoute, isHiddenRoute } from './nav'
+import { isActiveRoute, isHiddenRoute, isHighlightedTab } from './nav'
+
+describe('isHighlightedTab', () => {
+  const home = { href: '/', exact: true }
+  const leagues = { href: '/leagues' }
+
+  it('sans navigation en cours : suit le chemin courant', () => {
+    expect(isHighlightedTab('/leagues/123', leagues, null)).toBe(true)
+    expect(isHighlightedTab('/leagues/123', home, null)).toBe(false)
+  })
+
+  it('navigation en cours : seule la destination tapée s\'allume', () => {
+    expect(isHighlightedTab('/leagues/123', home, '/')).toBe(true)
+    expect(isHighlightedTab('/leagues/123', leagues, '/')).toBe(false)
+  })
+})
 
 describe('isActiveRoute', () => {
   it('exact : ne matche que l\'égalité stricte', () => {

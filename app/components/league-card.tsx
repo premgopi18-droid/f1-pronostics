@@ -16,7 +16,7 @@ export function LeagueCard({ league }: { league: LeagueSummary }) {
   return (
     <Link
       href={`/leagues/${league.leagueId}`}
-      className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-2xl"
+      className="pressable block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       aria-label={`${league.name}${league.isAdmin ? ` — ${t("leagues.adminBadge")}` : ""}, ${t("leagues.rankAriaLabel")} ${league.myRank} ${t("leagues.rankAriaSeparator")} ${league.memberCount}, ${league.myPoints} ${t("leagues.seasonPoints")}`}
     >
       <Card className="flex flex-col gap-3">

@@ -18,6 +18,11 @@ describe('proxy matcher', () => {
     expect(matcher.test('/icons/icon-192.png')).toBe(false)
   })
 
+  it('ignore le script et le beacon Speed Insights (#244)', () => {
+    expect(matcher.test('/_vercel/speed-insights/script.js')).toBe(false)
+    expect(matcher.test('/_vercel/speed-insights/vitals')).toBe(false)
+  })
+
   it('continue de protéger les routes applicatives', () => {
     expect(matcher.test('/')).toBe(true)
     expect(matcher.test('/profile')).toBe(true)

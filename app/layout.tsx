@@ -5,6 +5,7 @@ import { SwRegister } from "@/app/components/sw-register";
 import { InstallBanner } from "@/app/components/install-banner";
 import { BottomNav } from "@/app/components/bottom-nav";
 import { SplashScreen } from "@/app/ui/splash-screen";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import {
   REDUCE_MOTION_STORAGE_KEY,
   REDUCE_MOTION_CLASS,
@@ -119,6 +120,9 @@ export default function RootLayout({
         {children}
         <BottomNav />
         <SplashScreen />
+        {/* Télémétrie perf terrain (#244) — tier gratuit Vercel : Real Experience Score par
+            route. No-op hors Vercel (dev, self-host) : le script n'est injecté qu'en prod. */}
+        <SpeedInsights />
       </body>
     </html>
   );

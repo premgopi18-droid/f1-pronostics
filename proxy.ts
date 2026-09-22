@@ -125,5 +125,7 @@ export const config = {
   // sw.js et manifest.webmanifest sont exclus : ressources PWA publiques qui ne doivent jamais
   // être redirigées vers /login (sinon SW non enregistrable + manifest jamais chargé → app non
   // installable). Cf. isPublicPath dans proxy() pour la défense en profondeur.
-  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // `_vercel/*` : script et beacon Speed Insights (#244), servis par la plateforme — jamais
+  // de session à valider ni de redirection à faire dessus.
+  matcher: ['/((?!_next/static|_next/image|_vercel|favicon\\.ico|manifest\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }

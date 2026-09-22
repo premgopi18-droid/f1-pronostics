@@ -13,6 +13,21 @@ export function isActiveRoute(pathname: string, href: string, exact = false): bo
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * Onglet à mettre en surbrillance dans la nav. Pendant une navigation en cours
+ * (`pendingHref` = onglet tapé, via `useLinkStatus`), c'est la destination qui
+ * s'allume — feedback immédiat au tap, avant que `pathname` ne change (#241).
+ * Sinon, l'onglet correspondant au chemin courant.
+ */
+export function isHighlightedTab(
+  pathname: string,
+  tab: { href: string; exact?: boolean },
+  pendingHref: string | null,
+): boolean {
+  if (pendingHref !== null) return tab.href === pendingHref;
+  return isActiveRoute(pathname, tab.href, tab.exact);
+}
+
 /** La nav est-elle masquée sur ce chemin ? (préfixes de routes pré-authentification) */
 export function isHiddenRoute(pathname: string, prefixes: readonly string[]): boolean {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

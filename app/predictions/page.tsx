@@ -56,7 +56,7 @@ export default async function PredictionsPage() {
           {t('myPronos.seasonTitle')}
         </h2>
 
-        <Link href="/season">
+        <Link href="/season" className="pressable block rounded-2xl">
           <Card padding="sm" className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">{t('myPronos.wdcTitle')}</p>
@@ -70,7 +70,7 @@ export default async function PredictionsPage() {
           </Card>
         </Link>
 
-        <Link href="/season">
+        <Link href="/season" className="pressable block rounded-2xl">
           <Card padding="sm" className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">{t('myPronos.wccTitle')}</p>
@@ -179,7 +179,7 @@ export default async function PredictionsPage() {
             {completedGps.map((gp) => {
               const rawScore = historyScores.get(gp.id) ?? null
               return (
-                <Link key={gp.id} href={`/predictions/${gp.id}/recap`}>
+                <Link key={gp.id} href={`/predictions/${gp.id}/recap`} className="pressable block rounded-2xl">
                   <Card padding="sm" className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-foreground">{gp.gpName}</p>

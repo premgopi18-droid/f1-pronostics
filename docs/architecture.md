@@ -26,6 +26,9 @@
 
 ```
 /app
+  /loading.tsx                      ← skeleton de la Home + fallback des routes sans skeleton dédié (#241)
+  /error.tsx                        ← boundary d'erreur de rendu dans la charte (relance + retour accueil)
+  /not-found.tsx                    ← 404 dans la charte (déclenchée par notFound() et les URLs inconnues)
   /page.tsx                         ← onglet « Accueil »
   /login/page.tsx
   /profile/page.tsx                 ← onglet « Profil »
@@ -41,8 +44,11 @@
     /[id]/gp/[gpId]/page.tsx
     /[id]/gp/[gpId]/items/page.tsx
 
+  (chaque route dynamique porte son `loading.tsx` — skeleton à la silhouette de la page, cf. specs §7)
+
   /components/                      ← composants UI partagés (client + serveur)
-    bottom-nav.tsx                  → BottomNav — barre 5 onglets, masquée pré-auth (logique : lib/nav.ts)
+    bottom-nav.tsx                  → BottomNav — barre 5 onglets, masquée pré-auth, onglet visé allumé dès le tap (logique : lib/nav.ts)
+    skeletons.tsx                   → fragments de skeleton partagés par les loading.tsx (headers, onglets, listes, classement)
     tab-placeholder.tsx             → TabPlaceholder — écran d'atterrissage temporaire d'un onglet
 
   /actions/                         ← Server Actions — toutes les mutations utilisateur
@@ -93,7 +99,7 @@
   /profile/
     avatars.ts                 → liste des avatars disponibles
 
-  nav.ts                       → DOMAINE PUR — isActiveRoute, isHiddenRoute (logique BottomNav, + nav.test.ts)
+  nav.ts                       → DOMAINE PUR — isActiveRoute, isHiddenRoute, isHighlightedTab (logique BottomNav, + nav.test.ts)
 
   /push/
     send.ts                    → sendPushToAll, sendPushToUser (Web Push API)

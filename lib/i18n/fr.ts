@@ -28,6 +28,19 @@ export const fr = {
     close: "Fermer",
     comingSoon: "Bientôt disponible.",
   },
+  // Boundaries d'erreur et 404 (app/error.tsx, app/not-found.tsx — #241).
+  errorPage: {
+    title: "Un problème est survenu",
+    text: "L'écran n'a pas pu se charger. Réessaie, ou reviens à l'accueil.",
+    retry: "Réessayer",
+    home: "Retour à l'accueil",
+    reference: "Référence :",
+  },
+  notFoundPage: {
+    title: "Page introuvable",
+    text: "Ce lien ne mène nulle part — la page a peut-être été déplacée.",
+    home: "Retour à l'accueil",
+  },
   login: {
     tagline1: "Pronostics F1 entre amis.",
     tagline2: "Ligues privées · items stratégiques.",

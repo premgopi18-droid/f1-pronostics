@@ -66,7 +66,7 @@ export default async function ProfilePage() {
       <form action={signOut} className="mt-6">
         <button
           type="submit"
-          className="w-full rounded-2xl bg-card py-3.5 text-center text-sm font-semibold text-destructive transition-colors hover:bg-card/80 active:scale-[0.98]"
+          className="w-full rounded-2xl bg-card py-3.5 text-center text-sm font-semibold text-destructive pressable hover:bg-card/80"
         >
           {t('profile.signOut')}
         </button>

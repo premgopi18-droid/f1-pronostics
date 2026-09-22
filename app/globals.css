@@ -247,6 +247,20 @@ body {
   to { stroke-dashoffset: 0; }
 }
 
+/* Feedback tactile des surfaces cliquables (boutons, cards-liens, lignes, onglets
+   de nav — #241) : légère compression au tap, couleurs en transition. Définition
+   unique → échelle et durée centralisées ici, aucune valeur magique dans les
+   composants. Remplace `transition-colors` là où il est posé (les deux fixent
+   `transition`, le dernier gagnerait). Coupé par les règles de réduction ci-dessous. */
+@utility pressable {
+  transition-property: transform, background-color, color, border-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
 /* Réduction des animations/transitions. Deux déclencheurs :
    - préférence système `prefers-reduced-motion` : appliquée automatiquement (spec §7),
      même sans JS ;
@@ -261,6 +275,9 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  .pressable:active {
+    transform: none;
+  }
 }
 .reduce-motion *,
 .reduce-motion *::before,
@@ -269,6 +286,9 @@ body {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
+}
+.reduce-motion .pressable:active {
+  transform: none;
 }
 
 /* Mode accessibilité — tokens contraste WCAG AAA. Calculé sur les deux fonds réels

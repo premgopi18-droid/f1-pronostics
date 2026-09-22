@@ -976,6 +976,18 @@ Segmented control en haut (3 vues) :
 - ↑↓ uniquement en mode accessibilité — évite de surcharger l'interface en mode normal
 - Drag & drop disponible en parallèle même en mode accessibilité
 
+### Fluidité perçue — états de chargement & feedback (décision 2026-09-22, #241–#244)
+
+Audit du 22/09/2026 : le backend est rapide (requêtes Supabase 15–70 ms) mais l'app paraissait « figée » car **rien ne bougeait à l'écran entre le tap et l'arrivée de la page**. Règles retenues :
+
+- **Chaque route dynamique a un `loading.tsx`** (skeleton). Le skeleton reprend la **silhouette exacte** de l'écran qu'il remplace (mêmes gouttières, hauteurs de lignes, ordre des sections) pour qu'aucun saut de mise en page ne survienne au remplacement. Primitives : `app/ui/skeleton.tsx` ; fragments partagés (headers, barres d'onglets, listes, classement, podium) : `app/components/skeletons.tsx`. Le `loading.tsx` racine (Home) sert de fallback aux routes sans skeleton dédié. Effet secondaire voulu : Next préfetche le shell jusqu'au boundary, donc le skeleton apparaît **au tap**, sans attendre le serveur.
+- **Bottom nav** : l'onglet visé s'allume dès le tap. Cas courant : le shell est préfetché (grâce au `loading.tsx`), `pathname` change immédiatement et la surbrillance suit. Filet pour le cas non préfetché (réseau lent) : `useLinkStatus` → état pending remonté à la nav (helper pur `isHighlightedTab` dans `lib/nav.ts`), l'icône pulse jusqu'au changement d'URL — Next saute cet état quand le préfetch a abouti. `aria-current` reste porté par le chemin réel.
+- **Feedback tactile** : utilitaire CSS unique `pressable` (globals.css) — légère compression (`scale(0.98)`, 150 ms) + transition des couleurs — posé sur les boutons (`buttonVariants`, `iconButtonVariants`), les cards-liens et les lignes cliquables. Remplace `transition-colors` là où il est posé. **Coupé** par `prefers-reduced-motion` et par `.reduce-motion`.
+- **Écrans d'erreur dans la charte** : `app/error.tsx` (relance du segment + retour accueil, `digest` Next affiché pour recouper les logs) et `app/not-found.tsx` (404, nav conservée).
+- **Réduction d'animations** : skeletons statiques, pas de compression au tap, pas de pulse d'onglet.
+- **Mesure** : Vercel Speed Insights (tier gratuit, Real Experience Score par route) pour comparer avant / après.
+- À suivre : transitions de vue entre écrans et mutations optimistes (#242), cascades `lib/data/` + cache client `staleTimes` + proxy (#243).
+
 ### Splash screen animé (décision 2026-06-27)
 
 Animation de lancement **in-app** (le splash système du manifest PWA reste statique — limite du standard).

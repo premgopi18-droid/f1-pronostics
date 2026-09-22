@@ -8,7 +8,8 @@ import {
   getSeasonItems,
 } from '@/lib/data/season-predictions'
 import { getSeasonCalendar } from '@/lib/data/results'
-import { getGpHistoryScores, getCurrentGpSessionStatuses } from '@/lib/data/predictions'
+import { getGpHistoryScores, getUserValidPredictionSessionIds } from '@/lib/data/predictions'
+import { deriveGpSessionStatuses } from '@/lib/predictions/session-status'
 import { Card, CardTitle } from '@/app/ui/card'
 import { Badge } from '@/app/ui/badge'
 import { buttonVariants } from '@/app/ui/button'
@@ -24,7 +25,10 @@ export default async function PredictionsPage() {
   const season = getCurrentSeason()
   const now = new Date()
 
-  const [wdcEntries, wccEntries, seasonItems, deadlines, calendar, historyScores] =
+  // Une seule vague (#243) : les sessions du GP courant viennent du calendrier et les
+  // soumissions de l'utilisateur d'une requête indépendante — plus d'aller-retour
+  // dépendant du GP courant.
+  const [wdcEntries, wccEntries, seasonItems, deadlines, calendar, historyScores, submittedSessionIds] =
     await Promise.all([
       getSeasonPrediction(userId, season, 'wdc'),
       getSeasonPrediction(userId, season, 'wcc'),
@@ -32,6 +36,7 @@ export default async function PredictionsPage() {
       getSeasonDeadlines(season, userId),
       getSeasonCalendar(season),
       getGpHistoryScores(userId, season),
+      getUserValidPredictionSessionIds(userId, season),
     ])
 
   const isSeasonLocked = !!(deadlines.submissionDeadline && now >= deadlines.submissionDeadline)
@@ -39,9 +44,8 @@ export default async function PredictionsPage() {
   const currentGp = calendar.find((gp) => gp.status === 'prochain') ?? null
   const completedGps = calendar.filter((gp) => gp.status === 'completed').reverse()
 
-  // Seule requête dépendante du calendrier (besoin de currentGp.id) → après la phase parallèle.
   const currentGpSessions = currentGp
-    ? await getCurrentGpSessionStatuses(userId, currentGp.id)
+    ? deriveGpSessionStatuses(currentGp.scoreableSessions, submittedSessionIds, now.getTime())
     : []
 
   return (

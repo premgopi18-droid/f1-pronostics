@@ -110,13 +110,20 @@
   supabase.ts                  → createClient() (cookie/RLS) + createServiceClient() (service-role)
   supabase-browser.ts          → createBrowserClient() pour les composants client
 
-/proxy.ts                      → middleware Supabase Auth : refresh token, injection x-user-id,
-                                  redirect → /login si non authentifié (sauf /api/* et /login)
+/proxy.ts                      → middleware Supabase Auth : JWT vérifié localement (getClaims, clés
+                                  asymétriques ES256 — zéro appel réseau Auth par navigation, #243),
+                                  refresh token, injection x-user-id, redirect → /login si non
+                                  authentifié (sauf /api/* et /login), gating onboarding (cookie
+                                  `bx_onboarded` après la 1re lecture DB — lib/auth/onboarding-cookie.ts)
 ```
 
 > **Pourquoi des Server Actions et non des route handlers pour le CRUD ?** Les Server Actions sont co-localisées avec les pages, partagent les types TypeScript, et évitent la couche HTTP pour les mutations déclenchées par l'utilisateur. Les route handlers sont réservés aux crons (pas de session utilisateur) et au callback OAuth.
 
 > **Erreurs des Server Actions — les actions retournent des codes, le client traduit** (i18n approche A, #181, unifié par #191). Une action ne retourne jamais de texte UI : elle retourne un `ActionErrorCode` typé (`lib/actions/errors.ts`), éventuellement accompagné d'`errorVars` pour les messages paramétrés. Le composant client traduit via `translateActionError(code, vars)` ; la copy française vit dans `lib/i18n/fr.ts` (section `actionErrors`). Un test d'exhaustivité (`lib/actions/errors.test.ts`) garantit qu'aucun code n'existe sans clé de traduction (et inversement). Les détails techniques (`error.message` d'une exception) vont dans `console.error` côté serveur, jamais dans le retour de l'action. C'est **la** convention de toutes les actions de `app/actions/` ; les erreurs domaine de `lib/data/` (ex. `JoinLeagueErrorCode`) gardent leur vocabulaire et sont mappées vers un `ActionErrorCode` à la frontière de l'action. Les routes API cron/dev (`app/api/**`) ne sont pas concernées : leurs erreurs sont des réponses machine (curl/logs).
+
+> **Cache client des pages dynamiques — toute mutation purge** (#243). `experimental.staleTimes.dynamic = 30 s` (next.config.ts) : revenir sur un onglet vu il y a moins de 30 s est instantané, sans rendu serveur. En contrepartie, **toute Server Action qui modifie une donnée affichée appelle `revalidateAfterMutation()`** (`lib/actions/revalidate.ts`, = `revalidatePath('/', 'layout')`, purge tout le cache client) avant de retourner ou de rediriger. Granularité grossière assumée : une mutation touche souvent plusieurs écrans et l'app est petite. Oublier l'appel = l'utilisateur peut revoir l'état d'avant sa mutation pendant 30 s.
+>
+> **Cascades `lib/data/`** (#243) : une fonction de données vise ≤ 2 vagues de requêtes. Les jointures parent → enfant passent par l'embed PostgREST (`grands_prix.select('…, sessions(…)')`, filtre sur l'embed via `.eq('sessions.type', …)`), pas par une 2ᵉ requête `.in('gp_id', ids)`. Ce qui ne dépend que de l'utilisateur ou de la saison (ex. ses pronos valides) part dans la vague parallèle de la page, et la dérivation se fait en pur (`lib/predictions/session-status.ts`).
 
 > **Règle d'import** : `/lib/scoring/` peut importer depuis lui-même et depuis `/lib/scoring/types`. Il ne peut **jamais** importer depuis `/lib/data/`, `/lib/f1/`, ou Supabase. Si tu te surprends à importer Supabase dans `/lib/scoring/`, la logique est au mauvais endroit.
 

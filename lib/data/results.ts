@@ -2,7 +2,10 @@ import { createClient } from '@/lib/supabase'
 import { getCountryCode } from '@/lib/f1/country-codes'
 import { getCountryNameFr, getGpNameFr } from '@/lib/f1/country-names-fr'
 import { computeGpStatuses, type GpStatus } from '@/lib/results/calendar'
-import { PRACTICE_SESSION_TYPES } from '@/lib/scoring/types'
+import type { ScoreableSession } from '@/lib/predictions/session-status'
+import { PRACTICE_SESSION_TYPES, SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
+
+const SCOREABLE_TYPES = new Set<string>(SCOREABLE_SESSION_TYPES)
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,6 +24,9 @@ export type CalendarGp = {
    *  résultats a quelque chose à montrer. Sert à n'afficher le lien « Résultats »
    *  sur la card « prochain » que quand le week-end a commencé à produire des données. */
   hasResults: boolean
+  /** Sessions pronosticables du GP (EL exclues), ordre chronologique — pour dériver
+   *  les états du bloc « GP en cours » de Mes Pronos sans requête dépendante (#243). */
+  scoreableSessions: ScoreableSession[]
 }
 
 export type GpResultRow = {
@@ -94,10 +100,16 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
   const raceSessionToGp = new Map<string, string>()
   // GP ayant au moins une session (toutes types, EL comprises) aux résultats confirmés.
   const gpsWithResults = new Set<string>()
+  const scoreableByGp = new Map<string, ScoreableSession[]>()
 
   for (const s of sessions) {
     const gpId = s.gp_id
     if (s.results_confirmed_at != null) gpsWithResults.add(gpId)
+    if (SCOREABLE_TYPES.has(s.type)) {
+      const list = scoreableByGp.get(gpId) ?? []
+      list.push({ id: s.id, type: s.type as SessionType, startsAt: s.starts_at })
+      scoreableByGp.set(gpId, list)
+    }
     const entry = sessionMap.get(gpId) ?? {}
     if (s.type === 'race') {
       entry.raceStartsAt = s.starts_at
@@ -149,6 +161,10 @@ export async function getSeasonCalendar(season: number): Promise<CalendarGp[]> {
       qualifyingStartsAt: gpSessions.qualifyingStartsAt ?? null,
       raceStartsAt: gpSessions.raceStartsAt ?? null,
       hasResults: gpsWithResults.has(gpId),
+      // La requête sessions n'est pas ordonnée : tri chronologique numérique ici.
+      scoreableSessions: (scoreableByGp.get(gpId) ?? []).sort(
+        (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+      ),
     }
   })
 }

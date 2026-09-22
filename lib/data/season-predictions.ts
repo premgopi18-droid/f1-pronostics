@@ -53,46 +53,40 @@ export async function getSeasonDeadlines(
 }> {
   const supabase = createServiceClient()
 
-  const [{ data: gps, error: gpError }, userLookup] = await Promise.all([
+  // Une seule vague (#243) : calendrier avec ses qualifs embarquées (filtre sur
+  // l'embed, non-inner : un GP sans qualif en base garde un tableau vide) et date
+  // d'inscription lue dans `profiles.created_at` — posée par le trigger d'inscription,
+  // identique à `auth.users.created_at`, sans passer par l'API admin Auth (≈ 50 ms).
+  const [{ data: gps, error: gpError }, profileLookup] = await Promise.all([
     supabase
       .from('grands_prix')
-      .select('id, round')
+      .select('id, round, sessions(starts_at)')
       .eq('season', season)
       .eq('is_cancelled', false)
+      .eq('sessions.type', 'qualifying')
       .order('round', { ascending: true }),
-    userId ? supabase.auth.admin.getUserById(userId) : Promise.resolve(null),
+    userId
+      ? supabase.from('profiles').select('created_at').eq('id', userId).maybeSingle()
+      : Promise.resolve(null),
   ])
 
   if (gpError) throw gpError
-  if (userLookup?.error) throw userLookup.error
+  if (profileLookup?.error) throw profileLookup.error
   if (!gps || gps.length === 0) return { submissionDeadline: null, itemDeadline: null }
-
-  const gpIds = gps.map((gp) => gp.id)
-  const { data: sessions, error: sessionError } = await supabase
-    .from('sessions')
-    .select('gp_id, starts_at')
-    .in('gp_id', gpIds)
-    .eq('type', 'qualifying')
-
-  if (sessionError) throw sessionError
-
-  const qualMap = new Map<string, Date>()
-  for (const s of sessions ?? []) {
-    qualMap.set(s.gp_id, new Date(s.starts_at))
-  }
 
   // Q1 de chaque GP dans l'ordre du calendrier
   const orderedQuals = gps
-    .map((gp) => qualMap.get(gp.id))
-    .filter((d): d is Date => d !== undefined)
+    .map((gp) => gp.sessions[0]?.starts_at)
+    .filter((startsAt): startsAt is string => startsAt !== undefined)
+    .map((startsAt) => new Date(startsAt))
 
   // Deadline soumission per-user : premier Q1 strictement après la date d'inscription.
   // Fallback sur Q1 GP1 dans deux cas : (a) user présent avant le début de saison,
   // (b) user inscrit après le dernier Q1 (find renvoie undefined) → Q1 GP1 dans le passé
   //     → form verrouillée (saison terminée).
   let submissionDeadline: Date | null = orderedQuals[0] ?? null
-  if (userId && userLookup?.data) {
-    const userCreatedAt = new Date(userLookup.data.user.created_at)
+  if (userId && profileLookup?.data) {
+    const userCreatedAt = new Date(profileLookup.data.created_at)
     submissionDeadline = orderedQuals.find((d) => d > userCreatedAt) ?? orderedQuals[0] ?? null
   }
 

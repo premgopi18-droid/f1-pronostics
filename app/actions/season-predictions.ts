@@ -3,6 +3,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import type { ActionFailure } from '@/lib/actions/errors'
+import { revalidateAfterMutation } from '@/lib/actions/revalidate'
 import {
   getSeasonDeadlines,
   upsertSeasonPrediction,
@@ -73,6 +74,7 @@ export async function submitSeasonPredictionAction(
 
   try {
     await upsertSeasonPrediction(user.id, season, type, entries)
+    revalidateAfterMutation()
     return { ok: true }
   } catch {
     return { error: 'unexpected' }
@@ -134,5 +136,6 @@ export async function applySeasonItemAction(
     if (code === 'P0003') return { error: 'invalidPositions' }
     return { error: 'unexpected' }
   }
+  revalidateAfterMutation()
   return { ok: true }
 }

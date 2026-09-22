@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { createLeague, joinLeagueByCode, LeagueDataError, type JoinLeagueErrorCode } from '@/lib/data/leagues'
 import type { ActionErrorCode } from '@/lib/actions/errors'
+import { revalidateAfterMutation } from '@/lib/actions/revalidate'
 import { getCurrentSeason } from '@/lib/api/cron'
 
 // Convention #181 : `error` est un ActionErrorCode, traduit côté form via translateActionError.
@@ -42,6 +43,7 @@ export async function createLeagueAction(
   }
 
   // redirect() lance une exception NEXT_REDIRECT → doit rester hors du try/catch
+  revalidateAfterMutation()
   redirect(`/leagues/${leagueId}`)
 }
 
@@ -66,5 +68,6 @@ export async function joinLeagueAction(
     return { error: 'somethingWentWrong' }
   }
 
+  revalidateAfterMutation()
   redirect(`/leagues/${leagueId}`)
 }

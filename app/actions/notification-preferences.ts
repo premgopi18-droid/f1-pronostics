@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase'
 import type { ActionErrorCode } from '@/lib/actions/errors'
+import { revalidateAfterMutation } from '@/lib/actions/revalidate'
 
 export type ImminenceScope = 'all' | 'stakes-only' | 'none'
 
@@ -16,6 +17,7 @@ export async function updateImminenceScope(scope: ImminenceScope): Promise<{ err
     .eq('id', user.id)
 
   if (error) return { error: 'updateFailed' }
+  revalidateAfterMutation()
   return {}
 }
 
@@ -31,5 +33,6 @@ export async function updateAnnouncementsOptIn(enabled: boolean): Promise<{ erro
     .eq('id', user.id)
 
   if (error) return { error: 'updateFailed' }
+  revalidateAfterMutation()
   return {}
 }

@@ -31,11 +31,21 @@ const SECURITY_HEADERS = [
   },
 ];
 
+/** Durée (s) pendant laquelle une page dynamique déjà vue est resservie depuis le cache client. */
+const STALE_TIME_DYNAMIC_SECONDS = 30;
+
 const nextConfig: NextConfig = {
   // Supprime `X-Powered-By: Next.js` (fuite de framework). Vercel le retire déjà
   // en prod, mais le projet se veut self-hostable (décision clé « no lock-in ») :
   // cette ligne rend le comportement déterministe quel que soit l'hébergeur.
   poweredByHeader: false,
+  experimental: {
+    // Cache client des pages dynamiques (#243) : revenir sur un onglet vu il y a moins
+    // de STALE_TIME_DYNAMIC_SECONDS est instantané, sans rendu serveur. Contrepartie :
+    // toute Server Action qui mute une donnée affichée purge ce cache via
+    // `revalidateAfterMutation()` (lib/actions/revalidate.ts).
+    staleTimes: { dynamic: STALE_TIME_DYNAMIC_SECONDS },
+  },
   async headers() {
     return [
       {

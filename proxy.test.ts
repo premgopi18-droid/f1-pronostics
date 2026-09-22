@@ -18,6 +18,12 @@ describe('proxy matcher', () => {
     expect(matcher.test('/icons/icon-192.png')).toBe(false)
   })
 
+  it('ignore le préfixe plateforme _vercel/ (Speed Insights, #244) sans déborder', () => {
+    expect(matcher.test('/_vercel/speed-insights/script.js')).toBe(false)
+    expect(matcher.test('/_vercel/speed-insights/vitals')).toBe(false)
+    expect(matcher.test('/_vercelfoo')).toBe(true)
+  })
+
   it('continue de protéger les routes applicatives', () => {
     expect(matcher.test('/')).toBe(true)
     expect(matcher.test('/profile')).toBe(true)

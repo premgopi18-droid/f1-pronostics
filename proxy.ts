@@ -125,7 +125,9 @@ export const config = {
   // sw.js et manifest.webmanifest sont exclus : ressources PWA publiques qui ne doivent jamais
   // être redirigées vers /login (sinon SW non enregistrable + manifest jamais chargé → app non
   // installable). Cf. isPublicPath dans proxy() pour la défense en profondeur.
-  // `_vercel/*` : script et beacon Speed Insights (#244), servis par la plateforme — jamais
-  // de session à valider ni de redirection à faire dessus.
-  matcher: ['/((?!_next/static|_next/image|_vercel|favicon\\.ico|manifest\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // `_vercel/*` (script et beacon Speed Insights, #244) : défense en profondeur seulement —
+  // vérifié en prod, la plateforme sert ces chemins AVANT le proxy (200 sans session). En
+  // SDK v2 le chemin réel peut être `/<seed>/script.js` (seed généré au build) : à contrôler
+  // en DevTools après activation, déconnecté sur /login (200 attendu, pas 307).
+  matcher: ['/((?!_next/static|_next/image|_vercel/|favicon\\.ico|manifest\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }

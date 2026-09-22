@@ -5,7 +5,7 @@ import { SwRegister } from "@/app/components/sw-register";
 import { InstallBanner } from "@/app/components/install-banner";
 import { BottomNav } from "@/app/components/bottom-nav";
 import { SplashScreen } from "@/app/ui/splash-screen";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { SpeedInsightsTelemetry } from "@/app/components/speed-insights";
 import {
   REDUCE_MOTION_STORAGE_KEY,
   REDUCE_MOTION_CLASS,
@@ -121,8 +121,10 @@ export default function RootLayout({
         <BottomNav />
         <SplashScreen />
         {/* Télémétrie perf terrain (#244) — tier gratuit Vercel : Real Experience Score par
-            route. No-op hors Vercel (dev, self-host) : le script n'est injecté qu'en prod. */}
-        <SpeedInsights />
+            route. Monté uniquement sur Vercel (`VERCEL=1`, posé par la plateforme au build
+            et au runtime) : hors Vercel le SDK n'est PAS un no-op — script debug tiers en dev,
+            404 sur /_vercel/… à chaque page en self-host (décision « no lock-in »). */}
+        {process.env.VERCEL === "1" && <SpeedInsightsTelemetry />}
       </body>
     </html>
   );

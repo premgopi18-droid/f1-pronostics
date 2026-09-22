@@ -63,6 +63,9 @@ export function LeaderboardRealtime({
       )
       .subscribe((status) => {
         setIsLive(status === 'SUBSCRIBED')
+        // Avec le cache client (staleTimes 30 s, #243), initialStandings peut dater de la
+        // visite précédente : on relit dès l'abonnement, sans attendre un event.
+        if (status === 'SUBSCRIBED') refresh()
       })
 
     return () => {

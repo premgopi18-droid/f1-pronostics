@@ -1,6 +1,8 @@
 'use server'
-import { createClient } from '@/lib/supabase'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import { ONBOARDED_COOKIE } from '@/lib/auth/onboarding-cookie'
 
 export async function signInWithGoogle() {
   const supabase = await createClient()
@@ -18,5 +20,8 @@ export async function signInWithGoogle() {
 export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
+  // Cookie de gating onboarding (#243) : ne pas laisser l'id du compte 30 jours sur un
+  // appareil partagé. Fonctionnellement inutile (valeur = id, un autre compte relit la DB).
+  ;(await cookies()).delete(ONBOARDED_COOKIE)
   redirect('/login')
 }

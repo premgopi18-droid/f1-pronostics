@@ -1,11 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { PENDING_INVITE_COOKIE, PENDING_INVITE_MAX_AGE, INVITE_CODE_PATTERN } from '@/lib/invites'
+import {
+  ONBOARDED_COOKIE,
+  ONBOARDED_COOKIE_MAX_AGE,
+  isOnboardedCookieValid,
+} from '@/lib/auth/onboarding-cookie'
 
 export async function proxy(request: NextRequest) {
   // Ne jamais faire confiance à un x-user-id entrant : c'est un header d'auth
-  // interne, (ré)injecté plus bas uniquement après getUser(). On le supprime des
-  // headers transmis sur TOUS les chemins de retour, y compris non authentifiés.
+  // interne, (ré)injecté plus bas uniquement après validation du JWT. On le supprime
+  // des headers transmis sur TOUS les chemins de retour, y compris non authentifiés.
   const baseHeaders = new Headers(request.headers)
   baseHeaders.delete('x-user-id')
 
@@ -32,11 +37,14 @@ export async function proxy(request: NextRequest) {
     },
   )
 
-  // getUser() valide le JWT et déclenche un refresh si besoin.
-  // C'est le seul appel auth réseau de tout le cycle de requête.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getClaims() vérifie la signature du JWT localement (#243) : le projet signe en
+  // ES256 (clés asymétriques), le JWKS public est mis en cache 10 min par auth-js
+  // (cache global, partagé entre requêtes d'une même instance). Un token expiré est
+  // rafraîchi au passage (getSession sous-jacent → cookies posés via setAll). Plus
+  // d'aller-retour réseau vers Auth à chaque navigation ; retombe automatiquement
+  // sur getUser() (réseau) si le projet repassait en clés symétriques.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims.sub ?? null
 
   const path = request.nextUrl.pathname
   const isPublicPath =
@@ -57,7 +65,7 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/api/admin') ||
     path.startsWith('/api/dev')
 
-  if (!user && !isPublicPath) {
+  if (!userId && !isPublicPath) {
     const response = NextResponse.redirect(new URL('/login', request.url))
     // Parcours invité : un visiteur non connecté qui ouvre un lien d'invitation
     // (/leagues/join?code=…) verrait le code perdu au passage par /login. On le
@@ -76,30 +84,46 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
-  if (user && path === '/login') {
+  if (userId && path === '/login') {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  if (!user) return supabaseResponse
+  if (!userId) return supabaseResponse
 
   // Gating onboarding : tant que le compte n'est pas finalisé (pseudo + casque), on
   // le force vers /onboarding ; une fois finalisé, /onboarding renvoie vers la Home.
-  // Fail-open : si la lecture échoue (ex. colonne absente avant migration), on ne
-  // bloque pas l'app.
+  // La lecture DB ne se fait qu'une fois par navigateur : dès qu'elle constate le
+  // profil finalisé, un cookie (valeur = id utilisateur) la court-circuite ensuite
+  // (#243). Fail-open : si la lecture échoue (ex. colonne absente avant migration),
+  // on ne bloque pas l'app.
+  let shouldSetOnboardedCookie = false
   if (!path.startsWith('/api')) {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('onboarding_completed')
-      .eq('id', user.id)
-      .single()
-    if (!error && profile) {
-      const completed = profile.onboarding_completed === true
-      if (!completed && path !== '/onboarding') {
-        return NextResponse.redirect(new URL('/onboarding', request.url))
+    let completed: boolean | null = isOnboardedCookieValid(
+      request.cookies.get(ONBOARDED_COOKIE)?.value,
+      userId,
+    )
+      ? true
+      : null
+
+    if (completed === null) {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', userId)
+        .single()
+      if (!error && profile) {
+        completed = profile.onboarding_completed === true
+        shouldSetOnboardedCookie = completed
       }
-      if (completed && path === '/onboarding') {
-        return NextResponse.redirect(new URL('/', request.url))
-      }
+    }
+
+    if (completed === false && path !== '/onboarding') {
+      return NextResponse.redirect(new URL('/onboarding', request.url))
+    }
+    if (completed === true && path === '/onboarding') {
+      const response = NextResponse.redirect(new URL('/', request.url))
+      if (shouldSetOnboardedCookie) setOnboardedCookie(response, userId)
+      return response
     }
   }
 
@@ -111,14 +135,24 @@ export async function proxy(request: NextRequest) {
     'cookie',
     request.cookies.getAll().map(({ name, value }) => `${name}=${value}`).join('; '),
   )
-  forwardHeaders.set('x-user-id', user.id)
+  forwardHeaders.set('x-user-id', userId)
 
   const response = NextResponse.next({ request: { headers: forwardHeaders } })
   // Copier les cookies de réponse (tokens refreshés) depuis supabaseResponse
   supabaseResponse.cookies.getAll().forEach(({ name, value, ...opts }) =>
     response.cookies.set(name, value, opts as Parameters<typeof response.cookies.set>[2]),
   )
+  if (shouldSetOnboardedCookie) setOnboardedCookie(response, userId)
   return response
+}
+
+function setOnboardedCookie(response: NextResponse, userId: string) {
+  response.cookies.set(ONBOARDED_COOKIE, userId, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: ONBOARDED_COOKIE_MAX_AGE,
+  })
 }
 
 export const config = {

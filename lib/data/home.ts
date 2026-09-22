@@ -17,6 +17,9 @@ export type PreviousGpCard = {
 /**
  * Card « dernier GP » de la Home : podium officiel + score brut global de l'utilisateur.
  * Service client (lecture transverse), scores filtrés sur `userId`.
+ *
+ * Deux vagues (#243) : GP + ses sessions en un embed, puis podium et scores en
+ * parallèle (les deux dépendent des ids de sessions).
  */
 export async function getPreviousGpCard(
   userId: string,
@@ -26,7 +29,7 @@ export async function getPreviousGpCard(
 
   const { data: gp, error: gpError } = await supabase
     .from('grands_prix')
-    .select('id, name')
+    .select('id, name, sessions(id, type)')
     .eq('season', season)
     .eq('is_cancelled', false)
     .not('scoring_finalized_at', 'is', null)
@@ -38,15 +41,8 @@ export async function getPreviousGpCard(
   if (gpError) console.error('[data/home] grands_prix', gpError)
   if (!gp) return null
 
-  const { data: sessions, error: sessionsError } = await supabase
-    .from('sessions')
-    .select('id, type')
-    .eq('gp_id', gp.id)
-
-  if (sessionsError) console.error('[data/home] sessions', sessionsError)
-
-  const sessionIds = (sessions ?? []).map((s) => s.id)
-  const raceSession = (sessions ?? []).find((s) => s.type === RACE_SESSION_TYPE)
+  const sessionIds = gp.sessions.map((s) => s.id)
+  const raceSession = gp.sessions.find((s) => s.type === RACE_SESSION_TYPE)
 
   const [podiumResult, scoreResult] = await Promise.all([
     raceSession

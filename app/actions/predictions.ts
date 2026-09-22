@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase'
 import type { ActionFailure } from '@/lib/actions/errors'
+import { revalidateAfterMutation } from '@/lib/actions/revalidate'
 import { submitPrediction, submitFastestLap } from '@/lib/data/predictions'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import type { SessionType } from '@/lib/scoring/types'
@@ -45,6 +46,7 @@ export async function submitPredictionAction(
 
   try {
     await submitPrediction(user.id, sessionId, season, sessionType, entries)
+    revalidateAfterMutation()
     return { ok: true }
   } catch (error) {
     // Le détail technique va dans les logs serveur, jamais dans l'UI.
@@ -83,6 +85,7 @@ export async function submitFastestLapAction(
 
   try {
     await submitFastestLap(user.id, sessionId, session.season, driverId)
+    revalidateAfterMutation()
     return { ok: true }
   } catch (error) {
     // Le détail technique va dans les logs serveur, jamais dans l'UI.

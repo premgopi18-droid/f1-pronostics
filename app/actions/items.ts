@@ -3,6 +3,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import type { ActionFailure } from '@/lib/actions/errors'
+import { revalidateAfterMutation } from '@/lib/actions/revalidate'
 import { insertPlayedItem } from '@/lib/data/items'
 import { getCurrentGp } from '@/lib/data/current-gp'
 import { ITEM_LOCK_PHASE } from '@/lib/items/catalog'
@@ -197,6 +198,7 @@ export async function playItemAction(
 
   try {
     await insertPlayedItem(user.id, leagueId, gpId, season, input.itemType, dbPayload)
+    revalidateAfterMutation()
     return { ok: true }
   } catch (error) {
     // Backstop des races rares (les pré-checks couvrent les cas courants) : la RPC rejette

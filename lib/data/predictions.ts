@@ -1,7 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
 import { POSITIONS_TO_SCORE } from '@/lib/scoring/constants'
 import { rawGpScore } from '@/lib/gp-score'
-import { sessionLockState } from '@/lib/home-phase'
 import { SCOREABLE_SESSION_TYPES, type SessionType } from '@/lib/scoring/types'
 
 export interface PredictionRow {
@@ -117,115 +116,67 @@ export async function submitFastestLap(
 
 /**
  * Score brut global de l'utilisateur pour chaque GP finalisé de la saison.
- * null = aucun score (pas en ligue ou scores pas encore calculés).
+ * GP absent de la map = aucun score (pas en ligue ou scores pas encore calculés).
+ *
+ * Une seule requête (#243) : scores de l'utilisateur sur la saison, avec la
+ * session et le GP embarqués — le filtre « GP finalisé, non annulé » se fait en
+ * mémoire (volume : quelques dizaines de lignes au plus).
  */
 export async function getGpHistoryScores(
   userId: string,
   season: number,
-): Promise<Map<string, number | null>> {
+): Promise<Map<string, number>> {
   const supabase = createServiceClient()
-
-  const { data: gps, error: gpError } = await supabase
-    .from('grands_prix')
-    .select('id')
-    .eq('season', season)
-    .eq('is_cancelled', false)
-    .not('scoring_finalized_at', 'is', null)
-
-  if (gpError) { console.error('[data/predictions] grands_prix', gpError); return new Map() }
-  if (!gps || gps.length === 0) return new Map()
-
-  const gpIds = gps.map((gp) => gp.id)
-
-  const { data: sessions, error: sessionsError } = await supabase
-    .from('sessions')
-    .select('id, gp_id')
-    .in('gp_id', gpIds)
-
-  if (sessionsError) { console.error('[data/predictions] sessions', sessionsError); return new Map() }
-
-  const allSessions = sessions ?? []
-  const sessionIds = allSessions.map((s) => s.id)
-  const sessionToGp = new Map(allSessions.map((s) => [s.id, s.gp_id]))
-
-  if (sessionIds.length === 0) return new Map(gpIds.map((id) => [id, null]))
 
   // Pas de filtre league_id : base_score est global (même valeur quelle que soit la ligue).
   // rawGpScore déduplique par sessionId si l'user est dans plusieurs ligues.
-  const { data: scoreRows, error: scoresError } = await supabase
+  const { data: scoreRows, error } = await supabase
     .from('scores')
-    .select('session_id, base_score')
+    .select(
+      'session_id, base_score, sessions!session_id!inner(gp_id, grands_prix!gp_id!inner(scoring_finalized_at, is_cancelled))',
+    )
     .eq('user_id', userId)
-    .in('session_id', sessionIds)
+    .eq('season', season)
 
-  if (scoresError) console.error('[data/predictions] scores', scoresError)
+  if (error) { console.error('[data/predictions] scores (history)', error); return new Map() }
 
   const byGp = new Map<string, { sessionId: string; baseScore: number }[]>()
   for (const row of scoreRows ?? []) {
-    const gpId = sessionToGp.get(row.session_id)
-    if (!gpId) continue
+    const gp = row.sessions?.grands_prix
+    if (!gp || gp.scoring_finalized_at === null || gp.is_cancelled) continue
+    const gpId = row.sessions.gp_id
     const list = byGp.get(gpId) ?? []
     list.push({ sessionId: row.session_id, baseScore: row.base_score })
     byGp.set(gpId, list)
   }
 
-  const result = new Map<string, number | null>()
-  for (const gpId of gpIds) {
-    const sessionScores = byGp.get(gpId)
-    result.set(gpId, sessionScores ? rawGpScore(sessionScores) : null)
+  const result = new Map<string, number>()
+  for (const [gpId, sessionScores] of byGp) {
+    result.set(gpId, rawGpScore(sessionScores))
   }
   return result
 }
 
-export type GpSessionView = {
-  type: SessionType
-  lockState: 'open' | 'locked'
-  hasSubmitted: boolean
-  startsAt: string
-}
-
 /**
- * Sessions du GP courant avec état de verrouillage et soumission de l'utilisateur.
+ * Ids des sessions de la saison où l'utilisateur a un prono valide (complet).
+ * Indépendant du GP courant → part dans la vague parallèle de l'onglet Mes Pronos ;
+ * la dérivation par session est pure (`deriveGpSessionStatuses`, #243).
  */
-export async function getCurrentGpSessionStatuses(
+export async function getUserValidPredictionSessionIds(
   userId: string,
-  gpId: string,
-): Promise<GpSessionView[]> {
+  season: number,
+): Promise<Set<string>> {
   const supabase = createServiceClient()
-  const nowMs = Date.now()
 
-  const { data: sessionRows, error: sessionsError } = await supabase
-    .from('sessions')
-    .select('id, type, starts_at')
-    .eq('gp_id', gpId)
-    // Exclut les essais libres (informatifs) : seules les sessions scorées sont
-    // pronosticables. Sinon `SESSION_LABEL[type]` est undefined → crash render.
-    .in('type', SCOREABLE_SESSION_TYPES)
-    .order('starts_at', { ascending: true })
+  const { data, error } = await supabase
+    .from('predictions')
+    .select('session_id')
+    .eq('user_id', userId)
+    .eq('season', season)
+    .eq('is_valid', true)
 
-  if (sessionsError) { console.error('[data/predictions] sessions (current gp)', sessionsError); return [] }
-
-  const sessionIds = (sessionRows ?? []).map((s) => s.id)
-
-  const { data: predRows, error: predError } = sessionIds.length
-    ? await supabase
-        .from('predictions')
-        .select('session_id')
-        .eq('user_id', userId)
-        .eq('is_valid', true)
-        .in('session_id', sessionIds)
-    : { data: [] as { session_id: string }[], error: null }
-
-  if (predError) console.error('[data/predictions] predictions', predError)
-
-  const submittedIds = new Set((predRows ?? []).map((r) => r.session_id))
-
-  return (sessionRows ?? []).map((s) => ({
-    type: s.type as SessionType,
-    lockState: sessionLockState(nowMs, s.starts_at),
-    hasSubmitted: submittedIds.has(s.id),
-    startsAt: s.starts_at,
-  }))
+  if (error) { console.error('[data/predictions] predictions (valid ids)', error); return new Set() }
+  return new Set((data ?? []).map((row) => row.session_id))
 }
 
 /**

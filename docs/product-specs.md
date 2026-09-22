@@ -574,6 +574,12 @@ La bottom nav est présente sur **toutes les pages** de l'app authentifiée. Exc
 | **GP Résultats** | Calendrier de la saison + résultats officiels de chaque GP |
 | **Profil** | Pseudo, avatar, notifications, accessibilité, gestion du compte |
 
+### Transitions entre écrans & mutations optimistes (décision 2026-09-22, #242)
+
+- **Transition de vue** entre pages et au remplacement skeleton → contenu : `experimental.viewTransition` (Next 16) + un seul `<ViewTransition default="bx-page">` autour du contenu de page dans le layout racine (`app/components/page-transition.tsx`). Animation sobre : sortie en fondu rapide (150 ms), entrée en fondu + léger glissement vers le haut (210 ms, décalée après la sortie). La bottom nav reste ancrée (hors de l'enveloppe). Pas de morph de boîte entre deux pages de hauteurs différentes (`::view-transition-group` gelé). Navigateurs sans View Transitions API (Safari < 18) : cut sec, comme avant. Typings React canary exposés par `types/react-canary.d.ts`.
+- **Coupé** par `prefers-reduced-motion` et `.reduce-motion` (règles `::view-transition-*` dédiées dans globals.css : les pseudo-éléments vivent sur `<html>`, hors de portée du `*`).
+- **Mutations optimistes** quand l'état est binaire et réversible : bascule des inscriptions admin (`useOptimistic`, retour automatique à l'état confirmé si l'action échoue), préférences de notifications (déjà en place). Le code d'invitation régénéré est renvoyé par l'action et affiché localement, sans `router.refresh()`. Après un item joué, l'écran de confirmation reste affiché pendant que la page se rafraîchit en arrière-plan (plus de texte « Mise à jour de la page… »).
+
 ### Page d'accueil (Home) — structure
 
 - **GP-centric** : le GP en cours / prochain est l'élément central, pas la ligue

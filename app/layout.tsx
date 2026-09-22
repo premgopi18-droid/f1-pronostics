@@ -4,6 +4,7 @@ import "./globals.css";
 import { SwRegister } from "@/app/components/sw-register";
 import { InstallBanner } from "@/app/components/install-banner";
 import { BottomNav } from "@/app/components/bottom-nav";
+import { PageTransition } from "@/app/components/page-transition";
 import { SplashScreen } from "@/app/ui/splash-screen";
 import { SpeedInsightsTelemetry } from "@/app/components/speed-insights";
 import {
@@ -117,7 +118,8 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: splashBootScript }} />
         <SwRegister />
         <InstallBanner />
-        {children}
+        {/* Transition de vue entre écrans et au remplacement skeleton → contenu (#242) */}
+        <PageTransition>{children}</PageTransition>
         <BottomNav />
         <SplashScreen />
         {/* Télémétrie perf terrain (#244) — tier gratuit Vercel : Real Experience Score par

@@ -261,11 +261,43 @@ body {
   }
 }
 
+/* Transitions de vue (#242) — React <ViewTransition default="bx-page"> autour du
+   contenu de page (app/components/page-transition.tsx). Joue au changement d'écran
+   ET au remplacement skeleton → contenu. Sortie rapide, entrée un peu plus lente et
+   décalée : l'ancien écran s'efface avant que le nouveau n'arrive. Le group est
+   gelé : deux pages de hauteurs différentes ne doivent pas « morpher » leur boîte
+   (les images old/new gardent leur hauteur naturelle, seule l'opacité bouge). */
+:root {
+  --bx-vt-exit: 150ms;
+  --bx-vt-enter: 210ms;
+}
+@keyframes bx-vt-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes bx-vt-rise {
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
+}
+::view-transition-group(.bx-page) {
+  animation: none;
+}
+::view-transition-old(.bx-page) {
+  animation: var(--bx-vt-exit) ease-in both bx-vt-fade reverse;
+}
+::view-transition-new(.bx-page) {
+  animation:
+    var(--bx-vt-enter) ease-out var(--bx-vt-exit) both bx-vt-fade,
+    var(--bx-vt-enter) ease-out var(--bx-vt-exit) both bx-vt-rise;
+}
+
 /* Réduction des animations/transitions. Deux déclencheurs :
    - préférence système `prefers-reduced-motion` : appliquée automatiquement (spec §7),
      même sans JS ;
    - mode accessibilité manuel : classe `.reduce-motion` posée sur <html> par le toggle
-     profil + le script anti-FOUC du layout (pour les users dont l'OS n'est pas réglé). */
+     profil + le script anti-FOUC du layout (pour les users dont l'OS n'est pas réglé).
+   Les pseudo-éléments ::view-transition-* vivent sur <html> : ils ne sont pas
+   couverts par `*` et reçoivent leurs propres règles (swap instantané). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -278,6 +310,12 @@ body {
   .pressable:active {
     transform: none;
   }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 .reduce-motion *,
 .reduce-motion *::before,
@@ -289,6 +327,12 @@ body {
 }
 .reduce-motion .pressable:active {
   transform: none;
+}
+
+.reduce-motion::view-transition-group(*),
+.reduce-motion::view-transition-old(*),
+.reduce-motion::view-transition-new(*) {
+  animation: none !important;
 }
 
 /* Mode accessibilité — tokens contraste WCAG AAA. Calculé sur les deux fonds réels

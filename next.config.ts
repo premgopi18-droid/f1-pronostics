@@ -45,6 +45,9 @@ const nextConfig: NextConfig = {
     // toute Server Action qui mute une donnée affichée purge ce cache via
     // `revalidateAfterMutation()` (lib/actions/revalidate.ts).
     staleTimes: { dynamic: STALE_TIME_DYNAMIC_SECONDS },
+    // Intégration React <ViewTransition> aux navigations Next (#242) : transition
+    // entre écrans et au remplacement skeleton → contenu (cf. app/components/page-transition.tsx).
+    viewTransition: true,
   },
   async headers() {
     return [

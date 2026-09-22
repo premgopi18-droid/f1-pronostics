@@ -5,7 +5,13 @@ import { createClient } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/api/cron'
 import type { ActionErrorCode } from '@/lib/actions/errors'
 
-type AdminResult = { error?: ActionErrorCode; success?: boolean; inviteOpen?: boolean }
+type AdminResult = {
+  error?: ActionErrorCode
+  success?: boolean
+  inviteOpen?: boolean
+  /** Nouveau code après régénération — affiché par le client sans re-render serveur (#242). */
+  inviteCode?: string
+}
 
 // Garde-fou applicatif : un Server Action est un endpoint POST public, le gate UI
 // (`isAdmin` dans page.tsx) ne protège pas l'appel direct. On vérifie l'admin-ship
@@ -113,7 +119,7 @@ export async function regenerateInviteCode(leagueId: string): Promise<AdminResul
 
     if (!error) {
       revalidatePath(`/leagues/${leagueId}`)
-      return { success: true }
+      return { success: true, inviteCode: code }
     }
 
     if (error.code !== '23505') return { error: 'regenerateFailed' }

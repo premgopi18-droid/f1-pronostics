@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useSyncExternalStore } from 'react'
+import { useOptimistic, useState, useTransition, useSyncExternalStore } from 'react'
 import { translateActionError } from '@/lib/actions/errors'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -30,9 +30,17 @@ export function AdminClient({
 }) {
   const router = useRouter()
   const origin = useSyncExternalStore(subscribeNoop, getOrigin, getServerOrigin)
+  // `inviteCode` est lu directement depuis la prop : `regenerateInviteCode` fait
+  // `revalidatePath`, donc la réponse de l'action embarque déjà le re-render de la
+  // page avec le nouveau code — pas d'état local (qui divergerait de la prop après
+  // un re-render déclenché ailleurs, ex. autre appareil) ni de `router.refresh()`.
   const fullUrl = origin ? `${origin}/leagues/join?code=${inviteCode}` : `/leagues/join?code=${inviteCode}`
 
+  // État confirmé par le serveur + projection optimiste (#242) : le switch bascule
+  // à l'instant du tap ; si l'action échoue, React revient à `open` à la fin de la
+  // transition (pas de rollback manuel).
   const [open, setOpen] = useState(inviteOpen)
+  const [optimisticOpen, setOptimisticOpen] = useOptimistic(open)
   const [codeCopied, setCodeCopied] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [regenConfirm, setRegenConfirm] = useState(false)
@@ -60,7 +68,11 @@ export function AdminClient({
   }
 
   const handleToggle = () => {
+    // Un tap pendant la transition serait un 2ᵉ toggle : on l'ignore plutôt que de
+    // griser le switch (l'UI optimiste doit rester vivante).
+    if (isPendingToggle) return
     startToggle(async () => {
+      setOptimisticOpen(!open)
       const result = await toggleInvites(leagueId)
       if (result.error) { setError(translateActionError(result.error)); return }
       if (typeof result.inviteOpen === 'boolean') setOpen(result.inviteOpen)
@@ -74,7 +86,6 @@ export function AdminClient({
       if (result.error) { setError(translateActionError(result.error)); return }
       setRegenConfirm(false)
       setError(null)
-      router.refresh()
     })
   }
 
@@ -182,27 +193,27 @@ export function AdminClient({
             <span className="text-sm font-semibold text-foreground">
               {t('admin.inscriptionsLabel')}
             </span>
-            <span className={cn('text-xs font-medium', open ? 'text-success' : 'text-text-muted')}>
-              {open ? t('admin.inscriptionsOpen') : t('admin.inscriptionsClosed')}
+            <span className={cn('text-xs font-medium', optimisticOpen ? 'text-success' : 'text-text-muted')}>
+              {optimisticOpen ? t('admin.inscriptionsOpen') : t('admin.inscriptionsClosed')}
             </span>
           </div>
-          {/* Toggle visuel */}
+          {/* Toggle visuel — optimiste : reflète le tap avant la réponse serveur */}
           <button
             type="button"
             role="switch"
-            aria-checked={open}
+            aria-checked={optimisticOpen}
+            aria-busy={isPendingToggle}
             aria-label={t('admin.inscriptionsLabel')}
             onClick={handleToggle}
-            disabled={isPendingToggle}
             className={cn(
-              'relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50',
-              open ? 'bg-success' : 'bg-secondary',
+              'relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+              optimisticOpen ? 'bg-success' : 'bg-secondary',
             )}
           >
             <span
               className={cn(
                 'absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform',
-                open ? 'translate-x-6' : 'translate-x-1',
+                optimisticOpen ? 'translate-x-6' : 'translate-x-1',
               )}
             />
           </button>

@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
     // toute Server Action qui mute une donnée affichée purge ce cache via
     // `revalidateAfterMutation()` (lib/actions/revalidate.ts).
     staleTimes: { dynamic: STALE_TIME_DYNAMIC_SECONDS },
+    // Déclare l'usage de React <ViewTransition> (#242, cf. app/template.tsx). En 16.2.9 le
+    // flag est validé par le schéma de config mais sans effet runtime (le canary React
+    // vendu exporte déjà ViewTransition) — gardé pour suivre la doc et les évolutions.
+    viewTransition: true,
   },
   async headers() {
     return [

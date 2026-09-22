@@ -117,6 +117,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: splashBootScript }} />
         <SwRegister />
         <InstallBanner />
+        {/* Transition de vue entre écrans : portée par app/template.tsx (#242) */}
         {children}
         <BottomNav />
         <SplashScreen />

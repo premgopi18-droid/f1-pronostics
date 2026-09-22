@@ -112,6 +112,7 @@ export async function regenerateInviteCode(leagueId: string): Promise<AdminResul
       .eq('id', leagueId)
 
     if (!error) {
+      // Le re-render de la page (nouveau code en prop) part dans la réponse de l'action.
       revalidatePath(`/leagues/${leagueId}`)
       return { success: true }
     }

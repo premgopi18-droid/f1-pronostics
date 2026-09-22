@@ -261,11 +261,38 @@ body {
   }
 }
 
+/* Transitions de vue (#242) — React <ViewTransition enter/exit="bx-page"> autour du
+   contenu de page, monté par app/template.tsx (ré-instancié à chaque navigation).
+   L'ancienne page SORT (old seul, à sa propre géométrie) et la nouvelle ENTRE (new
+   seul) : jamais de paire old/new dans un même group, donc pas de morph de boîte
+   entre deux pages de hauteurs différentes. Sortie rapide, entrée un peu plus lente
+   et décalée : l'ancien écran s'efface avant que le nouveau n'arrive. */
+:root {
+  --bx-vt-exit: 150ms;
+  --bx-vt-enter: 210ms;
+}
+@keyframes bx-vt-rise {
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
+}
+::view-transition-old(.bx-page) {
+  animation: var(--bx-vt-exit) ease-in both bx-fade reverse;
+}
+::view-transition-new(.bx-page) {
+  animation:
+    var(--bx-vt-enter) ease-out var(--bx-vt-exit) both bx-fade,
+    var(--bx-vt-enter) ease-out var(--bx-vt-exit) both bx-vt-rise;
+}
+
 /* Réduction des animations/transitions. Deux déclencheurs :
    - préférence système `prefers-reduced-motion` : appliquée automatiquement (spec §7),
      même sans JS ;
    - mode accessibilité manuel : classe `.reduce-motion` posée sur <html> par le toggle
-     profil + le script anti-FOUC du layout (pour les users dont l'OS n'est pas réglé). */
+     profil + le script anti-FOUC du layout (pour les users dont l'OS n'est pas réglé).
+   Les pseudo-éléments ::view-transition-* vivent sur <html> : ils ne sont pas
+   couverts par `*` et reçoivent leurs propres règles. Durée + délai à 0 (et non
+   `animation: none`) : le `fill-mode: both` garde l'état final des keyframes — old à
+   opacité 0 — donc swap net, sans frame où l'ancien texte transparaît sous le nouveau. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -278,6 +305,13 @@ body {
   .pressable:active {
     transform: none;
   }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
 }
 .reduce-motion *,
 .reduce-motion *::before,
@@ -289,6 +323,13 @@ body {
 }
 .reduce-motion .pressable:active {
   transform: none;
+}
+
+.reduce-motion::view-transition-group(*),
+.reduce-motion::view-transition-old(*),
+.reduce-motion::view-transition-new(*) {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
 }
 
 /* Mode accessibilité — tokens contraste WCAG AAA. Calculé sur les deux fonds réels

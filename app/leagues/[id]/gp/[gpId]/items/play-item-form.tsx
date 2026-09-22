@@ -140,7 +140,9 @@ export function PlayItemForm({
         return
       }
       setMessage({ type: 'ok', text: t('items.playedOk') })
-      // Re-render du RSC parent : bascule sur l'état « item joué » (formulaire masqué)
+      // Re-render du RSC parent en arrière-plan : bascule sur l'état « item joué »
+      // (formulaire masqué). L'écran de confirmation reste affiché pendant ce temps,
+      // sans texte d'attente (#242) — l'utilisateur a déjà sa réponse.
       router.refresh()
     })
   }
@@ -152,7 +154,6 @@ export function PlayItemForm({
       <div className="bg-zinc-900 rounded-xl px-4 py-6 text-center flex flex-col gap-2">
         <span className="text-3xl">{itemLabels[selectedItem!]?.emoji}</span>
         <p className="text-success font-medium">{message.text}</p>
-        <p className="text-zinc-500 text-sm">Mise à jour de la page…</p>
       </div>
     )
   }

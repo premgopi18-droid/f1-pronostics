@@ -20,3 +20,16 @@ export const SPLASH_BACKGROUND_COLOR = '#0f0f0f'
  *  (bundle qui ne charge pas), on le masque après ce délai pour ne pas bloquer
  *  l'app. Doit dépasser la durée animation (3.2 s) + fondu. */
 export const SPLASH_FAILSAFE_MS = 6000
+
+/** Propriété globale posée sur `window` par le boot script **pour ce chargement de
+ *  page** quand il décide de jouer le splash. Contrairement au flag sessionStorage
+ *  (valable toute la session, y compris les chargements suivants sans splash), elle
+ *  identifie précisément les chargements dont les Web Vitals sont biaisés par
+ *  l'overlay : le navigateur ne compte le contenu comme affiché qu'une fois le
+ *  splash retiré (LCP = durée Lottie + fondu, #251). Lue par la télémétrie. */
+export const SPLASH_PLAYED_GLOBAL = '__bxSplashPlayed'
+
+/** Le splash a-t-il joué pendant ce chargement ? Pur : reçoit l'objet global. */
+export function hasSplashPlayed(globalObject: Record<string, unknown>): boolean {
+  return globalObject[SPLASH_PLAYED_GLOBAL] === true
+}

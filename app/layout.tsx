@@ -15,6 +15,7 @@ import { THEME_STORAGE_KEY, THEME_PRIMARY_COLORS } from "@/lib/theme/themes";
 import {
   SPLASH_SESSION_STORAGE_KEY,
   SPLASH_PLAY_CLASS,
+  SPLASH_PLAYED_GLOBAL,
   SPLASH_FAILSAFE_MS,
 } from "@/lib/splash/splash";
 
@@ -43,7 +44,9 @@ const installPromptBootScript = `window.__deferredInstallPrompt=null;addEventLis
 // sur <html> (→ overlay visible via globals.css) et marque la session. Skippé si
 // mode réduit (système ou override) ou splash déjà vu cette session. Un filet de
 // sécurité retire la classe si React ne le fait jamais (bundle non chargé).
-const splashBootScript = `try{var _r=matchMedia('(prefers-reduced-motion: reduce)').matches||localStorage.getItem('${REDUCE_MOTION_STORAGE_KEY}')==='true';if(!_r&&!sessionStorage.getItem('${SPLASH_SESSION_STORAGE_KEY}')){sessionStorage.setItem('${SPLASH_SESSION_STORAGE_KEY}','1');document.documentElement.classList.add('${SPLASH_PLAY_CLASS}');setTimeout(function(){document.documentElement.classList.remove('${SPLASH_PLAY_CLASS}')},${SPLASH_FAILSAFE_MS})}}catch(e){}`;
+// Pose aussi un marqueur global propre à CE chargement : la télémétrie Speed Insights
+// ignore les Web Vitals des chargements avec splash (LCP = durée de l'animation, #251).
+const splashBootScript = `try{var _r=matchMedia('(prefers-reduced-motion: reduce)').matches||localStorage.getItem('${REDUCE_MOTION_STORAGE_KEY}')==='true';if(!_r&&!sessionStorage.getItem('${SPLASH_SESSION_STORAGE_KEY}')){sessionStorage.setItem('${SPLASH_SESSION_STORAGE_KEY}','1');window.${SPLASH_PLAYED_GLOBAL}=true;document.documentElement.classList.add('${SPLASH_PLAY_CLASS}');setTimeout(function(){document.documentElement.classList.remove('${SPLASH_PLAY_CLASS}')},${SPLASH_FAILSAFE_MS})}}catch(e){}`;
 
 const inter = Inter({
   variable: "--font-inter",

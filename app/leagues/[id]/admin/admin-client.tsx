@@ -30,10 +30,11 @@ export function AdminClient({
 }) {
   const router = useRouter()
   const origin = useSyncExternalStore(subscribeNoop, getOrigin, getServerOrigin)
-  // Code d'invitation courant : mis à jour localement après régénération (l'action
-  // renvoie le nouveau code) — plus de `router.refresh()` pour l'afficher (#242).
-  const [code, setCode] = useState(inviteCode)
-  const fullUrl = origin ? `${origin}/leagues/join?code=${code}` : `/leagues/join?code=${code}`
+  // `inviteCode` est lu directement depuis la prop : `regenerateInviteCode` fait
+  // `revalidatePath`, donc la réponse de l'action embarque déjà le re-render de la
+  // page avec le nouveau code — pas d'état local (qui divergerait de la prop après
+  // un re-render déclenché ailleurs, ex. autre appareil) ni de `router.refresh()`.
+  const fullUrl = origin ? `${origin}/leagues/join?code=${inviteCode}` : `/leagues/join?code=${inviteCode}`
 
   // État confirmé par le serveur + projection optimiste (#242) : le switch bascule
   // à l'instant du tap ; si l'action échoue, React revient à `open` à la fin de la
@@ -52,7 +53,7 @@ export function AdminClient({
 
   const copyCode = async () => {
     try {
-      await navigator.clipboard.writeText(code)
+      await navigator.clipboard.writeText(inviteCode)
       setCodeCopied(true)
       setTimeout(() => setCodeCopied(false), 2000)
     } catch { /* clipboard indisponible */ }
@@ -83,7 +84,6 @@ export function AdminClient({
     startRegen(async () => {
       const result = await regenerateInviteCode(leagueId)
       if (result.error) { setError(translateActionError(result.error)); return }
-      if (result.inviteCode) setCode(result.inviteCode)
       setRegenConfirm(false)
       setError(null)
     })
@@ -122,7 +122,7 @@ export function AdminClient({
             <span className="text-2xs text-text-muted">{t('admin.shortCode')}</span>
             <div className="flex items-center justify-between gap-3">
               <span className="font-numeric text-2xl font-bold tracking-widest text-foreground">
-                {code}
+                {inviteCode}
               </span>
               <Button
                 variant="secondary"

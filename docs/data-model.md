@@ -656,7 +656,7 @@ Applique en une transaction le rapprochement calendrier Jolpica ↔ `grands_prix
 
 ### `prune_gp_sessions(p_gp_id, p_keep_types)`
 
-Supprime les sessions d'un GP dont le type n'est plus au calendrier (hors `p_keep_types`), **sauf résultats confirmés**, avec leurs `predictions`, `fastest_lap_predictions`, `scores` et `session_results` (FK `NO ACTION`) — tout ou rien. Retourne le nombre de sessions supprimées. Service role uniquement. Appelée par `syncSessions` (`lib/data/f1-sync.ts`). Migration : `20261003100000_calendar_sync_identity.sql`.
+Supprime les sessions d'un GP dont le type n'est plus au calendrier (hors `p_keep_types`), **sauf session déjà commencée ou aux résultats confirmés**, avec leurs `predictions`, `fastest_lap_predictions`, `scores` et `session_results` (FK `NO ACTION`) — tout ou rien. Retourne le nombre de sessions supprimées. Appelée seulement si le programme Jolpica du GP est complet pour son format (`isCalendarEntryScheduleComplete`). Service role uniquement. Appelée par `syncSessions` (`lib/data/f1-sync.ts`). Migration : `20261003100000_calendar_sync_identity.sql`.
 
 ---
 

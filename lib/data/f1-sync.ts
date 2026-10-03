@@ -152,7 +152,7 @@ export async function syncGrandsPrix(
     console.warn(`syncGrandsPrix ${season} : GPs retirés du calendrier, annulés — ${reconciliation.cancelled.join(', ')}`)
   }
   if (reconciliation.orphanedWithResults.length > 0) {
-    console.warn(`syncGrandsPrix ${season} : GPs déjà courus absents du calendrier, laissés tels quels — ${reconciliation.orphanedWithResults.join(', ')}`)
+    console.warn(`syncGrandsPrix ${season} : GPs déjà courus absents du calendrier, laissés tels quels — ${reconciliation.orphanedWithResults.map((gp) => `${gp.id} (manche ${gp.round})`).join(', ')}`)
   }
 
   const { data, error } = await supabase.rpc('apply_calendar_sync', {
@@ -168,14 +168,16 @@ export async function syncGrandsPrix(
 
 /**
  * Aligne les sessions d'un GP sur le calendrier : upsert des sessions
- * attendues, puis suppression (avec leurs pronos) de celles qui n'y sont plus
- * — sauf résultats confirmés. Ex. #253 : sessions sprint restées sur un GP
- * qui n'est pas un week-end sprint.
+ * attendues, puis — si `pruneStale` (programme Jolpica complet, cf.
+ * isCalendarEntryScheduleComplete) — suppression avec leurs pronos de celles
+ * qui n'y sont plus, sauf session commencée ou aux résultats confirmés.
+ * Ex. #253 : sessions sprint restées sur un GP qui n'est pas un week-end sprint.
  */
 export async function syncSessions(
-  gpId:     string,
-  season:   number,
-  sessions: { type: DbSessionType; startsAt: string }[],
+  gpId:       string,
+  season:     number,
+  sessions:   { type: DbSessionType; startsAt: string }[],
+  pruneStale: boolean,
 ): Promise<void> {
   const supabase = createServiceClient()
   const { error } = await supabase
@@ -190,6 +192,7 @@ export async function syncSessions(
       { onConflict: 'gp_id,type' },
     )
   if (error) throw error
+  if (!pruneStale) return
 
   const { data: prunedCount, error: pruneError } = await supabase.rpc('prune_gp_sessions', {
     p_gp_id:      gpId,

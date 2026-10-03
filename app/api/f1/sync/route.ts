@@ -25,7 +25,7 @@ import {
   syncSessions,
   setRaceLaps,
 } from '@/lib/data/f1-sync'
-import { sessionsForCalendarEntry } from '@/lib/f1/calendar-reconciliation'
+import { isCalendarEntryScheduleComplete, sessionsForCalendarEntry } from '@/lib/f1/calendar-reconciliation'
 import { upsertSessionResults } from '@/lib/data/session-results'
 import { hasFastestLap, markFastestLap, shouldDeferSessionConfirmation } from '@/lib/data/session-confirmation'
 import { createServiceClient } from '@/lib/supabase'
@@ -104,7 +104,7 @@ async function handler(request: Request): Promise<Response> {
       for (const entry of calendar) {
         const gpId = gpRoundToId.get(entry.round)
         if (!gpId) continue
-        await syncSessions(gpId, season, sessionsForCalendarEntry(entry))
+        await syncSessions(gpId, season, sessionsForCalendarEntry(entry), isCalendarEntryScheduleComplete(entry))
       }
     } catch (error) {
       console.error('[api/f1/sync] calendrier', error)

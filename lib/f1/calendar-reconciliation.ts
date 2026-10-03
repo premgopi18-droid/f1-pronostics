@@ -28,7 +28,7 @@ export interface CalendarReconciliation {
   // GPs disparus du calendrier → is_cancelled (non destructif : réactivés s'ils reviennent)
   cancelled: string[]
   // GPs disparus mais déjà courus (résultats confirmés) : laissés tels quels
-  orphanedWithResults: string[]
+  orphanedWithResults: { id: string; round: number }[]
 }
 
 export function reconcileCalendar(
@@ -49,14 +49,20 @@ export function reconcileCalendar(
     matchByEntry.set(entry, candidate.id)
   }
 
-  // Passe 1 : identifiant de circuit. Passe 2 : nom de circuit, uniquement
-  // pour les lignes sans circuit_ref (elles en reçoivent un à l'application).
-  for (const entry of sortedEntries) {
-    claim(entry, (gp) => gp.circuitRef === entry.circuitRef)
-  }
-  for (const entry of sortedEntries) {
-    if (matchByEntry.has(entry)) continue
-    claim(entry, (gp) => gp.circuitRef === null && gp.circuit === entry.circuit)
+  // Passe 1 : identifiant de circuit. Passe 2 : nom de circuit pour les lignes
+  // sans circuit_ref (elles en reçoivent un à l'application). Passe 3 : nom de
+  // circuit quel que soit le circuit_ref — un circuitId renommé côté Jolpica
+  // annulerait sinon le GP (pronos inclus) pour en recréer un vide.
+  const passes: ((entry: CalendarEntry) => (gp: ExistingGrandPrix) => boolean)[] = [
+    (entry) => (gp) => gp.circuitRef === entry.circuitRef,
+    (entry) => (gp) => gp.circuitRef === null && gp.circuit === entry.circuit,
+    (entry) => (gp) => gp.circuit === entry.circuit,
+  ]
+  for (const pass of passes) {
+    for (const entry of sortedEntries) {
+      if (matchByEntry.has(entry)) continue
+      claim(entry, pass(entry))
+    }
   }
 
   const unmatched = sortedExisting.filter((gp) => !matchedIds.has(gp.id))
@@ -71,7 +77,7 @@ export function reconcileCalendar(
       .map((gp) => gp.id),
     orphanedWithResults: unmatched
       .filter((gp) => !gp.isCancelled && gp.hasConfirmedResults)
-      .map((gp) => gp.id),
+      .map(({ id, round }) => ({ id, round })),
   }
 }
 
@@ -84,7 +90,29 @@ export function findUnsafeReconciliationReason(
   if (reconciliation.cancelled.length > MAX_CANCELLATIONS_PER_SYNC) {
     return `${reconciliation.cancelled.length} GPs seraient annulés d'un coup (max ${MAX_CANCELLATIONS_PER_SYNC})`
   }
+  // Un GP déjà couru reste actif : si le calendrier réattribue sa manche, l'index
+  // d'unicité ferait échouer la transaction — autant refuser avec un motif clair.
+  const entryRounds = new Set(entries.map((entry) => entry.round))
+  const blockingOrphan = reconciliation.orphanedWithResults.find((gp) => entryRounds.has(gp.round))
+  if (blockingOrphan) {
+    return `le GP ${blockingOrphan.id}, déjà couru et absent du calendrier, occupe la manche ${blockingOrphan.round} — arbitrage manuel requis`
+  }
   return null
+}
+
+/**
+ * Le programme Jolpica du GP est-il complet pour son format ? Seul un
+ * programme complet autorise à supprimer les sessions absentes : une réponse
+ * partielle (horaires sprint manquants…) effacerait sinon des sessions bien
+ * réelles et leurs pronos, sans retour possible.
+ */
+export function isCalendarEntryScheduleComplete(entry: CalendarEntry): boolean {
+  // fetchCalendar retombe sur l'horaire de la course quand Qualifying manque
+  const hasQualifying = entry.qualifyingStartsAt !== entry.raceStartsAt
+  if (!hasQualifying || !entry.practice1StartsAt) return false
+  return entry.isSprintWeekend
+    ? entry.sprintQualStartsAt !== null && entry.sprintRaceStartsAt !== null
+    : entry.practice2StartsAt !== null && entry.practice3StartsAt !== null
 }
 
 /** Sessions attendues pour un GP du calendrier — toute autre session du GP est obsolète. */

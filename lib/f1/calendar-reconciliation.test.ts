@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   MAX_CANCELLATIONS_PER_SYNC,
   findUnsafeReconciliationReason,
+  isCalendarEntryScheduleComplete,
   reconcileCalendar,
   sessionsForCalendarEntry,
   type ExistingGrandPrix,
@@ -76,7 +77,7 @@ describe('reconcileCalendar', () => {
     )
 
     expect(result.cancelled).toEqual([])
-    expect(result.orphanedWithResults).toEqual(['gp-done'])
+    expect(result.orphanedWithResults).toEqual([{ id: 'gp-done', round: 1 }])
   })
 
   it('GP déjà annulé qui revient au calendrier : réactivé sur sa ligne (pronos conservés)', () => {
@@ -108,14 +109,26 @@ describe('reconcileCalendar', () => {
     expect(result.matched.map(({ id }) => id)).toEqual(['gp-legacy'])
   })
 
-  it("le nom de circuit ne vole pas une ligne qui a déjà un circuit_ref différent", () => {
+  it('circuitId renommé côté Jolpica : rapproché par nom de circuit, pas annulé + recréé', () => {
     const result = reconcileCalendar(
       [entry(1, 'new_ref', { circuit: 'Same Name' })],
-      [existing('gp-other', 1, 'old_ref', { circuit: 'Same Name' })],
+      [existing('gp-kept', 1, 'old_ref', { circuit: 'Same Name' })],
     )
 
-    expect(result.inserted.map((e) => e.circuitRef)).toEqual(['new_ref'])
-    expect(result.cancelled).toEqual(['gp-other'])
+    expect(result.matched).toEqual([{ id: 'gp-kept', entry: expect.objectContaining({ circuitRef: 'new_ref' }) }])
+    expect(result.inserted).toEqual([])
+    expect(result.cancelled).toEqual([])
+  })
+
+  it("l'identifiant de circuit prime sur le nom", () => {
+    // Le nom de « gp-by-ref » a changé, celui de « gp-by-name » correspond :
+    // la passe par identifiant passe d'abord, le nom ne récupère que le reste.
+    const result = reconcileCalendar(
+      [entry(1, 'sepang', { circuit: 'Sepang' }), entry(2, 'other', { circuit: 'Other' })],
+      [existing('gp-by-name', 1, 'other', { circuit: 'Sepang' }), existing('gp-by-ref', 2, 'sepang', { circuit: 'Old name' })],
+    )
+
+    expect(result.matched.map(({ id, entry: e }) => [id, e.circuitRef])).toEqual([['gp-by-ref', 'sepang'], ['gp-by-name', 'other']])
   })
 
   it('deux GPs sur le même circuit : appariés dans l’ordre chronologique', () => {
@@ -140,10 +153,61 @@ describe('findUnsafeReconciliationReason', () => {
     expect(findUnsafeReconciliationReason(entries, reconcileCalendar(entries, gps))).toMatch(/annulés/)
   })
 
+  it('refuse si un GP déjà couru et absent du calendrier occupe une manche réattribuée', () => {
+    const entries = [entry(1, 'suzuka')]
+    const reconciliation = reconcileCalendar(entries, [existing('gp-done', 1, 'bahrain', { hasConfirmedResults: true })])
+    expect(findUnsafeReconciliationReason(entries, reconciliation)).toMatch(/gp-done.*manche 1/)
+  })
+
+  it('accepte un GP déjà couru absent du calendrier si sa manche reste libre', () => {
+    const entries = [entry(2, 'suzuka')]
+    const reconciliation = reconcileCalendar(entries, [existing('gp-done', 1, 'bahrain', { hasConfirmedResults: true })])
+    expect(findUnsafeReconciliationReason(entries, reconciliation)).toBeNull()
+  })
+
   it(`accepte jusqu'à ${MAX_CANCELLATIONS_PER_SYNC} annulations`, () => {
     const entries = [entry(1, 'kept')]
     const gps = [existing('kept', 1, 'kept'), ...Array.from({ length: MAX_CANCELLATIONS_PER_SYNC }, (_, index) => existing(`gone-${index}`, index + 2, `gone-${index}`))]
     expect(findUnsafeReconciliationReason(entries, reconcileCalendar(entries, gps))).toBeNull()
+  })
+})
+
+describe('isCalendarEntryScheduleComplete', () => {
+  const classic = {
+    practice1StartsAt: '2026-10-02T04:30:00Z',
+    practice2StartsAt: '2026-10-02T08:00:00Z',
+    practice3StartsAt: '2026-10-03T04:30:00Z',
+  }
+  const sprint = {
+    isSprintWeekend:    true,
+    practice1StartsAt:  '2026-10-09T08:30:00Z',
+    sprintQualStartsAt: '2026-10-09T12:30:00Z',
+    sprintRaceStartsAt: '2026-10-10T09:00:00Z',
+  }
+
+  it('week-end classique complet (EL1-2-3 + qualifs + course)', () => {
+    expect(isCalendarEntryScheduleComplete(entry(16, 'sepang', classic))).toBe(true)
+  })
+
+  it('week-end sprint complet (EL1 + sprint qualif + sprint + qualifs + course)', () => {
+    expect(isCalendarEntryScheduleComplete(entry(17, 'marina_bay', sprint))).toBe(true)
+  })
+
+  it('réponse partielle — horaires sprint perdus : week-end « classique » sans EL2/EL3 → incomplet', () => {
+    // Le cas dangereux : sans ce garde-fou, les sessions sprint et leurs pronos seraient supprimés.
+    expect(isCalendarEntryScheduleComplete(entry(17, 'marina_bay', { practice1StartsAt: sprint.practice1StartsAt }))).toBe(false)
+  })
+
+  it('sprint annoncé mais horaire de sprint qualif manquant → incomplet', () => {
+    expect(isCalendarEntryScheduleComplete(entry(17, 'marina_bay', { ...sprint, sprintQualStartsAt: null }))).toBe(false)
+  })
+
+  it('qualifs manquantes (repli sur l’horaire de la course) → incomplet', () => {
+    expect(isCalendarEntryScheduleComplete(entry(16, 'sepang', { ...classic, qualifyingStartsAt: '2026-10-04T07:00:00Z' }))).toBe(false)
+  })
+
+  it('EL1 manquante (GP lointain pas encore programmé) → incomplet', () => {
+    expect(isCalendarEntryScheduleComplete(entry(16, 'sepang', { ...classic, practice1StartsAt: null }))).toBe(false)
   })
 })
 

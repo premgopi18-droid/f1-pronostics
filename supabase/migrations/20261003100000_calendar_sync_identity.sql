@@ -103,7 +103,10 @@ $$;
 
 -- ── prune_gp_sessions ─────────────────────────────────────────────────────
 -- Supprime les sessions d'un GP absentes du calendrier (types hors
--- p_keep_types) et leurs pronos — sauf session aux résultats confirmés.
+-- p_keep_types) et leurs pronos — sauf session déjà commencée ou aux résultats
+-- confirmés (une session passée qui disparaît = trou de données Jolpica, pas
+-- un changement de programme). N'est appelée que si le programme Jolpica du GP
+-- est complet (isCalendarEntryScheduleComplete).
 -- Tout ou rien : une session n'est jamais supprimée en laissant des pronos.
 create or replace function public.prune_gp_sessions(
   p_gp_id      uuid,
@@ -121,6 +124,7 @@ begin
   from public.sessions s
   where s.gp_id = p_gp_id
     and s.results_confirmed_at is null
+    and s.starts_at > now()
     and not (s.type = any(p_keep_types));
 
   if cardinality(v_stale_ids) = 0 then

@@ -21,10 +21,11 @@ import {
   upsertConstructors,
   upsertDriverConstructorLinks,
   upsertDrivers,
-  upsertGrandsPrix,
-  upsertSessions,
+  syncGrandsPrix,
+  syncSessions,
   setRaceLaps,
 } from '@/lib/data/f1-sync'
+import { isCalendarEntryScheduleComplete, sessionsForCalendarEntry } from '@/lib/f1/calendar-reconciliation'
 import { upsertSessionResults } from '@/lib/data/session-results'
 import { hasFastestLap, markFastestLap, shouldDeferSessionConfirmation } from '@/lib/data/session-confirmation'
 import { createServiceClient } from '@/lib/supabase'
@@ -92,32 +93,33 @@ async function handler(request: Request): Promise<Response> {
     await upsertDrivers(drivers)
     await upsertDriverConstructorLinks(season, links)
 
-    const gpRoundToId = await upsertGrandsPrix(calendar)
-
-    for (const entry of calendar) {
-      const gpId = gpRoundToId.get(entry.round)
-      if (!gpId) continue
-
-      const sessions: { type: DbSessionType; startsAt: string }[] = [
-        { type: 'qualifying', startsAt: entry.qualifyingStartsAt },
-        { type: 'race',       startsAt: entry.raceStartsAt },
-      ]
-      if (entry.isSprintWeekend) {
-        if (entry.sprintQualStartsAt) sessions.push({ type: 'sprint_qualifying', startsAt: entry.sprintQualStartsAt })
-        if (entry.sprintRaceStartsAt) sessions.push({ type: 'sprint_race',       startsAt: entry.sprintRaceStartsAt })
+    // Calendrier (#253) : GPs rapprochés par circuit, sessions retirées
+    // supprimées. Phase isolée : un calendrier refusé (réponse Jolpica suspecte)
+    // ou une erreur d'écriture laisse la base dans son état précédent (RPC
+    // transactionnelle) — les phases résultats et notifs tournent quand même,
+    // et le run finit en 500 pour la visibilité.
+    let calendarSynced = true
+    try {
+      const gpRoundToId = await syncGrandsPrix(season, calendar)
+      for (const entry of calendar) {
+        const gpId = gpRoundToId.get(entry.round)
+        if (!gpId) continue
+        await syncSessions(gpId, season, sessionsForCalendarEntry(entry), isCalendarEntryScheduleComplete(entry))
       }
-      if (entry.practice1StartsAt) sessions.push({ type: 'practice_1', startsAt: entry.practice1StartsAt })
-      if (entry.practice2StartsAt) sessions.push({ type: 'practice_2', startsAt: entry.practice2StartsAt })
-      if (entry.practice3StartsAt) sessions.push({ type: 'practice_3', startsAt: entry.practice3StartsAt })
-      await upsertSessions(gpId, season, sessions)
+    } catch (error) {
+      console.error('[api/f1/sync] calendrier', error)
+      calendarSynced = false
     }
 
     // ── Phase 3 : confirmation des sessions passées non encore confirmées ───
+    // GPs annulés exclus : leur ancien round désigne désormais un autre GP chez
+    // Jolpica, on y importerait les résultats du voisin.
     const now = new Date().toISOString()
     const supabase = createServiceClient()
     const { data: pending, error: pendingError } = await supabase
       .from('sessions')
-      .select('id, type, season, starts_at, gp_id, grands_prix!gp_id(round)')
+      .select('id, type, season, starts_at, gp_id, grands_prix!gp_id!inner(round, is_cancelled)')
+      .eq('grands_prix.is_cancelled', false)
       .is('results_confirmed_at', null)
       .lt('starts_at', now)
 
@@ -251,7 +253,8 @@ async function handler(request: Request): Promise<Response> {
     try {
       const { data: upcomingRaceSessions, error: upcomingError } = await supabase
         .from('sessions')
-        .select('id, type, season, starts_at, gp_id')
+        .select('id, type, season, starts_at, gp_id, grands_prix!gp_id!inner(is_cancelled)')
+        .eq('grands_prix.is_cancelled', false)
         .in('type', [...GRID_TARGET_TYPES])
         .gt('starts_at', now)
 
@@ -437,11 +440,13 @@ async function handler(request: Request): Promise<Response> {
     revalidateTag('drivers', 'max')
     revalidateTag('constructors', 'max')
 
-    // Une écriture DB en échec est anormale → 500 (visibilité + retry cron), mais
-    // seulement après avoir traité les autres sessions et envoyé les notifs dues.
+    // Une écriture DB en échec (ou un calendrier refusé) est anormale → 500
+    // (visibilité + retry cron), mais seulement après avoir traité les autres
+    // sessions et envoyé les notifs dues.
     return Response.json(
       {
         gps: calendar.length,
+        calendarSynced,
         sessionsConfirmed,
         sessionsDeferred,
         gridsSynced,
@@ -451,7 +456,7 @@ async function handler(request: Request): Promise<Response> {
         imminenceNotifs: imminenceSessions.length,
         writeErrors,
       },
-      writeErrors > 0 ? { status: 500 } : undefined,
+      writeErrors > 0 || !calendarSynced ? { status: 500 } : undefined,
     )
   } catch (error) {
     console.error('[api/f1/sync]', error)

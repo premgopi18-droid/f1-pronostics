@@ -18,6 +18,7 @@ const JOLPIKA_RACES_RESPONSE = {
           round:  '1',
           raceName: 'Bahrain Grand Prix',
           Circuit: {
+            circuitId:   'bahrain',
             circuitName: 'Bahrain International Circuit',
             Location: { country: 'Bahrain', locality: 'Sakhir' },
           },
@@ -32,6 +33,7 @@ const JOLPIKA_RACES_RESPONSE = {
           round:  '6',
           raceName: 'Chinese Grand Prix',
           Circuit: {
+            circuitId:   'shanghai',
             circuitName: 'Shanghai International Circuit',
             Location: { country: 'China', locality: 'Shanghai' },
           },
@@ -57,6 +59,7 @@ const JOLPIKA_NO_SCHEDULE = {
           round:  '99',
           raceName: 'Test Grand Prix',
           Circuit: {
+            circuitId:   'test_circuit',
             circuitName: 'Test Circuit',
             Location: { country: 'Testland', locality: 'Testville' },
           },
@@ -95,6 +98,7 @@ describe('fetchCalendar', () => {
       expect(bahrain.round).toBe(1)
       expect(bahrain.name).toBe('Bahrain Grand Prix')
       expect(bahrain.circuit).toBe('Bahrain International Circuit')
+      expect(bahrain.circuitRef).toBe('bahrain')
       expect(bahrain.country).toBe('Bahrain')
     })
 

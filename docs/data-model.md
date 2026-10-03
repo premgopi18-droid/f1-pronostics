@@ -62,9 +62,10 @@
 | round | INTEGER | numéro dans la saison |
 | name | TEXT | "Grand Prix de Monaco" |
 | circuit | TEXT | |
+| circuit_ref | TEXT | null avant 1ʳᵉ resync — `circuitId` Jolpica (ex. `sepang`) : **identité stable du GP** pour la sync calendrier (#253). Le `round` n'est qu'un attribut, il glisse quand le calendrier change. |
 | country | TEXT | |
 | is_sprint_weekend | BOOLEAN | |
-| is_cancelled | BOOLEAN | défaut false |
+| is_cancelled | BOOLEAN | défaut false — mis à `true` par la sync quand le GP disparaît du calendrier Jolpica (jamais pour un GP aux résultats confirmés), remis à `false` s'il réapparaît |
 | weekend_starts_at | TIMESTAMPTZ | UTC — **début du GP** = 1ère session de compétition (sprint qualif en week-end sprint, sinon qualif), **hors essais libres**. Fourni par Jolpica. Ancre commune : countdown Home, phase week-end, « prochain GP » des ligues, notif "J-2 avant le GP". |
 | scoring_finalized_at | TIMESTAMPTZ | null jusqu'à la résolution des items après la course du dimanche. L'UI utilise ce champ pour distinguer scores provisoires (null) et définitifs (non null). |
 | notified_open_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif push "pronostics ouverts" (J-2). Garantit une seule notif par GP. |
@@ -72,6 +73,8 @@
 | notified_reminder_24h_at | TIMESTAMPTZ | null jusqu'à l'envoi du rappel push "pronos J-1" (24h avant la 1ʳᵉ session-deadline du week-end). Garantit une seule notif par GP. |
 | race_laps | INTEGER | null jusqu'à la course. Nombre de tours de la course = tours du vainqueur, dérivé des résultats F1 par le cron `/api/f1/sync` à la confirmation (`fetchRaceLaps` → `setRaceLaps`). Alimente la stat « tours » du tracé de circuit (§3.3, #174) — lu sur la dernière édition disputée du circuit. |
 | created_at | TIMESTAMPTZ | |
+
+**Contrainte :** index unique partiel `(season, round) WHERE NOT is_cancelled` — un GP annulé garde son ancien numéro, que le calendrier réattribue en général au GP suivant.
 
 **RLS :** lecture publique
 
@@ -646,6 +649,14 @@ Supprime le compte de l'appelant en une seule transaction, **scopée sur `auth.u
 Bascule `leagues.invite_open` en un seul statement (`set invite_open = not invite_open … returning invite_open`) et retourne le nouvel état. Atomique → remplace le read-modify-write côté Server Action (deux admins concurrents ne se neutralisent plus) et supprime la divergence UI quand l'onglet est périmé : le client applique l'état renvoyé au lieu de l'inférer.
 
 Contrairement aux autres RPC, **`SECURITY INVOKER`** (défaut) : l'écriture est gouvernée par la policy RLS « admins update league » — un non-admin touche 0 ligne, la fonction renvoie `NULL`. `assertAdmin` (`app/actions/league-admin.ts`) reste le garde-fou principal (défense en profondeur). `execute` accordé à `authenticated` uniquement. Appelée par `toggleInvites`. Migration : `20260620150000_toggle_invites_rpc.sql`.
+
+### `apply_calendar_sync(p_season, p_matched, p_inserted, p_cancelled)`
+
+Applique en une transaction le rapprochement calendrier Jolpica ↔ `grands_prix` calculé côté TS (`lib/f1/calendar-reconciliation.ts`, rapprochement par circuit — #253) : (1) annule les GPs disparus, (2) passe les GPs rapprochés sur des numéros temporaires (+100000) — l'index unique est vérifié ligne à ligne, un réordonnancement direct collisionnerait —, (3) écrit les valeurs finales (et réactive un GP annulé revenu au calendrier), (4) insère les nouveaux GPs. Retourne `(gp_id, gp_round)` des GPs actifs de la saison. Service role uniquement. Appelée par `syncGrandsPrix` (`lib/data/f1-sync.ts`). Migration : `20261003100000_calendar_sync_identity.sql`.
+
+### `prune_gp_sessions(p_gp_id, p_keep_types)`
+
+Supprime les sessions d'un GP dont le type n'est plus au calendrier (hors `p_keep_types`), **sauf session déjà commencée ou aux résultats confirmés**, avec leurs `predictions`, `fastest_lap_predictions`, `scores` et `session_results` (FK `NO ACTION`) — tout ou rien. Retourne le nombre de sessions supprimées. Appelée seulement si le programme Jolpica du GP est complet pour son format (`isCalendarEntryScheduleComplete`). Service role uniquement. Appelée par `syncSessions` (`lib/data/f1-sync.ts`). Migration : `20261003100000_calendar_sync_identity.sql`.
 
 ---
 

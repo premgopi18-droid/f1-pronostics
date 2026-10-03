@@ -420,7 +420,13 @@ Stratégie double API — sources complémentaires, toutes deux gratuites et san
 | **Jolpica API** (successeur d'Ergast) | Calendrier, résultats officiels finaux, pilotes, écuries | Source principale — déclenche le calcul des scores |
 | **OpenF1 API** | Résultats préliminaires en temps réel pendant/juste après une session | Fallback pour afficher les résultats plus rapidement avant confirmation officielle |
 
-- Synchronisation automatique du calendrier en début de saison (Jolpica)
+- Synchronisation automatique du calendrier (Jolpica) — **à chaque passage du cron**, pas seulement en début de saison
+- **Changement de calendrier en cours de saison** (décision 03/10/2026, incident GP de Bahreïn délocalisé en Malaisie — #253) : le calendrier F1 bouge (GP délocalisé inséré, GP annulé) et les numéros de manche glissent. Règles :
+  - un GP est identifié par son **circuit** (`circuitId` Jolpica → `grands_prix.circuit_ref`), **pas par son numéro de manche** — un réordonnancement ne fait que mettre à jour le numéro ; pronos et items restent sur le bon GP ;
+  - **GP retiré du calendrier → annulé** (`is_cancelled`, non destructif : réactivé avec ses pronos s'il revient) ; jamais un GP déjà couru ;
+  - **session retirée d'un GP** (ex. un GP qui n'est plus un week-end sprint) → **supprimée avec ses pronos** — uniquement si le programme Jolpica du GP est **complet pour son format** (EL1-2-3 + qualifs + course, ou EL1 + sprint qualif + sprint + qualifs + course) et si la session n'a **pas encore commencé** : une réponse Jolpica partielle ne doit jamais effacer de vrais pronos ;
+  - un circuitId renommé côté Jolpica est rattrapé par le nom de circuit (pas d'annulation + recréation) ; un GP déjà couru qui disparaît du calendrier en occupant une manche réattribuée bloque la sync calendrier (arbitrage manuel, erreur explicite) ;
+  - **garde-fous** : application atomique ; un calendrier vide ou qui annulerait plus de 3 GPs d'un coup est jugé suspect → rien n'est écrit, erreur dans les logs (les résultats et notifs continuent).
 - Mise à jour des résultats après chaque session (Jolpica en source principale, OpenF1 en fallback rapide)
 - Déclenchement automatique du calcul des scores après résultats officiels Jolpica
 

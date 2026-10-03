@@ -188,6 +188,7 @@ export type Database = {
       grands_prix: {
         Row: {
           circuit: string
+          circuit_ref: string | null
           country: string
           created_at: string
           id: string
@@ -205,6 +206,7 @@ export type Database = {
         }
         Insert: {
           circuit: string
+          circuit_ref?: string | null
           country: string
           created_at?: string
           id?: string
@@ -222,6 +224,7 @@ export type Database = {
         }
         Update: {
           circuit?: string
+          circuit_ref?: string | null
           country?: string
           created_at?: string
           id?: string
@@ -924,6 +927,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_calendar_sync: {
+        Args: {
+          p_cancelled: string[]
+          p_inserted: Json
+          p_matched: Json
+          p_season: number
+        }
+        Returns: {
+          gp_id: string
+          gp_round: number
+        }[]
+      }
       apply_season_item: {
         Args: {
           p_from: number
@@ -957,6 +972,10 @@ export type Database = {
           p_items: Json
         }
         Returns: undefined
+      }
+      prune_gp_sessions: {
+        Args: { p_gp_id: string; p_keep_types: string[] }
+        Returns: number
       }
       play_item: {
         Args: {

@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase'
 import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
 import type { DbSessionType, SessionType } from '@/lib/scoring/types'
 import type { CalendarEntry, ConstructorEntry, DriverConstructorLink, DriverEntry } from '@/lib/f1/jolpica'
+import { findUnsafeReconciliationReason, reconcileCalendar } from '@/lib/f1/calendar-reconciliation'
 import {
   selectGPsToRemind,
   selectSessionsToNudge,
@@ -101,31 +102,77 @@ export async function upsertDriverConstructorLinks(
   )
 }
 
-export async function upsertGrandsPrix(
+function toGrandPrixFields(entry: CalendarEntry) {
+  return {
+    round:             entry.round,
+    name:              entry.name,
+    circuit:           entry.circuit,
+    circuit_ref:       entry.circuitRef,
+    country:           entry.country,
+    is_sprint_weekend: entry.isSprintWeekend,
+    weekend_starts_at: entry.weekendStartsAt,
+  }
+}
+
+/**
+ * Aligne les GPs de la saison sur le calendrier Jolpica (#253) : rapprochement
+ * par circuit (cf. lib/f1/calendar-reconciliation.ts), GPs disparus annulés,
+ * le tout en une transaction. Lève une erreur sans rien écrire si le
+ * calendrier reçu est suspect. Retourne round → id des GPs actifs.
+ */
+export async function syncGrandsPrix(
+  season:  number,
   entries: CalendarEntry[],
 ): Promise<Map<number, string>> {
   const supabase = createServiceClient()
-  const { data, error } = await supabase
+  const { data: rows, error: rowsError } = await supabase
     .from('grands_prix')
-    .upsert(
-      entries.map((gp) => ({
-        season:              gp.season,
-        round:               gp.round,
-        name:                gp.name,
-        circuit:             gp.circuit,
-        country:             gp.country,
-        is_sprint_weekend:   gp.isSprintWeekend,
-        weekend_starts_at:   gp.weekendStartsAt,
-      })),
-      { onConflict: 'season,round' },
-    )
-    .select('id, round')
+    .select('id, round, circuit, circuit_ref, is_cancelled, sessions!gp_id(results_confirmed_at)')
+    .eq('season', season)
+
+  if (rowsError) throw rowsError
+
+  const reconciliation = reconcileCalendar(
+    entries,
+    (rows ?? []).map((row) => ({
+      id:                  row.id,
+      round:               row.round,
+      circuit:             row.circuit,
+      circuitRef:          row.circuit_ref,
+      isCancelled:         row.is_cancelled,
+      hasConfirmedResults: row.sessions.some((session) => session.results_confirmed_at !== null),
+    })),
+  )
+
+  const unsafeReason = findUnsafeReconciliationReason(entries, reconciliation)
+  if (unsafeReason) {
+    throw new Error(`syncGrandsPrix ${season} : calendrier refusé, rien n'est écrit — ${unsafeReason}`)
+  }
+  if (reconciliation.cancelled.length > 0) {
+    console.warn(`syncGrandsPrix ${season} : GPs retirés du calendrier, annulés — ${reconciliation.cancelled.join(', ')}`)
+  }
+  if (reconciliation.orphanedWithResults.length > 0) {
+    console.warn(`syncGrandsPrix ${season} : GPs déjà courus absents du calendrier, laissés tels quels — ${reconciliation.orphanedWithResults.join(', ')}`)
+  }
+
+  const { data, error } = await supabase.rpc('apply_calendar_sync', {
+    p_season:    season,
+    p_matched:   reconciliation.matched.map(({ id, entry }) => ({ id, ...toGrandPrixFields(entry) })),
+    p_inserted:  reconciliation.inserted.map(toGrandPrixFields),
+    p_cancelled: reconciliation.cancelled,
+  })
 
   if (error) throw error
-  return new Map((data ?? []).map((row) => [row.round, row.id]))
+  return new Map((data ?? []).map((row) => [row.gp_round, row.gp_id]))
 }
 
-export async function upsertSessions(
+/**
+ * Aligne les sessions d'un GP sur le calendrier : upsert des sessions
+ * attendues, puis suppression (avec leurs pronos) de celles qui n'y sont plus
+ * — sauf résultats confirmés. Ex. #253 : sessions sprint restées sur un GP
+ * qui n'est pas un week-end sprint.
+ */
+export async function syncSessions(
   gpId:     string,
   season:   number,
   sessions: { type: DbSessionType; startsAt: string }[],
@@ -143,6 +190,15 @@ export async function upsertSessions(
       { onConflict: 'gp_id,type' },
     )
   if (error) throw error
+
+  const { data: prunedCount, error: pruneError } = await supabase.rpc('prune_gp_sessions', {
+    p_gp_id:      gpId,
+    p_keep_types: sessions.map((s) => s.type),
+  })
+  if (pruneError) throw pruneError
+  if (prunedCount > 0) {
+    console.warn(`syncSessions : ${prunedCount} session(s) retirée(s) du calendrier supprimée(s) pour le GP ${gpId}`)
+  }
 }
 
 // Appelé une fois les résultats officiels Jolpica stockés — déclenche le scoring

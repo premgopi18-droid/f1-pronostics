@@ -39,6 +39,7 @@ interface JolpikaRace {
   round:     string
   raceName:  string
   Circuit: {
+    circuitId:   string   // "sepang" — identifiant stable, clé d'identité d'un GP (#253)
     circuitName: string
     Location: { country: string; locality: string }
   }
@@ -61,6 +62,7 @@ export interface CalendarEntry {
   round:               number
   name:                string
   circuit:             string
+  circuitRef:          string        // circuitId Jolpica — identité stable du GP (le round peut glisser)
   country:             string
   isSprintWeekend:     boolean
   weekendStartsAt:     string        // Début du GP = 1ère session de compétition (sprint qualif ?? qualif), hors essais — ISO 8601
@@ -216,6 +218,7 @@ export async function fetchCalendar(year: number): Promise<CalendarEntry[]> {
       round:              parseInt(race.round, 10),
       name:               race.raceName,
       circuit:            race.Circuit.circuitName,
+      circuitRef:         race.Circuit.circuitId,
       country:            race.Circuit.Location.country,
       isSprintWeekend:    !!race.Sprint,
       weekendStartsAt,

@@ -115,6 +115,7 @@ export async function getPreviousGPLineup(
     .from('grands_prix')
     .select('id, round')
     .eq('season', season)
+    .eq('is_cancelled', false)   // un GP annulé garde un ancien round, potentiellement réattribué (#253)
     .lt('round', beforeRound)
     .order('round', { ascending: false })
     .limit(BASELINE_LOOKBACK_ROUNDS)

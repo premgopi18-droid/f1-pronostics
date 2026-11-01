@@ -7,11 +7,11 @@ const BASE_URL = 'https://api.jolpi.ca/ergast/f1'
 // ============================================================
 
 interface JolpikaDriver {
-  code:       string   // "VER", "NOR"
+  code?:      string   // "VER", "NOR" — ABSENT pour un réserviste/rookie sans trigramme officiel (#255)
   driverId:   string   // "verstappen"
   givenName:  string
   familyName: string
-  permanentNumber: string
+  permanentNumber?: string
 }
 
 interface JolpikaConstructor {
@@ -20,6 +20,7 @@ interface JolpikaConstructor {
 }
 
 export interface JolpikaRaceResult {
+  number?:      string   // numéro de voiture sur CETTE course — rattache un pilote sans trigramme (#255)
   position:     string
   positionText: string   // "1".."20", "R"=Retired (DNF), "W"=Withdrew (DNS), "D"=DSQ, "N"=non-classé
   Driver:       JolpikaDriver
@@ -28,7 +29,8 @@ export interface JolpikaRaceResult {
   laps?:        string   // tours effectués par le pilote (le vainqueur = distance de course)
 }
 
-interface JolpikaQualifyingResult {
+export interface JolpikaQualifyingResult {
+  number?:      string
   position:     string
   Driver:       JolpikaDriver
   Constructor?: JolpikaConstructor
@@ -111,23 +113,77 @@ async function jolpikaGet<T>(path: string): Promise<T> {
 // Mappers
 // ============================================================
 
-export function mapRaceResult(result: JolpikaRaceResult): [string, DriverResult] {
-  const code = result.Driver.code
-  return [code, {
+export function mapRaceResult(result: JolpikaRaceResult): DriverResult {
+  return {
     position:        parseInt(result.position, 10),
     fastestLap:      result.FastestLap?.rank === '1',
     dnf:             result.positionText === 'R',
     dns:             result.positionText === 'W',
     constructorCode: result.Constructor ? toConstructorCode(result.Constructor.constructorId) : null,
-  }]
+  }
 }
 
-function mapQualifyingResult(result: JolpikaQualifyingResult): [string, DriverResult] {
-  return [result.Driver.code, {
+function mapQualifyingResult(result: JolpikaQualifyingResult): DriverResult {
+  return {
     position:        parseInt(result.position, 10),
     fastestLap:      false,
     constructorCode: result.Constructor ? toConstructorCode(result.Constructor.constructorId) : null,
-  }]
+  }
+}
+
+/**
+ * Numéro de voiture → trigramme, construit depuis les pilotes connus de la
+ * saison. Un numéro porté par plusieurs pilotes est ambigu : exclu plutôt que
+ * de rattacher un résultat au mauvais pilote.
+ */
+export function buildDriverCodeByNumber(
+  drivers: { code: string; number: number | null }[],
+): Map<number, string> {
+  const codesByNumber = new Map<number, string[]>()
+  for (const driver of drivers) {
+    if (driver.number == null) continue
+    codesByNumber.set(driver.number, [...(codesByNumber.get(driver.number) ?? []), driver.code])
+  }
+  const codeByNumber = new Map<number, string>()
+  for (const [number, codes] of codesByNumber) {
+    if (codes.length === 1) codeByNumber.set(number, codes[0])
+  }
+  return codeByNumber
+}
+
+/**
+ * Trigramme d'une ligne de résultat : `Driver.code`, sinon rattachement par
+ * numéro de voiture à un pilote connu (#255 — Hirakawa, Mexique 2026 : classé
+ * par Jolpica avec son numéro mais sans trigramme). null = inattribuable.
+ */
+export function resolveResultDriverCode(
+  result: { number?: string; Driver: JolpikaDriver },
+  codeByNumber: ReadonlyMap<number, string>,
+): string | null {
+  if (result.Driver.code) return result.Driver.code
+  const number = result.number ? parseInt(result.number, 10) : NaN
+  return codeByNumber.get(number) ?? null
+}
+
+// Classement indexé par trigramme. Une ligne inattribuable est écartée avec un
+// warning : pilote inconnu de `drivers`, donc non pronostiquable — aucun point
+// n'en dépend, les positions des autres pilotes restent celles de la source.
+function mapResultRows<T extends { number?: string; Driver: JolpikaDriver }>(
+  rows: T[],
+  codeByNumber: ReadonlyMap<number, string>,
+  mapRow: (row: T) => DriverResult,
+  path: string,
+): Map<string, DriverResult> {
+  const results = new Map<string, DriverResult>()
+  for (const row of rows) {
+    const code = resolveResultDriverCode(row, codeByNumber)
+    if (!code) {
+      console.warn(`Jolpica ${path} : pilote sans trigramme ni numéro connu écarté — ${row.Driver.driverId} (n° ${row.number ?? '?'})`)
+      continue
+    }
+    results.set(code, mapRow(row))
+  }
+  return results
 }
 
 // Normalise un constructorId Jolpica ("red_bull") en code interne ("RED_BULL").
@@ -139,17 +195,19 @@ function toConstructorCode(constructorId: string): string {
 
 // ============================================================
 // Résultats de session → Map<driverCode, DriverResult>
+// `codeByNumber` (cf. buildDriverCodeByNumber) rattache les lignes sans
+// trigramme (#255).
 // ============================================================
 
 export async function fetchRaceResults(
   year: number,
   round: number,
+  codeByNumber: ReadonlyMap<number, string>,
 ): Promise<Map<string, DriverResult>> {
-  const data = await jolpikaGet<{ MRData: { RaceTable: { Races: JolpikaRace[] } } }>(
-    `/${year}/${round}/results`,
-  )
+  const path = `/${year}/${round}/results`
+  const data = await jolpikaGet<{ MRData: { RaceTable: { Races: JolpikaRace[] } } }>(path)
   const results = data.MRData.RaceTable.Races[0]?.Results ?? []
-  return new Map(results.map(mapRaceResult))
+  return mapResultRows(results, codeByNumber, mapRaceResult, path)
 }
 
 // Nombre de tours de la course = tours effectués par le vainqueur (position 1).
@@ -167,23 +225,23 @@ export async function fetchRaceLaps(year: number, round: number): Promise<number
 export async function fetchQualifyingResults(
   year: number,
   round: number,
+  codeByNumber: ReadonlyMap<number, string>,
 ): Promise<Map<string, DriverResult>> {
-  const data = await jolpikaGet<{ MRData: { RaceTable: { Races: JolpikaRace[] } } }>(
-    `/${year}/${round}/qualifying`,
-  )
+  const path = `/${year}/${round}/qualifying`
+  const data = await jolpikaGet<{ MRData: { RaceTable: { Races: JolpikaRace[] } } }>(path)
   const results = data.MRData.RaceTable.Races[0]?.QualifyingResults ?? []
-  return new Map(results.map(mapQualifyingResult))
+  return mapResultRows(results, codeByNumber, mapQualifyingResult, path)
 }
 
 export async function fetchSprintRaceResults(
   year: number,
   round: number,
+  codeByNumber: ReadonlyMap<number, string>,
 ): Promise<Map<string, DriverResult>> {
-  const data = await jolpikaGet<{ MRData: { RaceTable: { Races: JolpikaRace[] } } }>(
-    `/${year}/${round}/sprint`,
-  )
+  const path = `/${year}/${round}/sprint`
+  const data = await jolpikaGet<{ MRData: { RaceTable: { Races: JolpikaRace[] } } }>(path)
   const results = data.MRData.RaceTable.Races[0]?.SprintResults ?? []
-  return new Map(results.map(mapRaceResult))
+  return mapResultRows(results, codeByNumber, mapRaceResult, path)
 }
 
 // sprint_qualifying (shootout) : non disponible dans Jolpica — utiliser OpenF1
@@ -242,13 +300,18 @@ export async function fetchDrivers(year: number): Promise<DriverEntry[]> {
   const data = await jolpikaGet<{
     MRData: { DriverTable: { Drivers: JolpikaDriver[] } }
   }>(`/${year}/drivers`)
-  return data.MRData.DriverTable.Drivers.map((d) => ({
-    season:    year,
-    code:      d.code,
-    firstName: d.givenName,
-    lastName:  d.familyName,
-    number:    parseInt(d.permanentNumber, 10),
-  }))
+  // Pilotes sans trigramme (rookies des EL1, réserviste tout juste titularisé)
+  // écartés : sans code, pas d'identité stable. Un remplaçant qui roule pour de
+  // vrai est inscrit depuis OpenF1 (#255, cf. enrollReplacementDrivers).
+  return data.MRData.DriverTable.Drivers
+    .filter((d): d is JolpikaDriver & { code: string } => !!d.code)
+    .map((d) => ({
+      season:    year,
+      code:      d.code,
+      firstName: d.givenName,
+      lastName:  d.familyName,
+      number:    d.permanentNumber ? parseInt(d.permanentNumber, 10) : NaN,
+    }))
 }
 
 export async function fetchConstructors(year: number): Promise<ConstructorEntry[]> {
@@ -275,7 +338,11 @@ export async function fetchDriverStandings(year: number): Promise<Map<string, nu
     }
   }>(`/${year}/driverStandings`)
   const standings = data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? []
-  return new Map(standings.map((s) => [s.Driver.code, parseInt(s.position, 10)]))
+  return new Map(
+    standings
+      .filter((s) => !!s.Driver.code)
+      .map((s) => [s.Driver.code!, parseInt(s.position, 10)]),
+  )
 }
 
 // Classements finaux (ou en cours) WCC — code écurie → position
@@ -310,9 +377,9 @@ export async function fetchDriverConstructorLinks(year: number): Promise<DriverC
 
   const standings = data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? []
   return standings
-    .filter((s) => s.Constructors.length > 0)
+    .filter((s) => s.Constructors.length > 0 && !!s.Driver.code)
     .map((s) => ({
-      driverCode: s.Driver.code,
+      driverCode: s.Driver.code!,
       // Jolpica liste les écuries par ordre chronologique — on prend la dernière
       // (= écurie actuelle). Edge case connu : si un pilote change d'équipe en cours
       // de saison, getConstructorDriversMap sera inexact pour les courses antérieures

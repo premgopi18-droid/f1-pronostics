@@ -6,11 +6,14 @@
 // libellés d'écurie sont donc directement comparables, sans normalisation.
 
 import type { DbSessionType } from '@/lib/scoring/types'
+import type { SessionLineupDriver } from '@/lib/f1/openf1'
 
 export interface LineupChange {
   driverCode: string
   from:       string | null   // null = pilote absent du GP précédent (réserviste, retour)
   to:         string
+  /** Pilote remplacé (#255) : seul pilote de l'écurie `to` au GP précédent absent du GP courant. */
+  replacedDriverCode: string | null
 }
 
 const HOUR_MS = 60 * 60 * 1000
@@ -74,6 +77,43 @@ export function isLineupSessionTrusted(
   return new Date(sessionStartsAt).getTime() + LINEUP_SESSION_TRUST_DELAY_MS[sessionType] <= now
 }
 
+/**
+ * true = le line-up de cette session fait foi sur les ENGAGÉS du GP (#255) :
+ * session fiable (son /drivers reflète les participants réels) ET pas l'EL1.
+ * L'EL1 est la séance des rookies (roulage obligatoire des jeunes pilotes) :
+ * un titulaire y est remplacé quelques heures sans être remplacé pour le GP,
+ * et le rookie n'a rien à faire dans la liste des pronos. Dès l'EL2, un pilote
+ * présent est un engagé du week-end, un titulaire absent est remplacé.
+ * Effets (lib/data/gp-lineups.ts) : inscription des remplaçants inconnus de
+ * `drivers`, et retrait de l'observation des pilotes absents.
+ */
+export function isLineupSessionAuthoritative(sessionType: DbSessionType, trusted: boolean): boolean {
+  return trusted && sessionType !== 'practice_1'
+}
+
+/** Line-up réduit à code pilote → libellé écurie OpenF1 (forme comparée par diffLineup). */
+export function lineupTeamByCode(lineup: SessionLineupDriver[]): Map<string, string> {
+  return new Map(lineup.map((driver) => [driver.driverCode, driver.teamName]))
+}
+
+/**
+ * Remplaçants à inscrire dans `drivers` (#255) : pilotes du line-up absents des
+ * codes connus de la saison. Cas réel : Hirakawa, GP du Mexique 2026 — Jolpica
+ * le listait sans trigramme, il n'arrivait donc jamais par la sync Jolpica.
+ * Un pilote sans nom ou sans numéro exploitable n'est pas inscrit : le numéro
+ * rattache ses résultats Jolpica sans trigramme, le nom est requis par la table.
+ */
+export function selectDriversToEnroll(
+  lineup: SessionLineupDriver[],
+  knownCodes: ReadonlySet<string>,
+): SessionLineupDriver[] {
+  return lineup.filter((driver) =>
+    !knownCodes.has(driver.driverCode)
+    && Number.isInteger(driver.driverNumber) && driver.driverNumber > 0
+    && !!driver.firstName && !!driver.lastName,
+  )
+}
+
 export function selectLineupSessionCandidates<T extends { type: DbSessionType; startsAt: string }>(
   sessions: T[],
   now: number,
@@ -110,6 +150,11 @@ export function selectLineupSessionCandidates<T extends { type: DbSessionType; s
  * - Pilote présent dans la baseline mais absent du GP courant : ignoré — le
  *   remplaçant porte l'information, et un forfait sec est déjà couvert par la
  *   règle « pilote absent du classement = 0 pt ».
+ * - Pilote remplacé (#255) : si l'écurie d'arrivée avait au GP précédent
+ *   exactement UN pilote absent du GP courant, c'est lui que le nouveau venu
+ *   remplace (Hirakawa → Ocon). Ambigu (zéro ou plusieurs) → null, le push
+ *   retombe sur la formulation sans remplacé. Un échange de baquet n'a pas de
+ *   remplacé : les deux pilotes sont toujours en piste.
  *
  * Limitation connue : si OpenF1 renomme un libellé d'écurie en cours de saison
  * (« RB » → « Racing Bulls »), les pilotes de l'écurie déclenchent une fausse
@@ -126,7 +171,15 @@ export function diffLineup(
   for (const [driverCode, team] of current) {
     const previousTeam = previous.get(driverCode) ?? null
     if (previousTeam === team) continue
-    changes.push({ driverCode, from: previousTeam, to: team })
+    const departedTeammates = [...previous]
+      .filter(([previousCode, previousTeamName]) => previousTeamName === team && !current.has(previousCode))
+      .map(([previousCode]) => previousCode)
+    changes.push({
+      driverCode,
+      from: previousTeam,
+      to:   team,
+      replacedDriverCode: departedTeammates.length === 1 ? departedTeammates[0] : null,
+    })
   }
   return changes
 }
@@ -137,12 +190,15 @@ export function diffLineup(
  * pilote) ; l'écurie est le libellé OpenF1 brut.
  */
 export function formatLineupChangeBody(
-  changes: { displayName: string; teamName: string }[],
+  changes: { displayName: string; teamName: string; replacedDisplayName?: string | null }[],
 ): string {
-  const parts = changes.map((change, index) =>
-    index === 0
+  const parts = changes.map((change, index) => {
+    if (change.replacedDisplayName) {
+      return `${change.displayName} remplace ${change.replacedDisplayName} chez ${change.teamName}`
+    }
+    return index === 0
       ? `${change.displayName} pilote pour ${change.teamName}`
-      : `${change.displayName} pour ${change.teamName}`,
-  )
+      : `${change.displayName} pour ${change.teamName}`
+  })
   return `${parts.join(', ')} ce week-end. Vérifie tes pronos et tes items avant le départ !`
 }

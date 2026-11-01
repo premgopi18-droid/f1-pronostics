@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase'
 import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
 import type { DbSessionType, SessionType } from '@/lib/scoring/types'
+import { buildDriverCodeByNumber } from '@/lib/f1/jolpica'
 import type { CalendarEntry, ConstructorEntry, DriverConstructorLink, DriverEntry } from '@/lib/f1/jolpica'
 import {
   selectGPsToRemind,
@@ -40,23 +41,46 @@ export async function upsertDrivers(entries: DriverEntry[]): Promise<void> {
   // Note : entries n'ont pas de constructorCode — le mapping écurie→pilote est fait
   // séparément par upsertDriverConstructorLinks() avec les standings Jolpica. Les
   // drivers sont donc upsertés ici sans constructor_id.
-  // Jolpica renvoie parfois code=undefined pour les réservistes sans trigramme officiel
-  const valid = entries.filter((d) => d.code)
-  if (valid.length === 0) return
+  // Les pilotes sans trigramme sont déjà écartés par fetchDrivers (#255).
+  // Payloads séparés selon la présence du numéro : un pilote inscrit depuis
+  // OpenF1 (#255) porte son numéro de course, que Jolpica ne connaît pas
+  // forcément (pas de permanentNumber) — l'upsert ne doit pas l'écraser par null,
+  // il sert à rattacher ses résultats.
+  const toRow = (d: DriverEntry) => ({
+    season:     d.season,
+    code:       d.code,
+    first_name: d.firstName,
+    last_name:  d.lastName,
+  })
+  const withNumber    = entries.filter((d) => !Number.isNaN(d.number))
+  const withoutNumber = entries.filter((d) => Number.isNaN(d.number))
 
-  const { error } = await supabase
+  const writes = [
+    withNumber.length > 0
+      ? supabase.from('drivers').upsert(withNumber.map((d) => ({ ...toRow(d), number: d.number })), { onConflict: 'season,code' })
+      : null,
+    withoutNumber.length > 0
+      ? supabase.from('drivers').upsert(withoutNumber.map(toRow), { onConflict: 'season,code' })
+      : null,
+  ]
+  for (const { error } of await Promise.all(writes.filter((write) => write !== null))) {
+    if (error) throw error
+  }
+}
+
+/**
+ * Numéro de voiture → trigramme pour la saison (cf. buildDriverCodeByNumber) :
+ * rattache les résultats Jolpica sans trigramme (#255).
+ */
+export async function getDriverCodeByNumber(season: number): Promise<Map<number, string>> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
     .from('drivers')
-    .upsert(
-      valid.map((d) => ({
-        season:     d.season,
-        code:       d.code,
-        first_name: d.firstName,
-        last_name:  d.lastName,
-        number:     Number.isNaN(d.number) ? null : d.number,
-      })),
-      { onConflict: 'season,code' },
-    )
+    .select('code, number')
+    .eq('season', season)
+
   if (error) throw error
+  return buildDriverCodeByNumber(data ?? [])
 }
 
 // Lie chaque pilote à son écurie pour la saison — appelé après upsertConstructors + upsertDrivers

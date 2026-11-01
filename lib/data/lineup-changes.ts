@@ -83,12 +83,32 @@ export function isLineupSessionTrusted(
  * L'EL1 est la séance des rookies (roulage obligatoire des jeunes pilotes) :
  * un titulaire y est remplacé quelques heures sans être remplacé pour le GP,
  * et le rookie n'a rien à faire dans la liste des pronos. Dès l'EL2, un pilote
- * présent est un engagé du week-end, un titulaire absent est remplacé.
+ * présent est un engagé du week-end.
  * Effets (lib/data/gp-lineups.ts) : inscription des remplaçants inconnus de
- * `drivers`, et retrait de l'observation des pilotes absents.
+ * `drivers`, et retrait de l'observation des pilotes absents dont le baquet
+ * est occupé (cf. isSeatTaken).
  */
 export function isLineupSessionAuthoritative(sessionType: DbSessionType, trusted: boolean): boolean {
   return trusted && sessionType !== 'practice_1'
+}
+
+/** Baquets par écurie en F1. */
+const SEATS_PER_TEAM = 2
+
+/**
+ * true = le baquet d'un pilote absent du line-up est occupé : son écurie y
+ * compte déjà SEATS_PER_TEAM pilotes. Seule preuve fiable d'un remplacement
+ * (#255) — OpenF1 omet parfois un pilote du /drivers d'une session qu'il a
+ * courue (Lawson, EL3 Mexique 2026 : absent du /drivers, classé P9 avec 28
+ * tours). Une simple absence n'est donc jamais un remplacement : Ocon (Haas :
+ * Hirakawa + Bearman présents) l'est, Lawson (Racing Bulls : Lindblad seul) non.
+ */
+export function isSeatTaken(teamName: string, lineup: ReadonlyMap<string, string>): boolean {
+  let teamDrivers = 0
+  for (const team of lineup.values()) {
+    if (team === teamName) teamDrivers++
+  }
+  return teamDrivers >= SEATS_PER_TEAM
 }
 
 /** Line-up réduit à code pilote → libellé écurie OpenF1 (forme comparée par diffLineup). */
@@ -102,13 +122,16 @@ export function lineupTeamByCode(lineup: SessionLineupDriver[]): Map<string, str
  * le listait sans trigramme, il n'arrivait donc jamais par la sync Jolpica.
  * Un pilote sans nom ou sans numéro exploitable n'est pas inscrit : le numéro
  * rattache ses résultats Jolpica sans trigramme, le nom est requis par la table.
+ * Un numéro déjà porté par un pilote connu non plus : c'est ce pilote sous un
+ * autre trigramme (divergence Jolpica/OpenF1) — l'inscrire créerait un doublon.
  */
 export function selectDriversToEnroll(
   lineup: SessionLineupDriver[],
-  knownCodes: ReadonlySet<string>,
+  known: { codes: ReadonlySet<string>; numbers: ReadonlySet<number> },
 ): SessionLineupDriver[] {
   return lineup.filter((driver) =>
-    !knownCodes.has(driver.driverCode)
+    !known.codes.has(driver.driverCode)
+    && !known.numbers.has(driver.driverNumber)
     && Number.isInteger(driver.driverNumber) && driver.driverNumber > 0
     && !!driver.firstName && !!driver.lastName,
   )

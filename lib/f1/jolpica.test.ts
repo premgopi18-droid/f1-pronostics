@@ -388,9 +388,20 @@ describe('Jolpica — pilotes sans trigramme (#255)', () => {
 
   // Avant #255, la ligne entrait dans la Map sous la clé `undefined`.
   it('qualifs : une ligne inattribuable est écartée, jamais indexée sous undefined', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     mockFetch(MEXICO_QUALIFYING)
     const results = await fetchQualifyingResults(2026, 19, new Map([[87, 'BEA']]))
     expect([...results.keys()]).toEqual(['BEA'])
+  })
+
+  // Le numéro de la ligne sans trigramme pointe sur un pilote qui a déjà sa
+  // propre ligne : le rattachement écraserait son classement → refusé.
+  it('qualifs : jamais de rattachement sur un pilote déjà classé dans le même résultat', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockFetch(MEXICO_QUALIFYING)
+    const results = await fetchQualifyingResults(2026, 19, new Map([[50, 'BEA'], [87, 'BEA']]))
+    expect(results.get('BEA')?.position).toBe(14)
+    expect(results.size).toBe(1)
   })
 
   it('liste des pilotes : les entrées sans trigramme (rookies EL1, remplaçant) sont écartées', async () => {

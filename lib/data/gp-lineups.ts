@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
 import { constructorCodeFromOpenF1TeamName } from '@/lib/f1/team-names'
-import { selectDriversToEnroll } from '@/lib/data/lineup-changes'
+import { isSeatTaken, selectDriversToEnroll } from '@/lib/data/lineup-changes'
 import type { SessionLineupDriver } from '@/lib/f1/openf1'
 
 // Couche data de la détection de changement de line-up (#205) — I/O uniquement,
@@ -25,15 +25,19 @@ export async function enrollReplacementDrivers(
   if (lineup.length === 0) return []
   const supabase = createServiceClient()
 
+  // Tous les pilotes de la saison (une vingtaine) : les numéros connus servent
+  // de garde-fou anti-doublon, pas seulement les codes du line-up.
   const { data: known, error: knownError } = await supabase
     .from('drivers')
-    .select('code')
+    .select('code, number')
     .eq('season', season)
-    .in('code', lineup.map((driver) => driver.driverCode))
 
   if (knownError) throw knownError
 
-  const toEnroll = selectDriversToEnroll(lineup, new Set((known ?? []).map((driver) => driver.code)))
+  const toEnroll = selectDriversToEnroll(lineup, {
+    codes:   new Set((known ?? []).map((driver) => driver.code)),
+    numbers: new Set((known ?? []).flatMap((driver) => driver.number != null ? [driver.number] : [])),
+  })
   if (toEnroll.length === 0) return []
 
   const constructorCodes = [...new Set(
@@ -91,10 +95,11 @@ export async function enrollReplacementDrivers(
  * liste de pronos.
  *
  * `authoritative` (#255, cf. isLineupSessionAuthoritative) : le line-up fait
- * foi sur les engagés — un pilote déjà observé mais ABSENT de ce line-up a été
- * remplacé en cours de week-end (Ocon, Mexique 2026 : vu en EL2, remplacé dès
- * l'EL3) → son observed_at est remis à null, le badge réapparaît. Jamais sur
- * l'EL1 : les titulaires remplacés par un rookie y sont absents sans l'être du GP.
+ * foi sur les engagés — un pilote déjà observé, ABSENT de ce line-up, dont le
+ * baquet est occupé par un autre a été remplacé en cours de week-end (Ocon,
+ * Mexique 2026 : vu en EL2, remplacé dès l'EL3) → son observed_at est remis à
+ * null, le badge réapparaît. Jamais sur l'EL1 : les titulaires remplacés par
+ * un rookie y sont absents sans l'être du GP.
  */
 export async function upsertGPLineup(
   gpId: string,
@@ -159,18 +164,29 @@ export async function upsertGPLineup(
       }
     })
 
-  // Pilotes observés absents d'un line-up qui fait foi : remplacés en cours de
-  // week-end. Requête ciblée sur les seuls observed_at encore posés — à vide
-  // dans le cas nominal, comme l'upsert ci-dessous.
-  if (authoritative && rows.length > 0) {
-    const { error: clearError } = await supabase
-      .from('gp_lineups')
-      .update({ observed_at: null })
-      .eq('gp_id', gpId)
-      .not('observed_at', 'is', null)
-      .not('driver_id', 'in', `(${rows.map((row) => row.driver_id).join(',')})`)
+  // Pilotes observés, absents d'un line-up qui fait foi ET dont le baquet est
+  // occupé (isSeatTaken) : remplacés en cours de week-end. Une absence seule ne
+  // suffit pas — OpenF1 omet parfois un pilote qui a couru. Aucune écriture
+  // dans le cas nominal.
+  if (authoritative) {
+    const presentDriverIds = new Set(rows.map((row) => row.driver_id))
+    const replacedDriverIds = (existing ?? [])
+      .filter((row) =>
+        row.observed_at !== null
+        && !presentDriverIds.has(row.driver_id)
+        && isSeatTaken(row.team_name, lineup),
+      )
+      .map((row) => row.driver_id)
 
-    if (clearError) throw clearError
+    if (replacedDriverIds.length > 0) {
+      const { error: clearError } = await supabase
+        .from('gp_lineups')
+        .update({ observed_at: null })
+        .eq('gp_id', gpId)
+        .in('driver_id', replacedDriverIds)
+
+      if (clearError) throw clearError
+    }
   }
 
   // Rien de neuf (aucun pilote ajouté, aucune écurie modifiée, aucune première
@@ -224,16 +240,22 @@ export async function getPreviousGPLineup(
   if (rowsError) throw rowsError
 
   // Rows du candidat le plus récent qui en possède (candidates est trié desc).
-  // Si le GP a des observations fiables, seuls les pilotes observés forment la
-  // baseline (#255) : un titulaire remplacé en cours de week-end (observation
-  // retirée) n'y figure plus — son retour au GP suivant est donc un changement
-  // notifié (« Ocon remplace Hirakawa »). GP sans aucune observation (avant
-  // #211, données OpenF1 absentes) : toutes ses lignes, comme avant.
+  // Un pilote non observé dont le baquet était occupé par deux pilotes observés
+  // est exclu de la baseline (#255) : titulaire remplacé en cours de week-end,
+  // son retour au GP suivant est donc un changement notifié (« Ocon remplace
+  // Hirakawa »). Même garde-fou que le retrait d'observation (isSeatTaken) :
+  // un pilote simplement omis par OpenF1, ou un GP sans aucune observation
+  // (avant #211), garde toutes ses lignes, comme avant.
   for (const candidate of candidates) {
     const candidateRows = (rows ?? []).filter((row) => row.gp_id === candidate.id && row.drivers)
-    const observedRows  = candidateRows.filter((row) => row.observed_at !== null)
+    const observedLineup = new Map(
+      candidateRows
+        .filter((row) => row.observed_at !== null)
+        .map((row) => [row.drivers!.code, row.team_name]),
+    )
     const lineup = new Map<string, string>()
-    for (const row of observedRows.length > 0 ? observedRows : candidateRows) {
+    for (const row of candidateRows) {
+      if (row.observed_at === null && isSeatTaken(row.team_name, observedLineup)) continue
       lineup.set(row.drivers!.code, row.team_name)
     }
     if (lineup.size > 0) return lineup

@@ -5,6 +5,7 @@ import {
   selectLineupSessionCandidates,
   isLineupSessionTrusted,
   isLineupSessionAuthoritative,
+  isSeatTaken,
   lineupTeamByCode,
   selectDriversToEnroll,
   LINEUP_SESSION_TRUST_DELAY_MS,
@@ -218,7 +219,7 @@ describe('selectDriversToEnroll', () => {
   const bearman  = { driverCode: 'BEA', driverNumber: 87, firstName: 'Oliver', lastName: 'Bearman', teamName: 'Haas F1 Team' }
 
   it('retient les seuls pilotes inconnus de la saison', () => {
-    expect(selectDriversToEnroll([hirakawa, bearman], new Set(['BEA']))).toEqual([hirakawa])
+    expect(selectDriversToEnroll([hirakawa, bearman], { codes: new Set(['BEA']), numbers: new Set([87]) })).toEqual([hirakawa])
   })
 
   it('écarte un pilote sans nom ou sans numéro exploitable', () => {
@@ -226,6 +227,33 @@ describe('selectDriversToEnroll', () => {
       { ...hirakawa, lastName: null },
       { ...hirakawa, firstName: '' },
       { ...hirakawa, driverNumber: 0 },
-    ], new Set())).toEqual([])
+    ], { codes: new Set(), numbers: new Set() })).toEqual([])
+  })
+
+  // Trigramme OpenF1 ≠ code Jolpica pour un pilote connu : même numéro → pas de doublon.
+  it('écarte un code inconnu dont le numéro appartient déjà à un pilote de la saison', () => {
+    expect(selectDriversToEnroll([{ ...bearman, driverCode: 'BRM' }], { codes: new Set(['BEA']), numbers: new Set([87]) })).toEqual([])
+  })
+})
+
+describe('isSeatTaken', () => {
+  // Line-up réel des EL3 du Mexique 2026 (extrait) : Lawson omis par OpenF1
+  // alors qu'il a couru, Ocon réellement remplacé par Hirakawa.
+  const mexicoPractice3 = new Map([
+    ['HIR', 'Haas F1 Team'],
+    ['BEA', 'Haas F1 Team'],
+    ['LIN', 'Racing Bulls'],
+  ])
+
+  it('baquet occupé par deux autres pilotes → remplacement (Ocon)', () => {
+    expect(isSeatTaken('Haas F1 Team', mexicoPractice3)).toBe(true)
+  })
+
+  it('un seul pilote de l\'écurie présent → simple omission, pas un remplacement (Lawson)', () => {
+    expect(isSeatTaken('Racing Bulls', mexicoPractice3)).toBe(false)
+  })
+
+  it('écurie absente du line-up → pas un remplacement', () => {
+    expect(isSeatTaken('Williams', mexicoPractice3)).toBe(false)
   })
 })

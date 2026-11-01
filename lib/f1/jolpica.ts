@@ -165,20 +165,24 @@ export function resolveResultDriverCode(
   return codeByNumber.get(number) ?? null
 }
 
-// Classement indexé par trigramme. Une ligne inattribuable est écartée avec un
-// warning : pilote inconnu de `drivers`, donc non pronostiquable — aucun point
-// n'en dépend, les positions des autres pilotes restent celles de la source.
+// Classement indexé par trigramme. Une ligne inattribuable est écartée et
+// loguée en erreur (session scorée, jamais revisitée une fois confirmée) : en
+// principe un pilote inconnu de `drivers`, donc non pronostiquable — aucun
+// point n'en dépend, les positions des autres restent celles de la source.
+// Rattachement par numéro refusé s'il retombe sur un pilote qui a déjà SA
+// ligne dans ce résultat : il écraserait son classement.
 function mapResultRows<T extends { number?: string; Driver: JolpikaDriver }>(
   rows: T[],
   codeByNumber: ReadonlyMap<number, string>,
   mapRow: (row: T) => DriverResult,
   path: string,
 ): Map<string, DriverResult> {
+  const ownCodes = new Set(rows.flatMap((row) => row.Driver.code ? [row.Driver.code] : []))
   const results = new Map<string, DriverResult>()
   for (const row of rows) {
     const code = resolveResultDriverCode(row, codeByNumber)
-    if (!code) {
-      console.warn(`Jolpica ${path} : pilote sans trigramme ni numéro connu écarté — ${row.Driver.driverId} (n° ${row.number ?? '?'})`)
+    if (!code || (!row.Driver.code && ownCodes.has(code))) {
+      console.error(`Jolpica ${path} : pilote sans trigramme non rattaché, ligne écartée — ${row.Driver.driverId} (n° ${row.number ?? '?'})`)
       continue
     }
     results.set(code, mapRow(row))

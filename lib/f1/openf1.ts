@@ -60,15 +60,53 @@ function formatLapTime(durationSeconds: number): string {
 // Helper HTTP
 // ============================================================
 
+// OpenF1 limite à 3 requêtes/seconde (HTTP 429 au-delà). Un passage du cron
+// enchaîne les phases résultats, grilles et line-ups : sans retry, la même
+// phase tombait à chaque passage (#257, GP du Mexique 2026 — grille et line-up
+// en 429 sur tous les passages du dimanche). Délais croissants : la fenêtre
+// est à la seconde. Total borné à 3,5 s par appel : même avec un OpenF1 en 429
+// continu, la dizaine d'appels séquentiels d'un passage tient dans le
+// maxDuration de 60 s (les notifs en fin de cron doivent partir).
+const OPENF1_RATE_LIMIT_RETRY_DELAYS_MS = [500, 1_000, 2_000]
+
 async function openf1Get<T>(path: string): Promise<T | null> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    next: { revalidate: 30 },
-  })
-  if (response.status === 404) return null
-  if (!response.ok) {
-    throw new Error(`OpenF1 ${path} → HTTP ${response.status}`)
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      next: { revalidate: 30 },
+    })
+    const retryDelay = OPENF1_RATE_LIMIT_RETRY_DELAYS_MS[attempt]
+    if (response.status === 429 && retryDelay !== undefined) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelay))
+      continue
+    }
+    if (response.status === 404) return null
+    if (!response.ok) {
+      throw new Error(`OpenF1 ${path} → HTTP ${response.status}`)
+    }
+    return response.json() as Promise<T>
   }
-  return response.json() as Promise<T>
+}
+
+// Numéro de voiture → trigramme : le /drivers de la session, complété par les
+// pilotes connus de la saison (#257). OpenF1 omet parfois définitivement un
+// pilote du /drivers d'une session qu'il a courue (Lawson, EL3 du Mexique
+// 2026 : 28 tours, absent du /drivers) — sans repli, le classement restait
+// « différé » pour toujours. Le /drivers de la session prime ; un numéro
+// inconnu des deux reste inattribuable (pré-seed périmé #215, rookie).
+// Un pilote déjà présent dans le /drivers de la session n'est jamais repris de
+// la table sous un autre numéro : numéro stocké périmé (changement de numéro
+// que Jolpica n'a pas encore suivi) → le même pilote compterait deux fois et
+// le pilote omis disparaîtrait. Le numéro reste alors inattribuable, le
+// classement est différé (#215) — côté sûr.
+function mapNumbersToCodes(
+  drivers: OpenF1Driver[],
+  codeByNumber: ReadonlyMap<number, string>,
+): Map<number, string> {
+  const sessionCodes = new Set(drivers.map((driver) => driver.name_acronym))
+  return new Map([
+    ...[...codeByNumber].filter(([, code]) => !sessionCodes.has(code)),
+    ...drivers.map((driver): [number, string] => [driver.driver_number, driver.name_acronym]),
+  ])
 }
 
 // OpenF1 publie les positions/tours EN DIRECT pendant la session : on n'exploite
@@ -122,6 +160,7 @@ async function findSessionByDate(
 export async function fetchSprintQualifyingResults(
   year: number,
   expectedStartsAt: string,
+  codeByNumber: ReadonlyMap<number, string> = new Map(),
 ): Promise<Map<string, DriverResult>> {
   // 1. Trouver la session_key du Sprint Qualifying (rapproché par date)
   const session = await findSessionByDate(year, 'Sprint Qualifying', expectedStartsAt)
@@ -134,7 +173,7 @@ export async function fetchSprintQualifyingResults(
     openf1Get<OpenF1Position[]>(`/position?session_key=${session.session_key}`),
   ])
 
-  const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
+  const numberToCode = mapNumbersToCodes(drivers ?? [], codeByNumber)
 
   // 3. Garder la dernière position connue par pilote (= classement final)
   const finalPositions = new Map<number, number>()
@@ -184,8 +223,9 @@ interface OpenF1GridEntry {
 export function mapStartingGrid(
   entries: OpenF1GridEntry[],
   drivers: OpenF1Driver[],
+  codeByNumber: ReadonlyMap<number, string> = new Map(),
 ): Map<string, number> {
-  const numberToCode = new Map(drivers.map((d) => [d.driver_number, d.name_acronym]))
+  const numberToCode = mapNumbersToCodes(drivers, codeByNumber)
   const grid = new Map<string, number>()
   for (const entry of entries) {
     if (entry.position == null || entry.position <= 0) continue
@@ -199,6 +239,7 @@ export async function fetchStartingGrid(
   year: number,
   sessionName: GridSessionName,
   expectedStartsAt: string,
+  codeByNumber: ReadonlyMap<number, string> = new Map(),
 ): Promise<Map<string, number>> {
   const session = await findSessionByDate(year, sessionName, expectedStartsAt)
   if (!session) return new Map()
@@ -209,7 +250,7 @@ export async function fetchStartingGrid(
   ])
   if (!entries?.length || !drivers?.length) return new Map()
 
-  return mapStartingGrid(entries, drivers)
+  return mapStartingGrid(entries, drivers, codeByNumber)
 }
 
 // ============================================================
@@ -295,6 +336,7 @@ export async function fetchPracticeResults(
   year: number,
   sessionName: PracticeSessionName,
   expectedStartsAt: string,
+  codeByNumber: ReadonlyMap<number, string> = new Map(),
 ): Promise<PracticeDriverResult[]> {
   const session = await findSessionByDate(year, sessionName, expectedStartsAt)
   if (!session) return []
@@ -305,7 +347,7 @@ export async function fetchPracticeResults(
     openf1Get<OpenF1Lap[]>(`/laps?session_key=${session.session_key}`),
   ])
 
-  const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
+  const numberToCode = mapNumbersToCodes(drivers ?? [], codeByNumber)
 
   // Classement par meilleur tour, positions denses 1..N.
   // NB : une séance terminée a toujours des tours chronométrés — une liste vide
@@ -353,6 +395,7 @@ export async function fetchPracticeResults(
 export async function fetchRaceFastestLapDriver(
   year: number,
   expectedStartsAt: string,
+  codeByNumber: ReadonlyMap<number, string> = new Map(),
 ): Promise<string | null> {
   const session = await findSessionByDate(year, 'Race', expectedStartsAt)
   if (!session) return null
@@ -363,7 +406,7 @@ export async function fetchRaceFastestLapDriver(
     openf1Get<OpenF1Lap[]>(`/laps?session_key=${session.session_key}`),
   ])
 
-  const numberToCode = new Map((drivers ?? []).map((d) => [d.driver_number, d.name_acronym]))
+  const numberToCode = mapNumbersToCodes(drivers ?? [], codeByNumber)
 
   const fastest = rankByBestLap(laps ?? [])[0]
   if (!fastest) return null

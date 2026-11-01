@@ -159,6 +159,50 @@ describe('openf1 — sélection de session par date', () => {
       expect(results).toEqual([])
     })
 
+    // #257 — EL3 du Mexique 2026 : Lawson (n° 30) a couru mais OpenF1 l'a omis
+    // du /drivers, définitivement. Pilote connu de la saison → rattaché par numéro.
+    it('rattache par numéro un pilote connu de la saison omis du /drivers de la session', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 11399, session_name: 'Practice 3', year: 2026,
+            circuit_short_name: 'Mexico City', date_start: '2026-10-31T17:30:00+00:00', date_end: '2026-10-31T18:30:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 41, name_acronym: 'LIN', session_key: 11399 },
+        ],
+        laps: [
+          { driver_number: 41, lap_duration: 78.2,   date_start: '2026-10-31T17:40:00+00:00' },
+          { driver_number: 30, lap_duration: 78.113, date_start: '2026-10-31T17:42:00+00:00' },
+        ],
+      })
+
+      const results = await fetchPracticeResults(2026, 'Practice 3', '2026-10-31T17:30:00Z', new Map([[30, 'LAW']]))
+      expect(results.map((result) => result.driverCode)).toEqual(['LAW', 'LIN'])
+    })
+
+    // Numéro stocké périmé : la table dit NOR = 1, mais NOR court avec le 4 dans
+    // cette session et le n° 1 (omis du /drivers) est un autre pilote. Ne jamais
+    // compter NOR deux fois : classement différé (#215).
+    it('ne reprend jamais de la table un pilote déjà présent dans le /drivers sous un autre numéro', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockOpenF1({
+        sessions: [
+          { session_key: 500, session_name: 'Practice 1', year: 2026,
+            circuit_short_name: 'Melbourne', date_start: '2026-03-06T01:30:00+00:00', date_end: '2026-03-06T02:30:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 4, name_acronym: 'NOR', session_key: 500 },
+        ],
+        laps: [
+          { driver_number: 1, lap_duration: 80.1, date_start: '2026-03-06T01:40:00+00:00' },
+          { driver_number: 4, lap_duration: 80.5, date_start: '2026-03-06T01:42:00+00:00' },
+        ],
+      })
+
+      const results = await fetchPracticeResults(2026, 'Practice 1', '2026-03-06T01:30:00Z', new Map([[1, 'NOR']]))
+      expect(results).toEqual([])
+    })
+
     it('formate le meilleur tour en m:ss.mmm (padding secondes et millisecondes)', async () => {
       mockOpenF1({
         sessions: [
@@ -481,5 +525,42 @@ describe('openf1 — sélection de session par date', () => {
 
       expect(await fetchRaceFastestLapDriver(2025, '2025-09-07T13:00:00Z')).toBeNull()
     })
+  })
+})
+
+// #257 — OpenF1 limite à 3 req/s : un 429 est retenté, pas propagé.
+describe('openf1 — limite de débit (HTTP 429)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const tooManyRequests = { status: 429, ok: false, json: () => Promise.resolve({}) } as Response
+
+  it('retente après un 429 et renvoie la réponse suivante', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(tooManyRequests)
+      .mockResolvedValue({ status: 200, ok: true, json: () => Promise.resolve([]) } as Response)
+
+    const lineup = fetchSessionLineup(2026, 'Qualifying', '2026-10-31T21:00:00Z')
+    await vi.runAllTimersAsync()
+
+    expect(await lineup).toEqual([])
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('abandonne après les retries : l\'erreur remonte au cron, qui retentera', async () => {
+    vi.mocked(fetch).mockResolvedValue(tooManyRequests)
+
+    const lineup = fetchSessionLineup(2026, 'Qualifying', '2026-10-31T21:00:00Z')
+    const assertion = expect(lineup).rejects.toThrow('HTTP 429')
+    await vi.runAllTimersAsync()
+
+    await assertion
+    expect(fetch).toHaveBeenCalledTimes(4)
   })
 })

@@ -180,6 +180,29 @@ describe('openf1 — sélection de session par date', () => {
       expect(results.map((result) => result.driverCode)).toEqual(['LAW', 'LIN'])
     })
 
+    // Numéro stocké périmé : la table dit NOR = 1, mais NOR court avec le 4 dans
+    // cette session et le n° 1 (omis du /drivers) est un autre pilote. Ne jamais
+    // compter NOR deux fois : classement différé (#215).
+    it('ne reprend jamais de la table un pilote déjà présent dans le /drivers sous un autre numéro', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockOpenF1({
+        sessions: [
+          { session_key: 500, session_name: 'Practice 1', year: 2026,
+            circuit_short_name: 'Melbourne', date_start: '2026-03-06T01:30:00+00:00', date_end: '2026-03-06T02:30:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 4, name_acronym: 'NOR', session_key: 500 },
+        ],
+        laps: [
+          { driver_number: 1, lap_duration: 80.1, date_start: '2026-03-06T01:40:00+00:00' },
+          { driver_number: 4, lap_duration: 80.5, date_start: '2026-03-06T01:42:00+00:00' },
+        ],
+      })
+
+      const results = await fetchPracticeResults(2026, 'Practice 1', '2026-03-06T01:30:00Z', new Map([[1, 'NOR']]))
+      expect(results).toEqual([])
+    })
+
     it('formate le meilleur tour en m:ss.mmm (padding secondes et millisecondes)', async () => {
       mockOpenF1({
         sessions: [

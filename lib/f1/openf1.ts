@@ -93,12 +93,18 @@ async function openf1Get<T>(path: string): Promise<T | null> {
 // 2026 : 28 tours, absent du /drivers) — sans repli, le classement restait
 // « différé » pour toujours. Le /drivers de la session prime ; un numéro
 // inconnu des deux reste inattribuable (pré-seed périmé #215, rookie).
+// Un pilote déjà présent dans le /drivers de la session n'est jamais repris de
+// la table sous un autre numéro : numéro stocké périmé (changement de numéro
+// que Jolpica n'a pas encore suivi) → le même pilote compterait deux fois et
+// le pilote omis disparaîtrait. Le numéro reste alors inattribuable, le
+// classement est différé (#215) — côté sûr.
 function mapNumbersToCodes(
   drivers: OpenF1Driver[],
   codeByNumber: ReadonlyMap<number, string>,
 ): Map<number, string> {
+  const sessionCodes = new Set(drivers.map((driver) => driver.name_acronym))
   return new Map([
-    ...codeByNumber,
+    ...[...codeByNumber].filter(([, code]) => !sessionCodes.has(code)),
     ...drivers.map((driver): [number, string] => [driver.driver_number, driver.name_acronym]),
   ])
 }

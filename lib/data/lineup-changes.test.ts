@@ -4,6 +4,10 @@ import {
   formatLineupChangeBody,
   selectLineupSessionCandidates,
   isLineupSessionTrusted,
+  isLineupSessionAuthoritative,
+  isSeatTaken,
+  lineupTeamByCode,
+  selectDriversToEnroll,
   LINEUP_SESSION_TRUST_DELAY_MS,
 } from './lineup-changes'
 import type { DbSessionType } from '@/lib/scoring/types'
@@ -106,7 +110,7 @@ describe('diffLineup', () => {
     const current  = new Map([['LAW', 'Red Bull Racing'], ['VER', 'Red Bull Racing']])
 
     expect(diffLineup(previous, current)).toEqual([
-      { driverCode: 'LAW', from: 'Racing Bulls', to: 'Red Bull Racing' },
+      { driverCode: 'LAW', from: 'Racing Bulls', to: 'Red Bull Racing', replacedDriverCode: null },
     ])
   })
 
@@ -115,7 +119,7 @@ describe('diffLineup', () => {
     const current  = new Map([['VER', 'Red Bull Racing'], ['TSU', 'Racing Bulls']])
 
     expect(diffLineup(previous, current)).toEqual([
-      { driverCode: 'TSU', from: null, to: 'Racing Bulls' },
+      { driverCode: 'TSU', from: null, to: 'Racing Bulls', replacedDriverCode: null },
     ])
   })
 
@@ -142,10 +146,29 @@ describe('diffLineup', () => {
       ['LEC', 'Ferrari'],
     ])
 
+    // Lawson prend le baquet de Hadjar (absent) ; Tsunoda arrive chez Racing
+    // Bulls dont l'ancien pilote (Lawson) est toujours en piste → pas de remplacé.
     expect(diffLineup(previous, current)).toEqual([
-      { driverCode: 'LAW', from: 'Racing Bulls', to: 'Red Bull Racing' },
-      { driverCode: 'TSU', from: null,           to: 'Racing Bulls' },
+      { driverCode: 'LAW', from: 'Racing Bulls', to: 'Red Bull Racing', replacedDriverCode: 'HAD' },
+      { driverCode: 'TSU', from: null,           to: 'Racing Bulls',    replacedDriverCode: null },
     ])
+  })
+
+  // #255 — GP du Mexique 2026 : Hirakawa remplace Ocon chez Haas.
+  it('remplaçant d\'un titulaire absent → remplacé identifié', () => {
+    const previous = new Map([['OCO', 'Haas F1 Team'], ['BEA', 'Haas F1 Team']])
+    const current  = new Map([['HIR', 'Haas F1 Team'], ['BEA', 'Haas F1 Team']])
+
+    expect(diffLineup(previous, current)).toEqual([
+      { driverCode: 'HIR', from: null, to: 'Haas F1 Team', replacedDriverCode: 'OCO' },
+    ])
+  })
+
+  it('remplacé ambigu (deux titulaires absents de la même écurie) → aucun', () => {
+    const previous = new Map([['OCO', 'Haas F1 Team'], ['BEA', 'Haas F1 Team']])
+    const current  = new Map([['HIR', 'Haas F1 Team'], ['XXX', 'Haas F1 Team']])
+
+    expect(diffLineup(previous, current).map((change) => change.replacedDriverCode)).toEqual([null, null])
   })
 })
 
@@ -160,5 +183,77 @@ describe('formatLineupChangeBody', () => {
       { displayName: 'Lawson',  teamName: 'Red Bull Racing' },
       { displayName: 'Tsunoda', teamName: 'Racing Bulls' },
     ])).toBe('Lawson pilote pour Red Bull Racing, Tsunoda pour Racing Bulls ce week-end. Vérifie tes pronos et tes items avant le départ !')
+  })
+
+  it('remplacement → « X remplace Y chez Z », combinable avec un changement simple', () => {
+    expect(formatLineupChangeBody([
+      { displayName: 'Hirakawa', teamName: 'Haas F1 Team', replacedDisplayName: 'Ocon' },
+      { displayName: 'Tsunoda',  teamName: 'Racing Bulls', replacedDisplayName: null },
+    ])).toBe('Hirakawa remplace Ocon chez Haas F1 Team, Tsunoda pour Racing Bulls ce week-end. Vérifie tes pronos et tes items avant le départ !')
+  })
+})
+
+describe('isLineupSessionAuthoritative', () => {
+  it('fait foi : session fiable hors EL1', () => {
+    for (const type of ['practice_2', 'practice_3', 'sprint_qualifying', 'sprint_race', 'qualifying', 'race'] as DbSessionType[]) {
+      expect(isLineupSessionAuthoritative(type, true)).toBe(true)
+    }
+  })
+
+  it('jamais l\'EL1 (rookies), jamais une session non fiable (pré-seed)', () => {
+    expect(isLineupSessionAuthoritative('practice_1', true)).toBe(false)
+    expect(isLineupSessionAuthoritative('qualifying', false)).toBe(false)
+  })
+})
+
+describe('lineupTeamByCode', () => {
+  it('réduit le line-up à code → libellé écurie', () => {
+    expect(lineupTeamByCode([
+      { driverCode: 'HIR', driverNumber: 50, firstName: 'Ryo', lastName: 'Hirakawa', teamName: 'Haas F1 Team' },
+    ])).toEqual(new Map([['HIR', 'Haas F1 Team']]))
+  })
+})
+
+describe('selectDriversToEnroll', () => {
+  const hirakawa = { driverCode: 'HIR', driverNumber: 50, firstName: 'Ryo', lastName: 'Hirakawa', teamName: 'Haas F1 Team' }
+  const bearman  = { driverCode: 'BEA', driverNumber: 87, firstName: 'Oliver', lastName: 'Bearman', teamName: 'Haas F1 Team' }
+
+  it('retient les seuls pilotes inconnus de la saison', () => {
+    expect(selectDriversToEnroll([hirakawa, bearman], { codes: new Set(['BEA']), numbers: new Set([87]) })).toEqual([hirakawa])
+  })
+
+  it('écarte un pilote sans nom ou sans numéro exploitable', () => {
+    expect(selectDriversToEnroll([
+      { ...hirakawa, lastName: null },
+      { ...hirakawa, firstName: '' },
+      { ...hirakawa, driverNumber: 0 },
+    ], { codes: new Set(), numbers: new Set() })).toEqual([])
+  })
+
+  // Trigramme OpenF1 ≠ code Jolpica pour un pilote connu : même numéro → pas de doublon.
+  it('écarte un code inconnu dont le numéro appartient déjà à un pilote de la saison', () => {
+    expect(selectDriversToEnroll([{ ...bearman, driverCode: 'BRM' }], { codes: new Set(['BEA']), numbers: new Set([87]) })).toEqual([])
+  })
+})
+
+describe('isSeatTaken', () => {
+  // Line-up réel des EL3 du Mexique 2026 (extrait) : Lawson omis par OpenF1
+  // alors qu'il a couru, Ocon réellement remplacé par Hirakawa.
+  const mexicoPractice3 = new Map([
+    ['HIR', 'Haas F1 Team'],
+    ['BEA', 'Haas F1 Team'],
+    ['LIN', 'Racing Bulls'],
+  ])
+
+  it('baquet occupé par deux autres pilotes → remplacement (Ocon)', () => {
+    expect(isSeatTaken('Haas F1 Team', mexicoPractice3)).toBe(true)
+  })
+
+  it('un seul pilote de l\'écurie présent → simple omission, pas un remplacement (Lawson)', () => {
+    expect(isSeatTaken('Racing Bulls', mexicoPractice3)).toBe(false)
+  })
+
+  it('écurie absente du line-up → pas un remplacement', () => {
+    expect(isSeatTaken('Williams', mexicoPractice3)).toBe(false)
   })
 })

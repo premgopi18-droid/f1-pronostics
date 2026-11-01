@@ -27,7 +27,7 @@ describe('openf1 — sélection de session par date', () => {
   // session (bug de la PR #202).
   function mockOpenF1(payloads: {
     sessions?:  SessionFixture[]
-    drivers?:   { driver_number: number; name_acronym: string; session_key: number; team_name?: string | null }[]
+    drivers?:   { driver_number: number; name_acronym: string; session_key: number; team_name?: string | null; first_name?: string; last_name?: string }[]
     laps?:      { driver_number: number; lap_duration: number | null; date_start: string | null }[]
     positions?: { driver_number: number; position: number; date: string }[]
     grid?:      { driver_number: number; position: number | null }[]
@@ -341,7 +341,7 @@ describe('openf1 — sélection de session par date', () => {
   })
 
   describe('fetchSessionLineup', () => {
-    it('mappe code pilote → team_name OpenF1 brut, et ignore les pilotes sans écurie', async () => {
+    it('mappe chaque pilote avec son team_name OpenF1 brut, et ignore les pilotes sans écurie', async () => {
       mockOpenF1({
         sessions: [
           { session_key: 400, session_name: 'Practice 1', year: 2026,
@@ -357,10 +357,32 @@ describe('openf1 — sélection de session par date', () => {
 
       const lineup = await fetchSessionLineup(2026, 'Practice 1', '2026-08-21T10:30:00Z')
 
-      expect(lineup.get('VER')).toBe('Red Bull Racing')
-      expect(lineup.get('LAW')).toBe('Red Bull Racing')
-      expect(lineup.get('TSU')).toBe('Racing Bulls')
-      expect(lineup.size).toBe(3)
+      expect(lineup.map((driver) => [driver.driverCode, driver.teamName])).toEqual([
+        ['VER', 'Red Bull Racing'],
+        ['LAW', 'Red Bull Racing'],
+        ['TSU', 'Racing Bulls'],
+      ])
+    })
+
+    // #255 — de quoi inscrire un remplaçant que Jolpica liste sans trigramme.
+    it('porte numéro, prénom et nom (null si OpenF1 ne les donne pas)', async () => {
+      mockOpenF1({
+        sessions: [
+          { session_key: 11400, session_name: 'Qualifying', year: 2026,
+            circuit_short_name: 'Mexico City', date_start: '2026-10-31T21:00:00+00:00', date_end: '2026-10-31T22:00:00+00:00' },
+        ],
+        drivers: [
+          { driver_number: 50, name_acronym: 'HIR', session_key: 11400, team_name: 'Haas F1 Team', first_name: 'Ryo', last_name: 'Hirakawa' },
+          { driver_number: 87, name_acronym: 'BEA', session_key: 11400, team_name: 'Haas F1 Team' },
+        ],
+      })
+
+      const lineup = await fetchSessionLineup(2026, 'Qualifying', '2026-10-31T21:00:00Z')
+
+      expect(lineup).toEqual([
+        { driverCode: 'HIR', driverNumber: 50, firstName: 'Ryo', lastName: 'Hirakawa', teamName: 'Haas F1 Team' },
+        { driverCode: 'BEA', driverNumber: 87, firstName: null, lastName: null, teamName: 'Haas F1 Team' },
+      ])
     })
 
     // La détection doit fonctionner AVANT la fin de la séance (le vendredi
@@ -378,10 +400,10 @@ describe('openf1 — sélection de session par date', () => {
       })
 
       const lineup = await fetchSessionLineup(2099, 'Practice 1', '2099-08-21T10:30:00Z')
-      expect(lineup.get('VER')).toBe('Red Bull Racing')
+      expect(lineup.map((driver) => driver.driverCode)).toEqual(['VER'])
     })
 
-    it('renvoie une Map vide si aucune session ne tombe dans la fenêtre de 2 jours', async () => {
+    it('renvoie une liste vide si aucune session ne tombe dans la fenêtre de 2 jours', async () => {
       mockOpenF1({
         sessions: [
           { session_key: 400, session_name: 'Practice 1', year: 2026,
@@ -390,7 +412,7 @@ describe('openf1 — sélection de session par date', () => {
       })
 
       const lineup = await fetchSessionLineup(2026, 'Practice 1', '2026-10-01T10:30:00Z')
-      expect(lineup.size).toBe(0)
+      expect(lineup).toEqual([])
     })
   })
 

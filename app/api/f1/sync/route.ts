@@ -11,13 +11,27 @@ import {
   fetchSprintRaceResults,
 } from '@/lib/f1/jolpica'
 import { fetchSprintQualifyingResults, fetchPracticeResults, fetchRaceFastestLapDriver, fetchStartingGrid, fetchSessionLineup } from '@/lib/f1/openf1'
-import type { GridSessionName } from '@/lib/f1/openf1'
+import type { GridSessionName, SessionLineupDriver } from '@/lib/f1/openf1'
 import { GRID_SOURCE_SESSION_TYPE, type GridTargetSessionType } from '@/lib/f1/grid'
 import { upsertStartingGrid } from '@/lib/data/starting-grids'
-import { upsertGPLineup, getPreviousGPLineup, claimLineupChangeNotifications } from '@/lib/data/gp-lineups'
-import { diffLineup, formatLineupChangeBody, selectLineupSessionCandidates, isLineupSessionTrusted } from '@/lib/data/lineup-changes'
+import {
+  upsertGPLineup,
+  getPreviousGPLineup,
+  claimLineupChangeNotifications,
+  enrollReplacementDrivers,
+  getDriverLastNames,
+} from '@/lib/data/gp-lineups'
+import {
+  diffLineup,
+  formatLineupChangeBody,
+  selectLineupSessionCandidates,
+  isLineupSessionTrusted,
+  isLineupSessionAuthoritative,
+  lineupTeamByCode,
+} from '@/lib/data/lineup-changes'
 import {
   confirmSessionResults,
+  getDriverCodeByNumber,
   upsertConstructors,
   upsertDriverConstructorLinks,
   upsertDrivers,
@@ -127,6 +141,19 @@ async function handler(request: Request): Promise<Response> {
     let sessionsDeferred = 0
     let writeErrors = 0
 
+    // Numéro de voiture → trigramme par saison, chargé à la première session
+    // Jolpica qui en a besoin : rattache les lignes de résultat sans trigramme
+    // (#255). Une erreur ici remonte au catch par session (fetch) — retentée au
+    // passage suivant.
+    const codeByNumberBySeason = new Map<number, Map<number, string>>()
+    const codeByNumberFor = async (rowSeason: number) => {
+      const cached = codeByNumberBySeason.get(rowSeason)
+      if (cached) return cached
+      const codeByNumber = await getDriverCodeByNumber(rowSeason)
+      codeByNumberBySeason.set(rowSeason, codeByNumber)
+      return codeByNumber
+    }
+
     for (const row of pending ?? []) {
       const gp = row.grands_prix
       if (!gp) continue
@@ -145,7 +172,7 @@ async function handler(request: Request): Promise<Response> {
       let results: Map<string, DriverResult> | null = null
       try {
         if (sessionType === 'race') {
-          results = await fetchRaceResults(rowSeason, round)
+          results = await fetchRaceResults(rowSeason, round, await codeByNumberFor(rowSeason))
           // Jolpica publie parfois le classement AVANT le bloc FastestLap (#239,
           // Monza 2026) : le mapping donne alors `false` sur toute la grille et le
           // bonus +7 serait perdu, sans rattrapage possible une fois le GP
@@ -169,9 +196,9 @@ async function handler(request: Request): Promise<Response> {
             }
           }
         } else if (sessionType === 'qualifying') {
-          results = await fetchQualifyingResults(rowSeason, round)
+          results = await fetchQualifyingResults(rowSeason, round, await codeByNumberFor(rowSeason))
         } else if (sessionType === 'sprint_race') {
-          results = await fetchSprintRaceResults(rowSeason, round)
+          results = await fetchSprintRaceResults(rowSeason, round, await codeByNumberFor(rowSeason))
         } else if (sessionType === 'sprint_qualifying') {
           results = await fetchSprintQualifyingResults(rowSeason, startsAt)
         } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
@@ -312,6 +339,7 @@ async function handler(request: Request): Promise<Response> {
     // un 2ᵉ remplacement le dimanche matin renotifie. Le line-up est upserté
     // même sans VAPID (baseline du GP suivant). Phase entièrement isolée.
     let lineupNotifs = 0
+    let enrolledDrivers = 0
     try {
       const raceWindowEnd = new Date(Date.now() + LINEUP_RACE_WINDOW_MS).toISOString()
       const { data: upcomingRaces, error: upcomingRacesError } = await supabase
@@ -349,22 +377,32 @@ async function handler(request: Request): Promise<Response> {
             LINEUP_SESSION_HORIZON_MS,
           )
 
-          let lineup = new Map<string, string>()
+          let lineupDrivers: SessionLineupDriver[] = []
           let lineupFromTrustedSession = false
+          let lineupAuthoritative = false
           for (const session of candidates) {
-            lineup = await fetchSessionLineup(
+            lineupDrivers = await fetchSessionLineup(
               gp.season,
               LINEUP_OPENF1_SESSION_NAME[session.type],
               session.startsAt,
             )
-            if (lineup.size > 0) {
+            if (lineupDrivers.length > 0) {
               lineupFromTrustedSession = isLineupSessionTrusted(session.type, session.startsAt, Date.now())
+              lineupAuthoritative = isLineupSessionAuthoritative(session.type, lineupFromTrustedSession)
               break
             }
           }
-          if (lineup.size === 0) continue
+          if (lineupDrivers.length === 0) continue
 
-          await upsertGPLineup(gp.id, gp.season, lineup, lineupFromTrustedSession)
+          // Remplaçant inconnu de `drivers` (#255) : inscrit AVANT l'upsert du
+          // line-up, qui ne retient que les pilotes connus — il est ainsi
+          // pronostiquable, observé, et porte la notif ci-dessous.
+          if (lineupAuthoritative) {
+            enrolledDrivers += (await enrollReplacementDrivers(gp.season, lineupDrivers)).length
+          }
+
+          const lineup = lineupTeamByCode(lineupDrivers)
+          await upsertGPLineup(gp.id, gp.season, lineup, lineupFromTrustedSession, lineupAuthoritative)
           if (!pushReady) continue
 
           const previousLineup = await getPreviousGPLineup(gp.season, gp.round)
@@ -378,13 +416,21 @@ async function handler(request: Request): Promise<Response> {
           )
           if (claimed.length === 0) continue
 
-          const teamByCode = new Map(changes.map((change) => [change.driverCode, change.to]))
+          const changeByCode = new Map(changes.map((change) => [change.driverCode, change]))
+          const replacedLastNames = await getDriverLastNames(
+            gp.season,
+            changes.flatMap((change) => change.replacedDriverCode ? [change.replacedDriverCode] : []),
+          )
           await sendPushToAll({
             title: `🔄 ${gp.name} — changement de line-up`,
-            body:  formatLineupChangeBody(claimed.map((driver) => ({
-              displayName: driver.lastName,
-              teamName:    teamByCode.get(driver.code)!,
-            }))),
+            body:  formatLineupChangeBody(claimed.map((driver) => {
+              const change = changeByCode.get(driver.code)!
+              return {
+                displayName:         driver.lastName,
+                teamName:            change.to,
+                replacedDisplayName: change.replacedDriverCode ? (replacedLastNames.get(change.replacedDriverCode) ?? null) : null,
+              }
+            })),
             url:   `/predictions/${gp.id}`,
           })
           lineupNotifs++
@@ -446,6 +492,7 @@ async function handler(request: Request): Promise<Response> {
         sessionsDeferred,
         gridsSynced,
         lineupNotifs,
+        enrolledDrivers,
         notified: gpsToNotify.length,
         qualReminders: qualReminderGPs.length,
         imminenceNotifs: imminenceSessions.length,

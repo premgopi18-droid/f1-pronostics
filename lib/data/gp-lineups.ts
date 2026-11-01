@@ -1,8 +1,84 @@
 import { createServiceClient } from '@/lib/supabase'
+import { constructorCodeFromOpenF1TeamName } from '@/lib/f1/team-names'
+import { isSeatTaken, selectDriversToEnroll } from '@/lib/data/lineup-changes'
+import type { SessionLineupDriver } from '@/lib/f1/openf1'
 
 // Couche data de la détection de changement de line-up (#205) — I/O uniquement,
 // la logique de diff/formatage vit dans lib/data/lineup-changes.ts (pur, testé).
 // Écrit exclusivement par le cron de sync (service role) ; lecture publique.
+
+/**
+ * Inscrit dans `drivers` les pilotes d'un line-up qui fait foi (cf.
+ * isLineupSessionAuthoritative) et qu'aucune source n'a encore créés (#255) :
+ * remplaçant que Jolpica liste sans trigramme (Hirakawa, Mexique 2026) ou pas
+ * encore du tout. Trigramme, numéro et nom viennent d'OpenF1 ; l'écurie du
+ * line-up sert de rattachement saison (le mapping standings Jolpica la
+ * remplacera s'il marque des points). Jamais d'écrasement : un pilote déjà
+ * présent (créé par Jolpica entre-temps) reste tel quel — et si Jolpica lui
+ * donne plus tard le même trigramme, son upsert retombe sur cette ligne.
+ * Renvoie les codes inscrits.
+ */
+export async function enrollReplacementDrivers(
+  season: number,
+  lineup: SessionLineupDriver[],
+): Promise<string[]> {
+  if (lineup.length === 0) return []
+  const supabase = createServiceClient()
+
+  // Tous les pilotes de la saison (une vingtaine) : les numéros connus servent
+  // de garde-fou anti-doublon, pas seulement les codes du line-up.
+  const { data: known, error: knownError } = await supabase
+    .from('drivers')
+    .select('code, number')
+    .eq('season', season)
+
+  if (knownError) throw knownError
+
+  const toEnroll = selectDriversToEnroll(lineup, {
+    codes:   new Set((known ?? []).map((driver) => driver.code)),
+    numbers: new Set((known ?? []).flatMap((driver) => driver.number != null ? [driver.number] : [])),
+  })
+  if (toEnroll.length === 0) return []
+
+  const constructorCodes = [...new Set(
+    toEnroll
+      .map((driver) => constructorCodeFromOpenF1TeamName(driver.teamName))
+      .filter((code): code is string => code !== null),
+  )]
+  const { data: constructors, error: constructorsError } = constructorCodes.length > 0
+    ? await supabase.from('constructors').select('id, code').eq('season', season).in('code', constructorCodes)
+    : { data: [], error: null }
+
+  if (constructorsError) throw constructorsError
+
+  const constructorIdByCode = new Map((constructors ?? []).map((constructor) => [constructor.code, constructor.id]))
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('drivers')
+    .upsert(
+      toEnroll.map((driver) => {
+        const constructorCode = constructorCodeFromOpenF1TeamName(driver.teamName)
+        return {
+          season,
+          code:           driver.driverCode,
+          first_name:     driver.firstName!,
+          last_name:      driver.lastName!,
+          number:         driver.driverNumber,
+          constructor_id: constructorCode ? (constructorIdByCode.get(constructorCode) ?? null) : null,
+        }
+      }),
+      { onConflict: 'season,code', ignoreDuplicates: true },
+    )
+    .select('code')
+
+  if (insertError) throw insertError
+
+  const enrolledCodes = (inserted ?? []).map((driver) => driver.code)
+  if (enrolledCodes.length > 0) {
+    console.warn(`enrollReplacementDrivers : pilotes inscrits depuis OpenF1 pour la saison ${season} — ${enrolledCodes.join(', ')}`)
+  }
+  return enrolledCodes
+}
 
 /**
  * Upsert du line-up observé d'un GP (code pilote → libellé écurie OpenF1).
@@ -13,16 +89,24 @@ import { createServiceClient } from '@/lib/supabase'
  * week-end — utile comme baseline du GP suivant), pas de purge.
  *
  * `fromTrustedSession` (#211) : le line-up vient d'une session « fiable »
- * (cf. isLineupSessionTrusted) — les pilotes présents reçoivent observed_at
- * (une fois, jamais remis à null) : ils ont réellement roulé ce week-end, par
- * opposition au pré-seed nominal du jeudi. Sert au badge « absent du
- * week-end ? » et à l'écurie affichée dans la liste de pronos.
+ * (cf. isLineupSessionTrusted) — les pilotes présents reçoivent observed_at :
+ * ils ont réellement roulé ce week-end, par opposition au pré-seed nominal du
+ * jeudi. Sert au badge « absent du week-end ? » et à l'écurie affichée dans la
+ * liste de pronos.
+ *
+ * `authoritative` (#255, cf. isLineupSessionAuthoritative) : le line-up fait
+ * foi sur les engagés — un pilote déjà observé, ABSENT de ce line-up, dont le
+ * baquet est occupé par un autre a été remplacé en cours de week-end (Ocon,
+ * Mexique 2026 : vu en EL2, remplacé dès l'EL3) → son observed_at est remis à
+ * null, le badge réapparaît. Jamais sur l'EL1 : les titulaires remplacés par
+ * un rookie y sont absents sans l'être du GP.
  */
 export async function upsertGPLineup(
   gpId: string,
   season: number,
   lineup: Map<string, string>,
   fromTrustedSession: boolean,
+  authoritative: boolean,
 ): Promise<void> {
   if (lineup.size === 0) return
   const supabase = createServiceClient()
@@ -74,10 +158,36 @@ export async function upsertGPLineup(
         driver_id:   driverId,
         team_name:   teamName,
         notified_at: teamUnchanged ? (previous?.notified_at ?? null) : null,
-        // Posé une seule fois, jamais remis à null : « a été vu en piste ce week-end ».
+        // « A été vu en piste ce week-end » : seul un line-up qui fait foi le
+        // retire, s'il ne contient plus le pilote (requête plus bas).
         observed_at: previous?.observed_at ?? (fromTrustedSession ? observationTime : null),
       }
     })
+
+  // Pilotes observés, absents d'un line-up qui fait foi ET dont le baquet est
+  // occupé (isSeatTaken) : remplacés en cours de week-end. Une absence seule ne
+  // suffit pas — OpenF1 omet parfois un pilote qui a couru. Aucune écriture
+  // dans le cas nominal.
+  if (authoritative) {
+    const presentDriverIds = new Set(rows.map((row) => row.driver_id))
+    const replacedDriverIds = (existing ?? [])
+      .filter((row) =>
+        row.observed_at !== null
+        && !presentDriverIds.has(row.driver_id)
+        && isSeatTaken(row.team_name, lineup),
+      )
+      .map((row) => row.driver_id)
+
+    if (replacedDriverIds.length > 0) {
+      const { error: clearError } = await supabase
+        .from('gp_lineups')
+        .update({ observed_at: null })
+        .eq('gp_id', gpId)
+        .in('driver_id', replacedDriverIds)
+
+      if (clearError) throw clearError
+    }
+  }
 
   // Rien de neuf (aucun pilote ajouté, aucune écurie modifiée, aucune première
   // observation fiable) : pas d'écriture. La fonction tourne à chaque passage
@@ -124,22 +234,51 @@ export async function getPreviousGPLineup(
 
   const { data: rows, error: rowsError } = await supabase
     .from('gp_lineups')
-    .select('gp_id, team_name, drivers!driver_id(code)')
+    .select('gp_id, team_name, observed_at, drivers!driver_id(code)')
     .in('gp_id', candidates.map((gp) => gp.id))
 
   if (rowsError) throw rowsError
 
   // Rows du candidat le plus récent qui en possède (candidates est trié desc).
+  // Un pilote non observé dont le baquet était occupé par deux pilotes observés
+  // est exclu de la baseline (#255) : titulaire remplacé en cours de week-end,
+  // son retour au GP suivant est donc un changement notifié (« Ocon remplace
+  // Hirakawa »). Même garde-fou que le retrait d'observation (isSeatTaken) :
+  // un pilote simplement omis par OpenF1, ou un GP sans aucune observation
+  // (avant #211), garde toutes ses lignes, comme avant.
   for (const candidate of candidates) {
+    const candidateRows = (rows ?? []).filter((row) => row.gp_id === candidate.id && row.drivers)
+    const observedLineup = new Map(
+      candidateRows
+        .filter((row) => row.observed_at !== null)
+        .map((row) => [row.drivers!.code, row.team_name]),
+    )
     const lineup = new Map<string, string>()
-    for (const row of rows ?? []) {
-      if (row.gp_id === candidate.id && row.drivers) {
-        lineup.set(row.drivers.code, row.team_name)
-      }
+    for (const row of candidateRows) {
+      if (row.observed_at === null && isSeatTaken(row.team_name, observedLineup)) continue
+      lineup.set(row.drivers!.code, row.team_name)
     }
     if (lineup.size > 0) return lineup
   }
   return new Map()
+}
+
+/** Nom de famille par code pilote pour la saison — libellés du push line-up (pilotes remplacés, #255). */
+export async function getDriverLastNames(
+  season: number,
+  driverCodes: string[],
+): Promise<Map<string, string>> {
+  if (driverCodes.length === 0) return new Map()
+  const supabase = createServiceClient()
+
+  const { data, error } = await supabase
+    .from('drivers')
+    .select('code, last_name')
+    .eq('season', season)
+    .in('code', driverCodes)
+
+  if (error) throw error
+  return new Map((data ?? []).map((driver) => [driver.code, driver.last_name]))
 }
 
 /**

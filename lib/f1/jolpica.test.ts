@@ -4,7 +4,11 @@ import {
   fetchDriverStandings,
   fetchConstructorStandings,
   fetchRaceLaps,
+  fetchQualifyingResults,
+  fetchDrivers,
   mapRaceResult,
+  resolveResultDriverCode,
+  buildDriverCodeByNumber,
   type JolpikaRaceResult,
 } from './jolpica'
 
@@ -261,8 +265,7 @@ describe('mapRaceResult', () => {
   }
 
   it('utilise `position` (numérique) et non `positionText` pour un pilote classé', () => {
-    const [code, result] = mapRaceResult(makeResult('VER', '1', '1'))
-    expect(code).toBe('VER')
+    const result = mapRaceResult(makeResult('VER', '1', '1'))
     expect(result.position).toBe(1)
     expect(result.dnf).toBe(false)
   })
@@ -271,7 +274,7 @@ describe('mapRaceResult', () => {
   // (son rang de classement). L'ancien code lisait positionText → position null,
   // et les abandons disparaissaient du scoring.
   it('mappe un DNF sur sa position classée + dnf=true', () => {
-    const [, result] = mapRaceResult(makeResult('OCO', '18', 'R'))
+    const result = mapRaceResult(makeResult('OCO', '18', 'R'))
     expect(result.position).toBe(18)
     expect(result.dnf).toBe(true)
   })
@@ -280,14 +283,14 @@ describe('mapRaceResult', () => {
   // d'un abandon en course ("R"). On le marque dns=true / dnf=false pour que l'UI
   // affiche un badge DNS dédié et que le pari dnf_prediction ne se déclenche pas.
   it('mappe un DNS (positionText "W") sur dns=true / dnf=false', () => {
-    const [, result] = mapRaceResult(makeResult('STR', '20', 'W'))
+    const result = mapRaceResult(makeResult('STR', '20', 'W'))
     expect(result.dns).toBe(true)
     expect(result.dnf).toBe(false)
   })
 
   it('détecte le tour le plus rapide (FastestLap.rank === "1")', () => {
-    const [, withFl]    = mapRaceResult(makeResult('NOR', '3', '3', '1'))
-    const [, withoutFl] = mapRaceResult(makeResult('LEC', '2', '2', '5'))
+    const withFl    = mapRaceResult(makeResult('NOR', '3', '3', '1'))
+    const withoutFl = mapRaceResult(makeResult('LEC', '2', '2', '5'))
     expect(withFl.fastestLap).toBe(true)
     expect(withoutFl.fastestLap).toBe(false)
   })
@@ -295,7 +298,7 @@ describe('mapRaceResult', () => {
   // #205 — l'écurie de CETTE course est portée par chaque ligne de résultat Jolpica,
   // normalisée avec la même règle que fetchConstructors ("red_bull" → "RED_BULL").
   it('normalise Constructor.constructorId en constructorCode', () => {
-    const [, result] = mapRaceResult({
+    const result = mapRaceResult({
       ...makeResult('LAW', '9', '9'),
       Constructor: { constructorId: 'red_bull', name: 'Red Bull' },
     })
@@ -303,8 +306,118 @@ describe('mapRaceResult', () => {
   })
 
   it('constructorCode null si Jolpica omet Constructor', () => {
-    const [, result] = mapRaceResult(makeResult('VER', '1', '1'))
+    const result = mapRaceResult(makeResult('VER', '1', '1'))
     expect(result.constructorCode).toBeNull()
+  })
+})
+
+// #255 — GP du Mexique 2026 : Hirakawa (remplaçant d'Ocon) classé par Jolpica
+// avec son numéro de voiture mais SANS trigramme.
+const HIRAKAWA_DRIVER = { driverId: 'ryo_hirakawa', givenName: 'Ryo', familyName: 'Hirakawa' }
+
+describe('buildDriverCodeByNumber', () => {
+  it('indexe les pilotes par numéro, ignore ceux sans numéro', () => {
+    const codeByNumber = buildDriverCodeByNumber([
+      { code: 'BEA', number: 87 },
+      { code: 'HIR', number: 50 },
+      { code: 'XXX', number: null },
+    ])
+    expect(codeByNumber.get(50)).toBe('HIR')
+    expect(codeByNumber.get(87)).toBe('BEA')
+    expect(codeByNumber.size).toBe(2)
+  })
+
+  it('exclut un numéro porté par plusieurs pilotes plutôt que de deviner', () => {
+    const codeByNumber = buildDriverCodeByNumber([
+      { code: 'AAA', number: 7 },
+      { code: 'BBB', number: 7 },
+      { code: 'CCC', number: 8 },
+    ])
+    expect(codeByNumber.has(7)).toBe(false)
+    expect(codeByNumber.get(8)).toBe('CCC')
+  })
+})
+
+describe('resolveResultDriverCode', () => {
+  const codeByNumber = new Map([[50, 'HIR']])
+
+  it('le trigramme Jolpica prime quand il existe', () => {
+    expect(resolveResultDriverCode({ number: '50', Driver: { ...HIRAKAWA_DRIVER, code: 'OCO' } }, codeByNumber)).toBe('OCO')
+  })
+
+  it('sans trigramme : rattachement par numéro de voiture', () => {
+    expect(resolveResultDriverCode({ number: '50', Driver: HIRAKAWA_DRIVER }, codeByNumber)).toBe('HIR')
+  })
+
+  it('sans trigramme ni numéro connu : inattribuable', () => {
+    expect(resolveResultDriverCode({ number: '99', Driver: HIRAKAWA_DRIVER }, codeByNumber)).toBeNull()
+    expect(resolveResultDriverCode({ Driver: HIRAKAWA_DRIVER }, codeByNumber)).toBeNull()
+  })
+})
+
+describe('Jolpica — pilotes sans trigramme (#255)', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
+  afterEach(() => vi.unstubAllGlobals())
+
+  function mockFetch(body: unknown) {
+    vi.mocked(fetch).mockResolvedValue({
+      ok:   true,
+      json: () => Promise.resolve(body),
+    } as Response)
+  }
+
+  const MEXICO_QUALIFYING = {
+    MRData: {
+      RaceTable: {
+        Races: [{
+          QualifyingResults: [
+            { number: '87', position: '14', Driver: { code: 'BEA', driverId: 'bearman', givenName: 'Oliver', familyName: 'Bearman' } },
+            { number: '50', position: '18', Driver: HIRAKAWA_DRIVER, Constructor: { constructorId: 'haas', name: 'Haas F1 Team' } },
+          ],
+        }],
+      },
+    },
+  }
+
+  it('qualifs : la ligne sans trigramme est rattachée par numéro, position et écurie conservées', async () => {
+    mockFetch(MEXICO_QUALIFYING)
+    const results = await fetchQualifyingResults(2026, 19, new Map([[50, 'HIR'], [87, 'BEA']]))
+    expect(results.get('HIR')).toMatchObject({ position: 18, constructorCode: 'HAAS' })
+    expect(results.get('BEA')?.position).toBe(14)
+  })
+
+  // Avant #255, la ligne entrait dans la Map sous la clé `undefined`.
+  it('qualifs : une ligne inattribuable est écartée, jamais indexée sous undefined', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockFetch(MEXICO_QUALIFYING)
+    const results = await fetchQualifyingResults(2026, 19, new Map([[87, 'BEA']]))
+    expect([...results.keys()]).toEqual(['BEA'])
+  })
+
+  // Le numéro de la ligne sans trigramme pointe sur un pilote qui a déjà sa
+  // propre ligne : le rattachement écraserait son classement → refusé.
+  it('qualifs : jamais de rattachement sur un pilote déjà classé dans le même résultat', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockFetch(MEXICO_QUALIFYING)
+    const results = await fetchQualifyingResults(2026, 19, new Map([[50, 'BEA'], [87, 'BEA']]))
+    expect(results.get('BEA')?.position).toBe(14)
+    expect(results.size).toBe(1)
+  })
+
+  it('liste des pilotes : les entrées sans trigramme (rookies EL1, remplaçant) sont écartées', async () => {
+    mockFetch({
+      MRData: {
+        DriverTable: {
+          Drivers: [
+            { code: 'OCO', driverId: 'ocon', givenName: 'Esteban', familyName: 'Ocon', permanentNumber: '31' },
+            HIRAKAWA_DRIVER,
+          ],
+        },
+      },
+    })
+    const drivers = await fetchDrivers(2026)
+    expect(drivers.map((driver) => driver.code)).toEqual(['OCO'])
+    expect(drivers[0].number).toBe(31)
   })
 })
 

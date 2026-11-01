@@ -142,9 +142,9 @@ async function handler(request: Request): Promise<Response> {
     let writeErrors = 0
 
     // Numéro de voiture → trigramme par saison, chargé à la première session
-    // Jolpica qui en a besoin : rattache les lignes de résultat sans trigramme
-    // (#255). Une erreur ici remonte au catch par session (fetch) — retentée au
-    // passage suivant.
+    // qui en a besoin : rattache les lignes Jolpica sans trigramme (#255) et les
+    // pilotes omis du /drivers OpenF1 (#257). Une erreur ici remonte au catch
+    // par session — retentée au passage suivant.
     const codeByNumberBySeason = new Map<number, Map<number, string>>()
     const codeByNumberFor = async (rowSeason: number) => {
       const cached = codeByNumberBySeason.get(rowSeason)
@@ -183,7 +183,7 @@ async function handler(request: Request): Promise<Response> {
           // décider, sinon une panne OpenF1 bloquerait la course sans borne.
           if (results.size > 0 && !hasFastestLap(results)) {
             try {
-              const fastestLapDriverCode = await fetchRaceFastestLapDriver(rowSeason, startsAt)
+              const fastestLapDriverCode = await fetchRaceFastestLapDriver(rowSeason, startsAt, await codeByNumberFor(rowSeason))
               if (fastestLapDriverCode && !markFastestLap(results, fastestLapDriverCode)) {
                 // Désaccord entre sources (trigramme différent, pilote écarté côté
                 // Jolpica) : réessayer ne résoudra rien, il faut le voir tout de suite.
@@ -200,10 +200,10 @@ async function handler(request: Request): Promise<Response> {
         } else if (sessionType === 'sprint_race') {
           results = await fetchSprintRaceResults(rowSeason, round, await codeByNumberFor(rowSeason))
         } else if (sessionType === 'sprint_qualifying') {
-          results = await fetchSprintQualifyingResults(rowSeason, startsAt)
+          results = await fetchSprintQualifyingResults(rowSeason, startsAt, await codeByNumberFor(rowSeason))
         } else if (sessionType === 'practice_1' || sessionType === 'practice_2' || sessionType === 'practice_3') {
           const sessionName = sessionType === 'practice_1' ? 'Practice 1' : sessionType === 'practice_2' ? 'Practice 2' : 'Practice 3'
-          const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt)
+          const raw = await fetchPracticeResults(rowSeason, sessionName, startsAt, await codeByNumberFor(rowSeason))
           results = new Map(raw.map(({ driverCode, position, bestLapTime }) => [driverCode, { position, fastestLap: false, bestLapTime }]))
         }
       } catch (error) {
@@ -312,7 +312,7 @@ async function handler(request: Request): Promise<Response> {
         // grille est un confort UX, pas une donnée de scoring — on logue et on
         // passe, le cron retentera au prochain passage.
         try {
-          const grid = await fetchStartingGrid(row.season, GRID_OPENF1_SESSION[targetType], sourceStartsAt)
+          const grid = await fetchStartingGrid(row.season, GRID_OPENF1_SESSION[targetType], sourceStartsAt, await codeByNumberFor(row.season))
           if (grid.size === 0) continue
           await upsertStartingGrid(row.id, row.season, grid)
           gridsSynced++

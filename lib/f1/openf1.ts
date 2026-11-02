@@ -298,6 +298,58 @@ export async function fetchSessionLineup(
 }
 
 // ============================================================
+// Classement officiel d'une session terminée — /session_result (#259)
+// Source de RÉVISION des séances scorées : reflète les décisions des
+// commissaires prises après l'arrivée (pénalités, disqualifications), que
+// Jolpica peut mettre plus de 24 h à reprendre. position null = pas de
+// position officielle (abandon, disqualifié). Liste vide tant que la donnée
+// n'est pas exploitable (session introuvable ou en cours, numéro
+// inattribuable) — la révision ne s'applique alors pas.
+// ============================================================
+
+interface OpenF1SessionResult {
+  driver_number: number
+  // Normalement un entier ou null, mais OpenF1 publie parfois un statut texte
+  // (« RT », Hadjar, qualifs de Singapour 2026) : traité comme « pas de position ».
+  position:      number | string | null
+  dsq?:          boolean
+}
+
+export async function fetchSessionClassification(
+  year: number,
+  sessionName: string,
+  expectedStartsAt: string,
+  codeByNumber: ReadonlyMap<number, string> = new Map(),
+): Promise<{ driverCode: string; position: number | null; disqualified: boolean }[]> {
+  const session = await findSessionByDate(year, sessionName, expectedStartsAt)
+  if (!session) return []
+  if (!isSessionFinished(session)) return []
+
+  const [results, drivers] = await Promise.all([
+    openf1Get<OpenF1SessionResult[]>(`/session_result?session_key=${session.session_key}`),
+    openf1Get<OpenF1Driver[]>(`/drivers?session_key=${session.session_key}`),
+  ])
+
+  const numberToCode = mapNumbersToCodes(drivers ?? [], codeByNumber)
+  const classification: { driverCode: string; position: number | null; disqualified: boolean }[] = []
+  for (const result of results ?? []) {
+    const code = numberToCode.get(result.driver_number)
+    if (!code) {
+      console.warn(
+        `fetchSessionClassification : numéro ${result.driver_number} inattribuable (session ${session.session_key}) — révision ignorée`,
+      )
+      return []
+    }
+    classification.push({
+      driverCode:   code,
+      position:     Number.isInteger(result.position) ? result.position as number : null,
+      disqualified: result.dsq === true,
+    })
+  }
+  return classification
+}
+
+// ============================================================
 // Meilleur tour par pilote depuis /laps — partagé par le classement des essais
 // libres et le fallback « meilleur tour en course » (#239).
 // ============================================================

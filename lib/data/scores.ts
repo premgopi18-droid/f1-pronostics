@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
 import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
+import { isGPReadyToFinalize } from '@/lib/scoring/finalization'
 import type { ScoreKey, SessionScore, SessionType } from '@/lib/scoring/types'
 import type { Json } from '@/lib/database.types'
 
@@ -67,14 +68,14 @@ export async function getCurrentScoresForGP(
 export async function getPendingSessionScores(
   leagueId: string,
   season:   number,
-): Promise<{ id: string; gpId: string; season: number; type: SessionType }[]> {
+): Promise<{ id: string; gpId: string; season: number; type: SessionType; resultsRevisedAt: string | null }[]> {
   const supabase = createServiceClient()
 
   const [{ data: sessions, error: sessionsError }, { data: scored, error: scoredError }] =
     await Promise.all([
       supabase
         .from('sessions')
-        .select('id, gp_id, season, type, grands_prix!gp_id(scoring_finalized_at)')
+        .select('id, gp_id, season, type, results_revised_at, grands_prix!gp_id(scoring_finalized_at)')
         .eq('season', season)
         .in('type', SCOREABLE_SESSION_TYPES)
         .not('results_confirmed_at', 'is', null),
@@ -99,7 +100,44 @@ export async function getPendingSessionScores(
       gpId:   row.gp_id,
       season: row.season,
       type:   row.type as SessionType,
+      // Lu AVANT le calcul : cf. discardScoresIfSessionRevised (#259).
+      resultsRevisedAt: row.results_revised_at,
     }))
+}
+
+/**
+ * Les crons de sync et de scoring ne se coordonnent pas (#259) : une révision
+ * du classement (apply_session_revision) peut tomber entre la lecture des
+ * résultats par le scoring et l'écriture de ses scores — calculés alors sur
+ * l'ancien classement, ils resteraient définitivement (la sync ne voit plus de
+ * différence, les scores existent). Après écriture, si l'horodatage de
+ * révision a bougé depuis la lecture, les scores de la séance pour la ligue
+ * sont jetés : le passage suivant les recalcule sur le bon classement.
+ * Renvoie true si les scores ont été jetés.
+ */
+export async function discardScoresIfSessionRevised(
+  sessionId:            string,
+  leagueId:             string,
+  resultsRevisedAtRead: string | null,
+): Promise<boolean> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('results_revised_at')
+    .eq('id', sessionId)
+    .single()
+
+  if (error) throw error
+  if (data.results_revised_at === resultsRevisedAtRead) return false
+
+  const { error: deleteError } = await supabase
+    .from('scores')
+    .delete()
+    .eq('session_id', sessionId)
+    .eq('league_id', leagueId)
+
+  if (deleteError) throw deleteError
+  return true
 }
 
 // GPs dont la course est scorée mais scoring_finalized_at est null
@@ -109,18 +147,23 @@ export async function getPendingItemResolutions(): Promise<
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('grands_prix')
-    .select('id, name, season, sessions!inner(id, type, results_confirmed_at, scores(id))')
+    .select('id, name, season, sessions!inner(id, type, starts_at, results_confirmed_at, scores(id))')
     .is('scoring_finalized_at', null)
 
   if (error) throw error
 
+  const now = Date.now()
   return (data ?? []).filter((gp) => {
     const sessions = gp.sessions as {
-      id: string; type: string; results_confirmed_at: string | null; scores: { id: string }[]
+      id: string; type: string; starts_at: string; results_confirmed_at: string | null; scores: { id: string }[]
     }[]
-    // GP éligible si la race a des résultats confirmés ET au moins 1 score existant
+    // GP éligible si la race a des résultats confirmés, au moins 1 score
+    // existant, ET le délai de finalisation écoulé (#259 — laisse passer les
+    // décisions des commissaires d'après-course, cf. lib/scoring/finalization.ts).
     const race = sessions.find((s) => s.type === 'race')
-    return race?.results_confirmed_at != null && race.scores.length > 0
+    return race?.results_confirmed_at != null
+      && race.scores.length > 0
+      && isGPReadyToFinalize(race.starts_at, race.results_confirmed_at, now)
   }).map((gp) => ({ id: gp.id, name: gp.name, season: gp.season }))
 }
 

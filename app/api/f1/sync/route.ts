@@ -10,7 +10,7 @@ import {
   fetchRaceLaps,
   fetchSprintRaceResults,
 } from '@/lib/f1/jolpica'
-import { fetchSprintQualifyingResults, fetchPracticeResults, fetchRaceFastestLapDriver, fetchStartingGrid, fetchSessionLineup } from '@/lib/f1/openf1'
+import { fetchSprintQualifyingResults, fetchPracticeResults, fetchRaceFastestLapDriver, fetchStartingGrid, fetchSessionLineup, fetchSessionClassification } from '@/lib/f1/openf1'
 import type { GridSessionName, SessionLineupDriver } from '@/lib/f1/openf1'
 import { GRID_SOURCE_SESSION_TYPE, type GridTargetSessionType } from '@/lib/f1/grid'
 import { upsertStartingGrid } from '@/lib/data/starting-grids'
@@ -39,7 +39,17 @@ import {
   upsertSessions,
   setRaceLaps,
 } from '@/lib/data/f1-sync'
-import { upsertSessionResults } from '@/lib/data/session-results'
+import {
+  upsertSessionResults,
+  getRevisableSessions,
+  getStoredClassification,
+  applySessionRevision,
+  claimSessionRevisionNotification,
+} from '@/lib/data/session-results'
+import { computeRevisedPositions } from '@/lib/data/session-revision'
+import { isResultsRevisionOpen } from '@/lib/scoring/finalization'
+import { t } from '@/lib/i18n'
+import { SESSION_LABEL_KEY } from '@/lib/i18n/session-labels'
 import { hasFastestLap, markFastestLap, shouldDeferSessionConfirmation } from '@/lib/data/session-confirmation'
 import { createServiceClient } from '@/lib/supabase'
 import { getCurrentSeason, isCronAuthorized } from '@/lib/api/cron'
@@ -53,7 +63,7 @@ import {
 } from '@/lib/data/f1-sync'
 import { isPushConfigured, sendPushToAll, sendImminencePush } from '@/lib/push/send'
 import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
-import type { DriverResult, DbSessionType } from '@/lib/scoring/types'
+import type { DriverResult, DbSessionType, SessionType } from '@/lib/scoring/types'
 
 // Sessions course dont on importe la grille de départ. La session source
 // (mapping partagé GRID_SOURCE_SESSION_TYPE) joue un double rôle : une fois
@@ -479,6 +489,65 @@ async function handler(request: Request): Promise<Response> {
       }, isStakesSession)
     }
 
+    // ── Phase 6 : révision des classements scorés (#259) ─────────────────────
+    // Les commissaires sanctionnent après l'arrivée (pénalités, DSQ) et Jolpica
+    // peut mettre plus de 24 h à suivre. Tant que la fenêtre de révision du GP
+    // est ouverte, le classement stocké de chaque séance scorée est comparé au
+    // classement officiel OpenF1 ; une différence est appliquée en transaction
+    // (positions + suppression des scores de la séance, recalculés par le cron
+    // de scoring). Dernière phase : ses appels OpenF1 (jusqu'à 4 séances) ne
+    // doivent pas retarder les notifs ci-dessus au-delà du maxDuration en cas
+    // de 429 en série. Isolée par séance ; une révision non appliquée sera
+    // retentée au passage suivant.
+    let sessionsRevised = 0
+    try {
+      for (const session of await getRevisableSessions()) {
+        if (!isResultsRevisionOpen(session.raceStartsAt, session.raceConfirmedAt, Date.now())) continue
+        try {
+          const official = await fetchSessionClassification(
+            session.season,
+            LINEUP_OPENF1_SESSION_NAME[session.type],
+            session.startsAt,
+            await codeByNumberFor(session.season),
+          )
+          const stored  = await getStoredClassification(session.id)
+          const outcome = computeRevisedPositions(stored, official)
+          if (outcome.kind === 'unusable') {
+            console.warn(`[api/f1/sync] révision impossible (session ${session.id}, ${session.type}) — ${outcome.reason}`)
+            continue
+          }
+          if (outcome.kind === 'unchanged') continue
+
+          const driverIdByCode = new Map(stored.map((entry) => [entry.driverCode, entry.driverId]))
+          const deletedScores = await applySessionRevision(
+            session.id,
+            [...outcome.positions].map(([driverCode, position]) => ({ driverId: driverIdByCode.get(driverCode)!, position })),
+          )
+          if (deletedScores === null) continue
+
+          sessionsRevised++
+          console.warn(
+            `[api/f1/sync] classement révisé (session ${session.id}, ${session.type}) — ${[...outcome.positions].map(([code, position]) => `${code}→P${position}`).join(', ')}`,
+          )
+
+          // Push seulement si des scores existaient : une séance révisée avant
+          // son premier scoring sera annoncée par la notif « scores calculés »,
+          // déjà sur le bon classement.
+          if (deletedScores > 0 && pushReady && await claimSessionRevisionNotification(session.id)) {
+            await sendPushToAll({
+              title: `📝 ${session.gpName} — scores corrigés`,
+              body:  `${t(SESSION_LABEL_KEY[session.type as SessionType])} : classement modifié par les commissaires, scores recalculés dans quelques minutes.`,
+              url:   `/results/${session.gpId}`,
+            })
+          }
+        } catch (error) {
+          console.error('[api/f1/sync] révision session', session.id, error)
+        }
+      }
+    } catch (error) {
+      console.error('[api/f1/sync] phase révision', error)
+    }
+
     // Next 16 : revalidateTag exige un profil de cache (stale-while-revalidate).
     revalidateTag('drivers', 'max')
     revalidateTag('constructors', 'max')
@@ -490,6 +559,7 @@ async function handler(request: Request): Promise<Response> {
         gps: calendar.length,
         sessionsConfirmed,
         sessionsDeferred,
+        sessionsRevised,
         gridsSynced,
         lineupNotifs,
         enrolledDrivers,

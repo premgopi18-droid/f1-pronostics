@@ -13,7 +13,9 @@
 | Phase | Déclencheur | Ce qui se passe | Scores visibles |
 |---|---|---|---|
 | **Phase 1 — par session** | Après chaque session confirmée (qualif, sprint, course) | base_score calculé et écrit. `final_score = base_score` (pas d'items encore) | ✅ Provisoires |
-| **Phase 2 — résolution items** | Après la course du dimanche uniquement | Items résolus, final_score mis à jour, `grands_prix.scoring_finalized_at` renseigné | ✅ Définitifs |
+| **Phase 2 — résolution items** | **Au plus tard de : départ de la course + 12 h, confirmation de la course + 3 h ; reportée à 8 h (Paris) si nocturne** (`finalizationDeadline`, `lib/scoring/finalization.ts`, #259) | Items résolus, final_score mis à jour, `grands_prix.scoring_finalized_at` renseigné | ✅ Définitifs |
+
+**Révision avant finalisation (#259)** : tant que le GP n'est pas finalisé (et jusqu'à 1 h avant la finalisation — marge entre les deux crons), le cron de sync compare le classement stocké de chaque séance scorée au classement officiel OpenF1 (`/session_result`). Une différence (pénalité, disqualification) est appliquée par la RPC `apply_session_revision` : positions mises à jour + `sessions.results_revised_at` + scores de la séance supprimés, recalculés en Phase 1 au passage suivant du trigger. Le délai de finalisation laisse passer les décisions des commissaires, y compris de nuit (GP du Mexique 2026). Les deux crons ne se coordonnent pas : la Phase 1 relit `results_revised_at` après avoir écrit ses scores et les jette si une révision est passée pendant son calcul (`discardScoresIfSessionRevised`) — jamais de scores calculés sur l'ancien classement.
 
 **Pourquoi deux phases :** les utilisateurs voient les résultats F1 officiels des qualifications dans l'app pour ajuster leur pronostic de course jusqu'au dimanche. Afficher les scores provisoires dès samedi crée de l'engagement. Les items (attaques/défenses) restent secrets jusqu'à la course — leur révélation est un moment fort du dimanche.
 
@@ -22,7 +24,8 @@
 | Flux | Déclencheur | Table cible |
 |---|---|---|
 | Score de session (Phase 1) | Après chaque session confirmée par Jolpica | `scores` (base_score = final_score) |
-| Résolution items (Phase 2) | Après la course du dimanche | `scores` (final_score mis à jour) + `grands_prix.scoring_finalized_at` |
+| Révision d'un classement | Classement officiel OpenF1 ≠ classement stocké, GP non finalisé | `session_results` (positions) + `scores` de la séance supprimés (recalculés en Phase 1) |
+| Résolution items (Phase 2) | `finalizationDeadline` atteinte (≥ 12 h après le départ, jamais la nuit) | `scores` (final_score mis à jour) + `grands_prix.scoring_finalized_at` |
 | Score saison | Une fois en fin de saison (WDC/WCC officiels) | `season_scores` |
 
 ---

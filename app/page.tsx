@@ -72,12 +72,22 @@ export default async function HomePage() {
             </div>
           )}
           {phase === 'processing' && (
-            <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
-              <span
-                className="h-4 w-4 rounded-full border-2 border-border border-t-primary [animation:bx-spin_.8s_linear_infinite] motion-reduce:[animation:none]"
-                aria-hidden
-              />
-              <span className="text-sm text-text-secondary">{t('home.processing')}</span>
+            // Attente de finalisation (jusqu'au lendemain matin, #259) : résultats
+            // et scores provisoires restent consultables.
+            <div className="rounded-xl border border-border bg-card px-3.5 py-3">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="h-4 w-4 shrink-0 rounded-full border-2 border-border border-t-primary [animation:bx-spin_.8s_linear_infinite] motion-reduce:[animation:none]"
+                  aria-hidden
+                />
+                <span className="text-sm text-text-secondary">{t('home.processing')}</span>
+              </div>
+              <Link
+                href={`/results/${nextGP.id}`}
+                className="mt-2 inline-flex w-full justify-center text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+              >
+                {t('home.viewResults')} <span aria-hidden="true">›</span>
+              </Link>
             </div>
           )}
 
@@ -114,7 +124,7 @@ export default async function HomePage() {
             </Card>
           ) : phase === 'weekend' || phase === 'live' ? (
             // En week-end/live, des sessions restent ouvertes → card sessions (CTA pertinent).
-            // En processing, tout est verrouillé → seule la bannière « Calcul » ci-dessus s'affiche.
+            // En processing, tout est verrouillé → seule la bannière d'attente (+ lien résultats) ci-dessus s'affiche.
             <GpWeekendCard
               name={nextGP.name}
               gpId={nextGP.id}

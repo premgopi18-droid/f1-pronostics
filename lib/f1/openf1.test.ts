@@ -32,7 +32,7 @@ describe('openf1 — sélection de session par date', () => {
     positions?: { driver_number: number; position: number; date: string }[]
     grid?:      { driver_number: number; position: number | null }[]
     gridSessionKey?: number
-    sessionResults?: { driver_number: number; position: number | null }[]
+    sessionResults?: { driver_number: number; position: number | string | null; dsq?: boolean }[]
   }) {
     vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = input.toString()
@@ -484,9 +484,30 @@ describe('openf1 — sélection de session par date', () => {
       })
 
       expect(await fetchSessionClassification(2026, 'Race', '2026-11-01T20:00:00Z', new Map([[81, 'PIA']]))).toEqual([
-        { driverCode: 'LAW', position: 7 },
-        { driverCode: 'PIA', position: 13 },
-        { driverCode: 'LIN', position: null },
+        { driverCode: 'LAW', position: 7,    disqualified: false },
+        { driverCode: 'PIA', position: 13,   disqualified: false },
+        { driverCode: 'LIN', position: null, disqualified: false },
+      ])
+    })
+
+    // Qualifs de Singapour 2026 : Hadjar publié avec la position texte « RT ».
+    // Un texte n'est jamais une position (sinon NaN et RPC en échec à chaque passage).
+    it('position texte (« RT ») → sans position ; dsq reporté', async () => {
+      mockOpenF1({
+        sessions: [mexicoRace],
+        drivers: [
+          { driver_number: 6,  name_acronym: 'HAD', session_key: 11404 },
+          { driver_number: 44, name_acronym: 'HAM', session_key: 11404 },
+        ],
+        sessionResults: [
+          { driver_number: 6,  position: 'RT' },
+          { driver_number: 44, position: null, dsq: true },
+        ],
+      })
+
+      expect(await fetchSessionClassification(2026, 'Race', '2026-11-01T20:00:00Z')).toEqual([
+        { driverCode: 'HAD', position: null, disqualified: false },
+        { driverCode: 'HAM', position: null, disqualified: true },
       ])
     })
 

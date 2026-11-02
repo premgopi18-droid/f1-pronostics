@@ -278,59 +278,6 @@ async function handler(request: Request): Promise<Response> {
       }
     }
 
-    // Guard VAPID commun aux notifications : les marks/claims brûleraient les
-    // flags de dédup sans push réel.
-    const pushReady = isPushConfigured()
-
-    // ── Phase 3 bis : révision des classements scorés (#259) ─────────────────
-    // Les commissaires sanctionnent après l'arrivée (pénalités, DSQ) et Jolpica
-    // peut mettre plus de 24 h à suivre. Tant que la fenêtre de révision du GP
-    // est ouverte, le classement stocké de chaque séance scorée est comparé au
-    // classement officiel OpenF1 ; une différence est appliquée en transaction
-    // (positions + suppression des scores de la séance, recalculés par le cron
-    // de scoring) puis notifiée une fois par séance. Phase isolée par séance.
-    let sessionsRevised = 0
-    try {
-      for (const session of await getRevisableSessions()) {
-        if (!isResultsRevisionOpen(session.raceStartsAt, Date.now())) continue
-        try {
-          const official = await fetchSessionClassification(
-            session.season,
-            LINEUP_OPENF1_SESSION_NAME[session.type],
-            session.startsAt,
-            await codeByNumberFor(session.season),
-          )
-          const stored  = await getStoredClassification(session.id)
-          const changes = computeRevisedPositions(stored, official)
-          if (!changes) continue
-
-          const driverIdByCode = new Map(stored.map((entry) => [entry.driverCode, entry.driverId]))
-          const applied = await applySessionRevision(
-            session.id,
-            [...changes].map(([driverCode, position]) => ({ driverId: driverIdByCode.get(driverCode)!, position })),
-          )
-          if (!applied) continue
-
-          sessionsRevised++
-          console.warn(
-            `[api/f1/sync] classement révisé (session ${session.id}, ${session.type}) — ${[...changes].map(([code, position]) => `${code}→P${position}`).join(', ')}`,
-          )
-
-          if (pushReady && await claimSessionRevisionNotification(session.id)) {
-            await sendPushToAll({
-              title: `📝 ${session.gpName} — scores corrigés`,
-              body:  `${t(SESSION_LABEL_KEY[session.type as SessionType])} : classement modifié par les commissaires, scores recalculés.`,
-              url:   `/results/${session.gpId}`,
-            })
-          }
-        } catch (error) {
-          console.error('[api/f1/sync] révision session', session.id, error)
-        }
-      }
-    } catch (error) {
-      console.error('[api/f1/sync] phase révision', error)
-    }
-
     // ── Phase 4 : grilles de départ (pré-remplissage du prono course, #200) ──
     // Fenêtre naturelle : la session course n'a pas commencé ET la session
     // source du même GP (qualif → course, sprint qualif → sprint race) est
@@ -386,6 +333,10 @@ async function handler(request: Request): Promise<Response> {
     } catch (error) {
       console.error('[api/f1/sync] phase grilles de départ', error)
     }
+
+    // Guard VAPID commun aux notifications : les marks/claims brûleraient les
+    // flags de dédup sans push réel.
+    const pushReady = isPushConfigured()
 
     // ── Phase 5 : line-ups + notif « changement de line-up » (#205) ─────────
     // Un pilote qui roule pour une autre écurie que lors du GP précédent
@@ -536,6 +487,65 @@ async function handler(request: Request): Promise<Response> {
         body:  'La session débute dans moins de 10 minutes.',
         url:   '/',
       }, isStakesSession)
+    }
+
+    // ── Phase 6 : révision des classements scorés (#259) ─────────────────────
+    // Les commissaires sanctionnent après l'arrivée (pénalités, DSQ) et Jolpica
+    // peut mettre plus de 24 h à suivre. Tant que la fenêtre de révision du GP
+    // est ouverte, le classement stocké de chaque séance scorée est comparé au
+    // classement officiel OpenF1 ; une différence est appliquée en transaction
+    // (positions + suppression des scores de la séance, recalculés par le cron
+    // de scoring). Dernière phase : ses appels OpenF1 (jusqu'à 4 séances) ne
+    // doivent pas retarder les notifs ci-dessus au-delà du maxDuration en cas
+    // de 429 en série. Isolée par séance ; une révision non appliquée sera
+    // retentée au passage suivant.
+    let sessionsRevised = 0
+    try {
+      for (const session of await getRevisableSessions()) {
+        if (!isResultsRevisionOpen(session.raceStartsAt, session.raceConfirmedAt, Date.now())) continue
+        try {
+          const official = await fetchSessionClassification(
+            session.season,
+            LINEUP_OPENF1_SESSION_NAME[session.type],
+            session.startsAt,
+            await codeByNumberFor(session.season),
+          )
+          const stored  = await getStoredClassification(session.id)
+          const outcome = computeRevisedPositions(stored, official)
+          if (outcome.kind === 'unusable') {
+            console.warn(`[api/f1/sync] révision impossible (session ${session.id}, ${session.type}) — ${outcome.reason}`)
+            continue
+          }
+          if (outcome.kind === 'unchanged') continue
+
+          const driverIdByCode = new Map(stored.map((entry) => [entry.driverCode, entry.driverId]))
+          const deletedScores = await applySessionRevision(
+            session.id,
+            [...outcome.positions].map(([driverCode, position]) => ({ driverId: driverIdByCode.get(driverCode)!, position })),
+          )
+          if (deletedScores === null) continue
+
+          sessionsRevised++
+          console.warn(
+            `[api/f1/sync] classement révisé (session ${session.id}, ${session.type}) — ${[...outcome.positions].map(([code, position]) => `${code}→P${position}`).join(', ')}`,
+          )
+
+          // Push seulement si des scores existaient : une séance révisée avant
+          // son premier scoring sera annoncée par la notif « scores calculés »,
+          // déjà sur le bon classement.
+          if (deletedScores > 0 && pushReady && await claimSessionRevisionNotification(session.id)) {
+            await sendPushToAll({
+              title: `📝 ${session.gpName} — scores corrigés`,
+              body:  `${t(SESSION_LABEL_KEY[session.type as SessionType])} : classement modifié par les commissaires, scores recalculés.`,
+              url:   `/results/${session.gpId}`,
+            })
+          }
+        } catch (error) {
+          console.error('[api/f1/sync] révision session', session.id, error)
+        }
+      }
+    } catch (error) {
+      console.error('[api/f1/sync] phase révision', error)
     }
 
     // Next 16 : revalidateTag exige un profil de cache (stale-while-revalidate).

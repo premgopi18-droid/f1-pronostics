@@ -7,6 +7,7 @@ import {
   markGPFinalized,
   updateFinalScores,
   upsertBaseScores,
+  discardScoresIfSessionRevised,
 } from '@/lib/data/scores'
 import { getFastestLapForSession, getPredictionsForSession } from '@/lib/data/predictions'
 import { getConstructorDriversMap, getResultsForSession } from '@/lib/data/session-results'
@@ -125,6 +126,9 @@ async function handler(request: Request): Promise<Response> {
         if (userScores.length === 0) continue
 
         await upsertBaseScores(session.id, leagueId, session.season, userScores)
+        // Classement révisé par la sync pendant ce calcul (#259) : scores jetés,
+        // recalculés au passage suivant — et pas de notif sur des scores périmés.
+        if (await discardScoresIfSessionRevised(session.id, leagueId, session.resultsRevisedAt)) continue
         sessionsScored++
 
         // Notification "scores provisoires + classement mis à jour" — une seule fois par

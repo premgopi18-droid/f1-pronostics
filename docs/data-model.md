@@ -93,6 +93,7 @@ Seuls les résultats officiels Jolpica sont stockés — pas de flag `is_officia
 | notified_deadline_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif "deadline dans 1h" |
 | notified_provisional_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif "scores provisoires" |
 | notified_post_session_at | TIMESTAMPTZ | null jusqu'à l'envoi du rappel "tu peux encore ajuster" (2h après le début de cette session, invite à ajuster le prono de la session suivante) |
+| results_revised_at | TIMESTAMPTZ | dernière révision du classement après confirmation (`apply_session_revision`, #259) — relue par le scoring pour jeter des scores calculés pendant une révision |
 | revision_notified_at | TIMESTAMPTZ | null jusqu'à l'envoi de la notif "scores corrigés" (classement révisé après confirmation — un seul push par séance, #259) |
 | created_at | TIMESTAMPTZ | |
 
@@ -622,7 +623,7 @@ Garantit l'atomicité (jamais d'item joué sans décrément) et l'absence de sur
 
 ### `apply_session_revision(p_session_id, p_positions)`
 
-Applique la révision du classement d'une séance scorée déjà confirmée (#259 — pénalités et disqualifications d'après-séance) en une seule transaction : nouvelles positions (`p_positions` : `[{ driver_id, position }]`, seuls les pilotes qui changent) **et** suppression des `scores` de la séance, recalculés par le cron de scoring au passage suivant. Un classement révisé avec des scores périmés ne serait plus jamais recalculé, d'où l'atomicité. Refuse (renvoie `false`, rien modifié) si le GP est finalisé, avec un verrou sur la ligne `grands_prix` qui sérialise avec la finalisation. Appelée par `applySessionRevision` (`lib/data/session-results.ts`) depuis le cron de sync. Migration : `20261102210000_session_revision.sql`.
+Applique la révision du classement d'une séance scorée déjà confirmée (#259 — pénalités et disqualifications d'après-séance) en une seule transaction : nouvelles positions (`p_positions` : `[{ driver_id, position }]`, seuls les pilotes qui changent), horodatage `sessions.results_revised_at` **et** suppression des `scores` de la séance, recalculés par le cron de scoring au passage suivant. Un classement révisé avec des scores périmés ne serait plus jamais recalculé, d'où l'atomicité. Renvoie le nombre de scores supprimés (0 : séance pas encore scorée → pas de notif « scores corrigés »), ou `-1` sans rien modifier si le GP est finalisé, avec un verrou sur la ligne `grands_prix` qui sérialise avec la finalisation. Appelée par `applySessionRevision` (`lib/data/session-results.ts`) depuis le cron de sync. Migration : `20261102210000_session_revision.sql`.
 
 ### `apply_season_item(p_user_id, p_season, p_item_type, p_from, p_to)`
 

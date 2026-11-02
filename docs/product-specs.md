@@ -133,13 +133,13 @@ Format 2026 : Sprint Qualifying (vendredi) → Sprint Race (samedi matin) → Qu
 
 > **Pilote disqualifié d'une séance** (décision 01\11\2026, incident GP du Mexique 2026 — Lawson disqualifié des qualifs après la séance, MGU-K) : le pilote est **classé dernier de CETTE séance** (comme le classement officiel FIA qui le liste en « DSQ » en bas, et la grille qui le fait partir dernier) ; les pilotes derrière lui remontent d'une place. Il n'est **jamais retiré** ni de la séance, ni des autres séances du week-end (EL, course), ni des pronos : il reste sélectionnable normalement, sans badge (le badge « Absent du week-end ? » est réservé aux pilotes qui ne roulent pas). Points : équivalent à « absent du classement » pour un prono top 10 (crédit partiel limité à ±2).
 
-> **Sanctions d'après-séance : révision automatique + finalisation à H+12** (décision 02\11\2026, #259 — au Mexique, pénalités de course de Piastri, Colapinto et Gasly décidées dans la nuit ; Jolpica ne les avait toujours pas 24 h après, OpenF1 si) :
-> - **Finalisation du GP** (items résolus, scores définitifs, notif « résultats ») **12 h après le départ de la course** — course du dimanche soir ⇒ définitifs le lundi matin. Entre-temps, l'accueil affiche « Scores provisoires — items et scores définitifs après les décisions des commissaires ».
-> - **Révision** : jusqu'à la finalisation, chaque séance scorée (qualifs, sprint qualif, sprint, course) est recomparée au classement officiel OpenF1 à chaque passage du cron ; une différence est appliquée et les scores de la séance sont recalculés par le moteur habituel. Disqualifié ou abandon sans position officielle ⇒ classé derrière les classés (règle ci-dessus). Jamais de révision sur une donnée incomplète (pilote absent du classement officiel, position en double) ni après la finalisation.
-> - **Notif « 📝 {GP} — scores corrigés »** : un push à tous, **une seule fois par séance révisée**, renvoyant vers les résultats du GP.
+> **Sanctions d'après-séance : révision automatique + finalisation différée** (décision 02\11\2026, #259 — au Mexique, pénalités de course de Piastri, Colapinto et Gasly décidées dans la nuit ; Jolpica ne les avait toujours pas 24 h après, OpenF1 si) :
+> - **Finalisation du GP** (items résolus, scores définitifs, notif « résultats ») au plus tard des trois : **12 h après le départ de la course** ; **le lendemain 8 h, heure de Paris** (jamais de push « résultats » ou « item joué contre toi » en pleine nuit après une course européenne) ; **3 h après la confirmation de la course** (Jolpica publie parfois 10 à 14 h après le départ : la course doit pouvoir être révisée avant d'être finalisée). Mexique (départ 21 h Paris) ⇒ lundi 9 h ; course européenne (15 h Paris) ⇒ lundi 8 h. Entre-temps, l'accueil affiche « Scores provisoires — items et scores définitifs après les décisions des commissaires » avec un lien vers les résultats.
+> - **Révision** : jusqu'à 1 h avant la finalisation (marge entre les deux crons), chaque séance scorée (qualifs, sprint qualif, sprint, course) est recomparée au classement officiel OpenF1 à chaque passage du cron ; une différence est appliquée et les scores de la séance sont recalculés par le moteur habituel. Sans position officielle ⇒ derrière les classés : abandons dans leur ordre, puis disqualifiés (règle ci-dessus). Jamais de révision sur une donnée incomplète (pilote absent du classement officiel — fréquent en sprint qualif —, position en double ; tracé dans les logs) ni après la finalisation.
+> - **Notif « 📝 {GP} — scores corrigés »** : un push à tous, **une seule fois par séance révisée**, renvoyant vers les résultats du GP — seulement si des scores existaient déjà (une séance révisée avant son premier scoring est annoncée par la notif « scores calculés », déjà juste).
 > - Jolpica reste la source de la confirmation initiale ; OpenF1 sert de source de révision (chronométrage officiel, à jour des décisions des commissaires).
 
-**Visibilité des scores pendant le weekend (Option B)** : les scores de prédiction sont affichés session par session au fil du weekend, mais marqués **"provisoire"** jusqu'à la finalisation du GP. Les items sont résolus uniquement à la finalisation, **12 h après le départ de la course** (#259, le temps des décisions des commissaires) — le score définitif (avec items) est révélé à ce moment-là. Un indicateur visuel clair distingue "score provisoire" et "score définitif". Exemple : un joueur voit "22 pts en qualif (provisoire)" le samedi — un Wild Card peut réduire ce score dimanche.
+**Visibilité des scores pendant le weekend (Option B)** : les scores de prédiction sont affichés session par session au fil du weekend, mais marqués **"provisoire"** jusqu'à la finalisation du GP. Les items sont résolus uniquement à la finalisation, **au plus tôt le lendemain matin de la course** (#259 — 12 h après le départ, 8 h Paris au plus tôt, le temps des décisions des commissaires) — le score définitif (avec items) est révélé à ce moment-là. Un indicateur visuel clair distingue "score provisoire" et "score définitif". Exemple : un joueur voit "22 pts en qualif (provisoire)" le samedi — un Wild Card peut réduire ce score dimanche.
 
 > Raison : afficher les scores progressifs crée de l'engagement tout le weekend et permet aux joueurs de situer leur position avant la course. La révélation des items reste un moment fort du dimanche.
 
@@ -388,7 +388,7 @@ Les notifications sont envoyées via Web Push (standard ouvert, compatible iOS 1
 | Session imminente (« ça va commencer ») | **10 min avant le début de chaque session** (essais libres inclus), pour ne pas la louper. Une seule notif par session (dédup atomique par session). **Configurable par l'utilisateur** — voir la préférence ci-dessous. |
 | Rattrapage à l'activation des push | **Au moment où l'utilisateur active les notifications**, s'il existe une session-deadline scorable (pronos + items) dans les **2h** à venir. Couvre le cas où l'on s'abonne en plein week-end, après le passage des crons de rappel (J-1, 1h). Envoyée au seul utilisateur qui vient de s'abonner (`sendPushToUser`), best-effort (n'échoue jamais l'abonnement), pas de dédup (one-shot par abonnement). **Pas de filtre par ligue** — aligné sur les autres rappels qui notifient tous les abonnés ; la fenêtre de 2h est ajustable (`CATCH_UP_DEADLINE_WINDOW_MS`). |
 | Scores provisoires disponibles | Après chaque session (qualif, sprint) — scores de base sans items |
-| Résultats définitifs publiés | 12 h après le départ de la course (#259) — scores finaux avec items résolus |
+| Résultats définitifs publiés | À la finalisation du GP (lendemain matin de la course, #259) — scores finaux avec items résolus |
 | Item joué contre vous | Après la course, en même temps que les résultats définitifs — surprise révélée avec les scores |
 | Classement mis à jour | Après chaque calcul de score (provisoire ou définitif) — fusionné dans la catégorie "Résultats & scores" dans les réglages utilisateur |
 | Annonce produit / nouvelle feature | **Envoi manuel** (admin) — annonce d'une nouvelle feature, d'un correctif notable ou d'un message produit. Opt-in dédié, indépendant du calendrier F1 — voir §Annonces produit ci-dessous. |
@@ -874,7 +874,7 @@ Dans mes ligues (cards : score brut → items → score final → évolution cla
 - Home (état race weekend / résultats) ✅
 - `/gp/[id]/recap` → badge sur chaque score de session + sur les cards "Dans mes ligues"
 - Détail ligue section "Scores du GP" → badge sur les scores affichés
-- Règle : badge "Provisoire" tant que le GP n'est pas finalisé (12 h après le départ de la course, #259), badge "Définitif" après
+- Règle : badge "Provisoire" tant que le GP n'est pas finalisé (lendemain matin de la course, #259), badge "Définitif" après
 
 ### Deadline items dans l'UI
 
@@ -964,7 +964,7 @@ Segmented control en haut (3 vues) :
 
 4 catégories, toutes activées par défaut :
 - **Deadline pronos & items** — 1h avant chaque session (pronos) + rappel deadline items GP (même verrou Q1)
-- **Résultats & scores** — scores provisoires après chaque session + résultats définitifs 12 h après le départ de la course + classement mis à jour
+- **Résultats & scores** — scores provisoires après chaque session + résultats définitifs le lendemain matin de la course + classement mis à jour
 - **Items reçus** — révélation après la course
 - **GP approche** — J-2 avant le week-end
 - Notification dédiée : "Tu as un item saison non utilisé — dernier GP dans X jours" (deadline items saison)

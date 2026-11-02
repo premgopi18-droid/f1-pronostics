@@ -5,18 +5,20 @@ import type { DbSessionType, DriverResult } from '@/lib/scoring/types'
 // ── Révision des classements (#259) ───────────────────────────────────────
 
 export type RevisableSession = {
-  id:           string
-  type:         DbSessionType
-  season:       number
-  startsAt:     string
-  gpId:         string
-  gpName:       string
-  raceStartsAt: string
+  id:              string
+  type:            DbSessionType
+  season:          number
+  startsAt:        string
+  gpId:            string
+  gpName:          string
+  raceStartsAt:    string
+  raceConfirmedAt: string | null
 }
 
 /**
  * Séances scorées confirmées des GPs ni finalisés ni annulés, avec le départ
- * de leur course (borne de la fenêtre de révision, cf. isResultsRevisionOpen).
+ * et la confirmation de leur course (bornes de la fenêtre de révision, cf.
+ * isResultsRevisionOpen).
  * Volume borné : seuls les GPs en attente de finalisation (en pratique le GP
  * du week-end, ≤ 4 séances scorées).
  */
@@ -35,24 +37,25 @@ export async function getRevisableSessions(): Promise<RevisableSession[]> {
 
   const { data: races, error: racesError } = await supabase
     .from('sessions')
-    .select('gp_id, starts_at')
+    .select('gp_id, starts_at, results_confirmed_at')
     .eq('type', 'race')
     .in('gp_id', [...new Set(data.map((row) => row.gp_id))])
 
   if (racesError) throw racesError
-  const raceStartsAtByGp = new Map((races ?? []).map((race) => [race.gp_id, race.starts_at]))
+  const raceByGp = new Map((races ?? []).map((race) => [race.gp_id, race]))
 
   return data.flatMap((row) => {
-    const raceStartsAt = raceStartsAtByGp.get(row.gp_id)
-    if (!raceStartsAt || !row.grands_prix) return []
+    const race = raceByGp.get(row.gp_id)
+    if (!race || !row.grands_prix) return []
     return [{
-      id:       row.id,
-      type:     row.type as DbSessionType,
-      season:   row.season,
-      startsAt: row.starts_at,
-      gpId:     row.gp_id,
-      gpName:   row.grands_prix.name,
-      raceStartsAt,
+      id:              row.id,
+      type:            row.type as DbSessionType,
+      season:          row.season,
+      startsAt:        row.starts_at,
+      gpId:            row.gp_id,
+      gpName:          row.grands_prix.name,
+      raceStartsAt:    race.starts_at,
+      raceConfirmedAt: race.results_confirmed_at,
     }]
   })
 }
@@ -76,20 +79,21 @@ export async function getStoredClassification(
 /**
  * Applique une révision (RPC transactionnelle apply_session_revision) :
  * nouvelles positions + suppression des scores de la séance, recalculés par le
- * cron de scoring au passage suivant. false = GP finalisé entre-temps, rien
- * n'a été modifié.
+ * cron de scoring au passage suivant. Renvoie le nombre de scores supprimés
+ * (0 : séance pas encore scorée), ou null si le GP a été finalisé entre-temps
+ * (rien n'a été modifié).
  */
 export async function applySessionRevision(
   sessionId: string,
   positions: { driverId: string; position: number }[],
-): Promise<boolean> {
+): Promise<number | null> {
   const supabase = createServiceClient()
   const { data, error } = await supabase.rpc('apply_session_revision', {
     p_session_id: sessionId,
     p_positions:  positions.map((entry) => ({ driver_id: entry.driverId, position: entry.position })),
   })
   if (error) throw error
-  return data === true
+  return data < 0 ? null : data
 }
 
 /** Claim atomique de la notif « scores corrigés » : un seul push par séance révisée. */

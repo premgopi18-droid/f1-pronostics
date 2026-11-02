@@ -309,7 +309,10 @@ export async function fetchSessionLineup(
 
 interface OpenF1SessionResult {
   driver_number: number
-  position:      number | null
+  // Normalement un entier ou null, mais OpenF1 publie parfois un statut texte
+  // (« RT », Hadjar, qualifs de Singapour 2026) : traité comme « pas de position ».
+  position:      number | string | null
+  dsq?:          boolean
 }
 
 export async function fetchSessionClassification(
@@ -317,7 +320,7 @@ export async function fetchSessionClassification(
   sessionName: string,
   expectedStartsAt: string,
   codeByNumber: ReadonlyMap<number, string> = new Map(),
-): Promise<{ driverCode: string; position: number | null }[]> {
+): Promise<{ driverCode: string; position: number | null; disqualified: boolean }[]> {
   const session = await findSessionByDate(year, sessionName, expectedStartsAt)
   if (!session) return []
   if (!isSessionFinished(session)) return []
@@ -328,7 +331,7 @@ export async function fetchSessionClassification(
   ])
 
   const numberToCode = mapNumbersToCodes(drivers ?? [], codeByNumber)
-  const classification: { driverCode: string; position: number | null }[] = []
+  const classification: { driverCode: string; position: number | null; disqualified: boolean }[] = []
   for (const result of results ?? []) {
     const code = numberToCode.get(result.driver_number)
     if (!code) {
@@ -337,7 +340,11 @@ export async function fetchSessionClassification(
       )
       return []
     }
-    classification.push({ driverCode: code, position: result.position ?? null })
+    classification.push({
+      driverCode:   code,
+      position:     Number.isInteger(result.position) ? result.position as number : null,
+      disqualified: result.dsq === true,
+    })
   }
   return classification
 }

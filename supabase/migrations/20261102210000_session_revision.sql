@@ -9,20 +9,31 @@
 -- Claim de la notif « scores corrigés » : un seul push par séance révisée.
 alter table public.sessions add column if not exists revision_notified_at timestamptz;
 
+-- Horodatage de la dernière révision : le cron de scoring compare la valeur lue
+-- avant son calcul à celle d'après son écriture, et jette ses scores si une
+-- révision est passée entre les deux (crons non coordonnés — sinon des scores
+-- calculés sur l'ancien classement resteraient définitivement).
+alter table public.sessions add column if not exists results_revised_at timestamptz;
+
 -- p_positions : [{ driver_id, position }] — seuls les pilotes qui changent.
 -- Classement ET suppression des scores de la séance dans la même transaction :
 -- un classement révisé avec des scores périmés ne serait plus jamais recalculé
 -- (le cron ne verrait plus de différence). Les scores supprimés sont recalculés
 -- par le cron de scoring au passage suivant (phase 1, GP non finalisé).
--- Jamais après finalisation : les items ont été résolus sur l'ancien
--- classement (verrou sur le GP, sérialisé avec la finalisation).
-create or replace function public.apply_session_revision(p_session_id uuid, p_positions jsonb)
-returns boolean
+-- Renvoie le nombre de scores supprimés (0 : séance pas encore scorée, rien à
+-- annoncer), ou -1 si le GP est finalisé : rien n'est modifié, les items ont
+-- été résolus sur l'ancien classement (verrou sur le GP, sérialisé avec la
+-- finalisation).
+drop function if exists public.apply_session_revision(uuid, jsonb);
+
+create function public.apply_session_revision(p_session_id uuid, p_positions jsonb)
+returns integer
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_finalized_at timestamptz;
+  v_finalized_at   timestamptz;
+  v_deleted_scores integer;
 begin
   select g.scoring_finalized_at into v_finalized_at
   from public.sessions s
@@ -31,7 +42,7 @@ begin
   for update of g;
 
   if not found or v_finalized_at is not null then
-    return false;
+    return -1;
   end if;
 
   update public.session_results r
@@ -40,9 +51,12 @@ begin
   where r.session_id = p_session_id
     and r.driver_id = p.driver_id;
 
-  delete from public.scores where session_id = p_session_id;
+  update public.sessions set results_revised_at = now() where id = p_session_id;
 
-  return true;
+  delete from public.scores where session_id = p_session_id;
+  get diagnostics v_deleted_scores = row_count;
+
+  return v_deleted_scores;
 end;
 $$;
 

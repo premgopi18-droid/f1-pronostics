@@ -720,6 +720,7 @@ export type Database = {
           notified_post_session_at: string | null
           notified_provisional_at: string | null
           results_confirmed_at: string | null
+          results_revised_at: string | null
           revision_notified_at: string | null
           season: number
           starts_at: string
@@ -734,6 +735,7 @@ export type Database = {
           notified_post_session_at?: string | null
           notified_provisional_at?: string | null
           results_confirmed_at?: string | null
+          results_revised_at?: string | null
           revision_notified_at?: string | null
           season: number
           starts_at: string
@@ -748,6 +750,7 @@ export type Database = {
           notified_post_session_at?: string | null
           notified_provisional_at?: string | null
           results_confirmed_at?: string | null
+          results_revised_at?: string | null
           revision_notified_at?: string | null
           season?: number
           starts_at?: string
@@ -939,7 +942,7 @@ export type Database = {
       }
       apply_session_revision: {
         Args: { p_positions: Json; p_session_id: string }
-        Returns: boolean
+        Returns: number
       }
       create_league: {
         Args: {

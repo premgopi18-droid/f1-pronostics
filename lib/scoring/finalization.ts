@@ -15,10 +15,10 @@ const DAY_MS  = 24 * HOUR_MS
 export const GP_FINALIZATION_DELAY_MS = 12 * HOUR_MS
 
 /**
- * Jamais de finalisation avant le matin suivant la course, heure de Paris
- * (décision 02\11\2026) : la finalisation envoie les push « résultats
- * définitifs » et « un item a été joué contre toi » — une course européenne
- * finalisée à H+12 les enverrait vers 3 h du matin.
+ * Jamais de finalisation la nuit, heure de Paris (décision 02\11\2026) : la
+ * finalisation envoie les push « résultats définitifs » et « un item a été
+ * joué contre toi » — une course européenne finalisée à H+12 les enverrait
+ * vers 3 h du matin. Une échéance entre minuit et 8 h est reportée à 8 h.
  */
 export const FINALIZATION_TIME_ZONE = 'Europe/Paris'
 export const FINALIZATION_EARLIEST_LOCAL_HOUR = 8
@@ -63,16 +63,19 @@ export function nextLocalHourAfter(instant: number, timeZone: string, hour: numb
 }
 
 /**
- * Échéance de finalisation : la plus tardive de (départ + 12 h), (lendemain
- * 8 h Paris) et (confirmation de la course + 3 h, si confirmée).
+ * Échéance de finalisation : la plus tardive de (départ + 12 h) et
+ * (confirmation de la course + 3 h, si confirmée), reportée à 8 h (Paris) si
+ * elle tombe la nuit — y compris pour une course confirmée très tard.
  */
 export function finalizationDeadline(raceStartsAt: string, raceConfirmedAt: string | null): number {
-  const raceStart = new Date(raceStartsAt).getTime()
-  return Math.max(
-    raceStart + GP_FINALIZATION_DELAY_MS,
-    nextLocalHourAfter(raceStart, FINALIZATION_TIME_ZONE, FINALIZATION_EARLIEST_LOCAL_HOUR),
+  const earliest = Math.max(
+    new Date(raceStartsAt).getTime() + GP_FINALIZATION_DELAY_MS,
     raceConfirmedAt ? new Date(raceConfirmedAt).getTime() + RACE_CONFIRMATION_REVISION_DELAY_MS : 0,
   )
+  const localHour = new Date(earliest + timeZoneOffsetMs(FINALIZATION_TIME_ZONE, earliest)).getUTCHours()
+  return localHour < FINALIZATION_EARLIEST_LOCAL_HOUR
+    ? nextLocalHourAfter(earliest, FINALIZATION_TIME_ZONE, FINALIZATION_EARLIEST_LOCAL_HOUR)
+    : earliest
 }
 
 export function isGPReadyToFinalize(raceStartsAt: string, raceConfirmedAt: string | null, now: number): boolean {

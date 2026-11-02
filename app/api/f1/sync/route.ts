@@ -536,7 +536,7 @@ async function handler(request: Request): Promise<Response> {
           if (deletedScores > 0 && pushReady && await claimSessionRevisionNotification(session.id)) {
             await sendPushToAll({
               title: `📝 ${session.gpName} — scores corrigés`,
-              body:  `${t(SESSION_LABEL_KEY[session.type as SessionType])} : classement modifié par les commissaires, scores recalculés.`,
+              body:  `${t(SESSION_LABEL_KEY[session.type as SessionType])} : classement modifié par les commissaires, scores recalculés dans quelques minutes.`,
               url:   `/results/${session.gpId}`,
             })
           }

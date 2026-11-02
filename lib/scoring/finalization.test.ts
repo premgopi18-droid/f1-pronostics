@@ -40,8 +40,20 @@ describe('finalizationDeadline', () => {
 
   // Course européenne : départ 13:00 UTC → H+12 = 01:00 UTC, en pleine nuit →
   // reportée au lendemain 8 h Paris (pas de push à 3 h du matin).
-  it('course européenne : jamais avant le lendemain 8 h Paris', () => {
+  it('course européenne : échéance nocturne reportée à 8 h Paris', () => {
     expect(finalizationDeadline('2026-11-08T13:00:00Z', '2026-11-08T15:30:00Z')).toBe(at('2026-11-09T07:00:00Z'))
+  })
+
+  // Course matinale (Australie, départ 06 h Paris) : H+12 tombe en soirée, pas
+  // la nuit → aucun report, définitifs le dimanche soir.
+  it('course matinale : H+12 en soirée, pas de report', () => {
+    expect(finalizationDeadline('2026-03-08T04:00:00Z', '2026-03-08T06:00:00Z')).toBe(at('2026-03-08T16:00:00Z'))
+  })
+
+  // Jolpica qui confirme lundi 22:00 UTC : + 3 h = 01:00 UTC mardi, la nuit →
+  // reportée à 8 h Paris, jamais de push nocturne même dans ce cas.
+  it('confirmation très tardive : échéance nocturne reportée à 8 h Paris', () => {
+    expect(finalizationDeadline('2026-11-08T13:00:00Z', '2026-11-09T22:00:00Z')).toBe(at('2026-11-10T07:00:00Z'))
   })
 
   // Jolpica a déjà publié 10 à 14 h après le départ : la course doit pouvoir

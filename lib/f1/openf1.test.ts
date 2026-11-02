@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fetchPracticeResults, fetchRaceFastestLapDriver, fetchSprintQualifyingResults, fetchStartingGrid, fetchSessionLineup } from './openf1'
+import { fetchPracticeResults, fetchRaceFastestLapDriver, fetchSprintQualifyingResults, fetchStartingGrid, fetchSessionLineup, fetchSessionClassification } from './openf1'
 
 // Les dates 2025 sont dans le passé (now = 2026) → sessions « terminées » par
 // défaut, sauf test dédié où l'on place date_end dans le futur.
@@ -32,6 +32,7 @@ describe('openf1 — sélection de session par date', () => {
     positions?: { driver_number: number; position: number; date: string }[]
     grid?:      { driver_number: number; position: number | null }[]
     gridSessionKey?: number
+    sessionResults?: { driver_number: number; position: number | null }[]
   }) {
     vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = input.toString()
@@ -41,6 +42,7 @@ describe('openf1 — sélection de session par date', () => {
               ? payloads.grid ?? []
               : [])
           :
+        url.includes('/session_result') ? payloads.sessionResults ?? [] :
         url.includes('/sessions')  ? payloads.sessions  ?? [] :
         url.includes('/drivers')   ? payloads.drivers   ?? [] :
         url.includes('/laps')      ? payloads.laps      ?? [] :
@@ -457,6 +459,58 @@ describe('openf1 — sélection de session par date', () => {
 
       const lineup = await fetchSessionLineup(2026, 'Practice 1', '2026-10-01T10:30:00Z')
       expect(lineup).toEqual([])
+    })
+  })
+
+  // #259 — source de révision des séances scorées.
+  describe('fetchSessionClassification', () => {
+    const mexicoRace: SessionFixture = {
+      session_key: 11404, session_name: 'Race', year: 2026,
+      circuit_short_name: 'Mexico City', date_start: '2026-11-01T20:00:00+00:00', date_end: '2026-11-01T22:00:00+00:00',
+    }
+
+    it('mappe numéro → trigramme, position null conservée (abandon), repli par numéro connu (#257)', async () => {
+      mockOpenF1({
+        sessions: [mexicoRace],
+        drivers: [
+          { driver_number: 30, name_acronym: 'LAW', session_key: 11404 },
+          { driver_number: 41, name_acronym: 'LIN', session_key: 11404 },
+        ],
+        sessionResults: [
+          { driver_number: 30, position: 7 },
+          { driver_number: 81, position: 13 },   // omis du /drivers → table saison
+          { driver_number: 41, position: null }, // abandon
+        ],
+      })
+
+      expect(await fetchSessionClassification(2026, 'Race', '2026-11-01T20:00:00Z', new Map([[81, 'PIA']]))).toEqual([
+        { driverCode: 'LAW', position: 7 },
+        { driverCode: 'PIA', position: 13 },
+        { driverCode: 'LIN', position: null },
+      ])
+    })
+
+    it('numéro inattribuable → liste vide (jamais de révision sur une donnée incomplète)', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockOpenF1({
+        sessions: [mexicoRace],
+        drivers: [{ driver_number: 30, name_acronym: 'LAW', session_key: 11404 }],
+        sessionResults: [
+          { driver_number: 30, position: 1 },
+          { driver_number: 99, position: 2 },
+        ],
+      })
+
+      expect(await fetchSessionClassification(2026, 'Race', '2026-11-01T20:00:00Z')).toEqual([])
+    })
+
+    it('session en cours → liste vide', async () => {
+      mockOpenF1({
+        sessions: [{ ...mexicoRace, year: 2099, date_start: '2099-11-01T20:00:00+00:00', date_end: '2099-11-01T22:00:00+00:00' }],
+        sessionResults: [{ driver_number: 30, position: 1 }],
+      })
+
+      expect(await fetchSessionClassification(2099, 'Race', '2099-11-01T20:00:00Z')).toEqual([])
     })
   })
 

@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
 import { SCOREABLE_SESSION_TYPES } from '@/lib/scoring/types'
+import { isGPReadyToFinalize } from '@/lib/scoring/finalization'
 import type { ScoreKey, SessionScore, SessionType } from '@/lib/scoring/types'
 import type { Json } from '@/lib/database.types'
 
@@ -109,18 +110,23 @@ export async function getPendingItemResolutions(): Promise<
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('grands_prix')
-    .select('id, name, season, sessions!inner(id, type, results_confirmed_at, scores(id))')
+    .select('id, name, season, sessions!inner(id, type, starts_at, results_confirmed_at, scores(id))')
     .is('scoring_finalized_at', null)
 
   if (error) throw error
 
+  const now = Date.now()
   return (data ?? []).filter((gp) => {
     const sessions = gp.sessions as {
-      id: string; type: string; results_confirmed_at: string | null; scores: { id: string }[]
+      id: string; type: string; starts_at: string; results_confirmed_at: string | null; scores: { id: string }[]
     }[]
-    // GP éligible si la race a des résultats confirmés ET au moins 1 score existant
+    // GP éligible si la race a des résultats confirmés, au moins 1 score
+    // existant, ET le délai de finalisation écoulé (#259 — laisse passer les
+    // décisions des commissaires d'après-course, cf. lib/scoring/finalization.ts).
     const race = sessions.find((s) => s.type === 'race')
-    return race?.results_confirmed_at != null && race.scores.length > 0
+    return race?.results_confirmed_at != null
+      && race.scores.length > 0
+      && isGPReadyToFinalize(race.starts_at, now)
   }).map((gp) => ({ id: gp.id, name: gp.name, season: gp.season }))
 }
 

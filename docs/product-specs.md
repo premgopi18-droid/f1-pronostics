@@ -278,10 +278,16 @@ Même barème **par position** (5/2/1) pour les qualifications et la course. En 
 #### Séance annulée d'un commun accord dans une ligue (décision 22/11/2026)
 
 - Une ligue peut décider, d'un commun accord entre ses membres, d'**annuler une séance** (ex. personne d'autre n'a pronostiqué) : les pronos de cette séance sont **neutralisés** et rapportent **0 pt** à tout le monde — points et positions exactes (départage) compris.
-- **Opération manuelle en base, pas de feature** (cas rare) : passer `predictions.is_valid = false` sur la séance puis supprimer les lignes `scores` de la ligue pour cette séance. Supprimer le score seul ne suffit pas — le cron le recalcule au passage suivant. Réversible : remettre `is_valid = true`, le cron recalcule.
-- ⚠️ `predictions` est **commune à toutes les ligues** : si un joueur concerné est aussi dans une autre ligue, l'invalidation y annule aussi son prono. Dans ce cas, ne pas invalider : il faudrait une vraie annulation par ligue (feature à concevoir si le besoin se répète).
-- Si des items visaient la séance, les traiter avant la finalisation du GP (`scoring_finalized_at`).
-- Les membres de la ligue sont prévenus par un push ciblé (`/api/dev/test-push?userId=…`, un appel par membre).
+- **Opération manuelle en base, pas de feature** (cas rare), **avant la finalisation du GP** (`scoring_finalized_at` null) :
+  1. `update predictions set is_valid = false where session_id = <séance> and user_id in (<membres de la ligue>)` — toujours restreindre aux membres, jamais toute la séance (la neutralisation toucherait toutes les ligues au prochain recalcul).
+  2. `delete from scores where session_id = <séance> and league_id = <ligue>`. Supprimer le score seul ne suffit pas : le cron le recalcule au passage suivant. L'ordre 1 → 2 compte : on évite ainsi qu'un passage du cron en cours réécrive le score.
+  3. Revérifier après le passage suivant du cron que la ligne `scores` n'est pas revenue.
+- **Réversible tant que le GP n'est pas finalisé** : remettre `is_valid = true`, et le cron recalcule. Après la finalisation, le cron ne rescore plus la séance : il faudrait recalculer à la main.
+- **Jamais sur la course** : la finalisation du GP exige au moins un score course. Une course annulée dans la seule ligue qui la score bloquerait la finalisation du GP (items jamais résolus, pas de push « résultats définitifs »).
+- ⚠️ `predictions` est **commune à toutes les ligues** : si un joueur concerné est aussi dans une autre ligue, l'invalidation y annule aussi son prono (au prochain recalcul, par ex. une révision du classement). Dans ce cas, ne pas invalider : il faudrait une vraie annulation par ligue (feature à concevoir si le besoin se répète).
+- **Items visant la séance** (blocage, double, wild card) : sans score cible, ils restent sans effet mais sont consommés. Avant la finalisation, les retirer et restituer l'exemplaire (`user_items.uses_remaining + 1`), comme pour un GP annulé. Après la finalisation, un wild card aurait déjà transféré des points dans le `final_score` de l'attaquant.
+- **Affichage côté joueur** : le prono apparaît « Pronostic invalide » sur le détail du GP et « sans prono » dans la comparaison. C'est attendu : le prono a été neutralisé, le joueur n'a pas fait d'erreur.
+- Les membres de la ligue sont prévenus par un push ciblé : `/api/dev/test-push?userId=…&title=…&body=…&url=…` avec le header `x-cron-secret`, un appel par membre (cf. pièges d'encodage curl sous Windows : passer title et body par fichiers UTF-8, `MSYS_NO_PATHCONV=1`).
 - Précédent : qualif du GP de Las Vegas 2026, ligue « Les Théoristes » — seul Premou avait pronostiqué (27 pts annulés).
 
 #### Cas particuliers (DNF, voiture de sécurité, drapeaux rouges)

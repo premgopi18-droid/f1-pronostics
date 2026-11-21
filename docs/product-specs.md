@@ -275,6 +275,15 @@ Même barème **par position** (5/2/1) pour les qualifications et la course. En 
 - **Exception** : si le GP annulé est le dernier de la saison, les items ne sont pas restitués (fin de saison — inutile)
 - Cas rarissime en F1, mais la règle est posée pour éviter toute ambiguïté
 
+#### Séance annulée d'un commun accord dans une ligue (décision 22/11/2026)
+
+- Une ligue peut décider, d'un commun accord entre ses membres, d'**annuler une séance** (ex. personne d'autre n'a pronostiqué) : les pronos de cette séance sont **neutralisés** et rapportent **0 pt** à tout le monde — points et positions exactes (départage) compris.
+- **Opération manuelle en base, pas de feature** (cas rare) : passer `predictions.is_valid = false` sur la séance puis supprimer les lignes `scores` de la ligue pour cette séance. Supprimer le score seul ne suffit pas — le cron le recalcule au passage suivant. Réversible : remettre `is_valid = true`, le cron recalcule.
+- ⚠️ `predictions` est **commune à toutes les ligues** : si un joueur concerné est aussi dans une autre ligue, l'invalidation y annule aussi son prono. Dans ce cas, ne pas invalider : il faudrait une vraie annulation par ligue (feature à concevoir si le besoin se répète).
+- Si des items visaient la séance, les traiter avant la finalisation du GP (`scoring_finalized_at`).
+- Les membres de la ligue sont prévenus par un push ciblé (`/api/dev/test-push?userId=…`, un appel par membre).
+- Précédent : qualif du GP de Las Vegas 2026, ligue « Les Théoristes » — seul Premou avait pronostiqué (27 pts annulés).
+
 #### Cas particuliers (DNF, voiture de sécurité, drapeaux rouges)
 
 Le résultat officiel FIA (via Jolpica API) fait foi, sans ajustement. Les abandons et perturbations de course font partie du jeu. À reconsidérer si les retours joueurs montrent que c'est trop frustrant.

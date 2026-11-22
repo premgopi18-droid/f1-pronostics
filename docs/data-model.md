@@ -13,6 +13,7 @@
 - **JSONB** pour les listes ordonnées (prediction entries) — 1 ligne par prédiction, pas de JOIN
 - **Pas d'écrasement** — les données de jeu passées (`scores`, `predictions`, `items_played`) ne sont jamais supprimées ou modifiées. **Exception : suppression de compte (RGPD)** — `delete_own_account` retire les adhésions (`league_members`) et l'inventaire d'items non joués (`user_items`) de l'utilisateur, toutes saisons confondues, pour libérer les slots de ligue. Les données de jeu ci-dessus restent (liées à l'UUID anonymisé), donc les calculs de points passés restent intègres.
 - **RLS Supabase** sur toutes les tables exposées au client. Convention perf : dans les policies, toujours écrire `(select auth.uid())` — jamais `auth.uid()` nu, ré-évalué par ligne (advisor `auth_rls_initplan`). Éviter aussi deux policies permissives sur le même couple rôle/commande : une policy « own » en `FOR ALL` + une policy SELECT co-membres se scindent en INSERT/UPDATE/DELETE + un SELECT fusionné par `OR` (migration `20260708120000_perf_rls_and_indexes`).
+- **Écritures directes des rôles applicatifs (#264, migration `20261122120000`)** : la clé publique est dans le bundle client, donc tout joueur connecté peut appeler PostgREST avec son JWT. Seules la RLS et les grants le filtrent, pas les Server Actions. Règle : **`anon` n'écrit rien, et `authenticated` n'écrit que là où une Server Action utilise le client cookie** : `profiles` (UPDATE colonne-restreint, #249), `push_subscriptions`, et l'UPDATE admin de `leagues` / `league_members`. Toutes les autres écritures (pronos, items, pronos saison, adhésion aux ligues, scores, données F1) passent par `service_role` ou par une RPC réservée à `service_role`. Les grants y sont révoqués et les policies d'écriture supprimées. `TRUNCATE` est révoqué partout. Le dashboard Supabase (rôle `postgres`) et `service_role` ne sont pas concernés. ⚠️ **Les default privileges de Supabase redonnent tous les droits à `anon` / `authenticated` sur chaque nouvelle table** : la migration qui crée une table doit révoquer ce dont le client n'a pas besoin (au minimum `revoke truncate … from anon, authenticated; revoke insert, update, delete … from anon;`).
 - **Codes pilotes/écuries** (ex: "VER", "RED_BULL") dans les JSONB de prédictions — trade-off délibéré : lisibilité > intégrité référentielle sur ces champs. Le moteur de scoring mappe code → UUID au moment du calcul.
 - **Types TypeScript générés** — `lib/database.types.ts` est généré depuis le schéma prod (jamais édité à la main) et branché sur les trois fabriques de client (`createClient<Database>`). **À régénérer après chaque migration qui change le schéma** : outil MCP `generate_typescript_types` ou `npx supabase gen types typescript --project-id oegnropofqlzkuwleqtt`, en conservant le bandeau d'en-tête. Les colonnes JSONB (`payload`, `breakdown`, `geojson`, `entries`) sont typées `Json` : leur forme applicative est castée aux frontières de lecture/écriture, avec un commentaire justificatif à chaque site.
 
@@ -297,6 +298,7 @@ Une ligue est une entité **persistante** — pas de colonne `season`. La même 
 **RLS :**
 - Lisible par tous les membres de la même ligue
 - `is_admin` modifiable uniquement par un admin
+- Pas d'INSERT ni de DELETE pour les rôles applicatifs (#264). L'adhésion passe par `service_role` (`lib/data/leagues.ts`, après validation du code d'invitation), la création par la RPC `create_league`.
 
 **Index :** `(league_id, season)`, `(user_id, season)`
 
@@ -327,6 +329,7 @@ Une ligne par user par session. L'ordre prédit est stocké en JSONB — pas de 
 **RLS :**
 - Lecture propre : toujours
 - Lecture des autres : uniquement si `sessions.starts_at < now()` ET `EXISTS (SELECT 1 FROM league_members lm1 JOIN league_members lm2 ON lm1.league_id = lm2.league_id AND lm1.season = lm2.season WHERE lm1.user_id = auth.uid() AND lm2.user_id = predictions.user_id)` — restreint aux co-membres d'une ligue
+- Écriture : **aucune pour les rôles applicatifs** (#264). Soumission par `submitPredictionAction` → `service_role`, qui vérifie le verrouillage (`starts_at`) et le contenu. Un PATCH PostgREST direct est refusé (`42501`).
 
 **Index :** `(user_id, session_id)`, `(session_id)`
 
@@ -345,7 +348,7 @@ Une ligne par user par session. L'ordre prédit est stocké en JSONB — pas de 
 
 **Contrainte :** UNIQUE (user_id, session_id)
 
-**RLS :** même règle que `predictions` (lock + co-membre de ligue)
+**RLS :** même règle que `predictions` (lock + co-membre de ligue). Écriture via `service_role` uniquement (`submitFastestLapAction`, #264).
 
 **Index :** `(user_id, session_id)`, `(session_id)`, `(driver_id)`
 
@@ -372,6 +375,7 @@ WDC et WCC stockés en JSONB. Une ligne par user par type par saison.
 **RLS :**
 - Lecture propre : toujours
 - Lecture des autres : uniquement après `locked_at` ET co-membre d'une ligue (même condition que `predictions`)
+- Écriture via `service_role` uniquement (Server Action + RPC `apply_season_item`, #264)
 
 ---
 
@@ -396,7 +400,7 @@ Stock d'items GP de chaque joueur par ligue. Initialisé en début de saison.
 
 **Contrainte :** UNIQUE (user_id, league_id, season, item_type)
 
-**RLS :** accessible uniquement par le propriétaire
+**RLS :** lecture par le propriétaire uniquement (policy `own items read`). Écriture via `service_role` uniquement : init à l'adhésion, décrément par la RPC `play_item` (#264, qui remplace l'ancienne policy `FOR ALL`, laquelle laissait un joueur réécrire `uses_remaining`).
 
 **Index :** `(user_id, league_id, season)`, `(league_id)`
 
@@ -472,6 +476,7 @@ Historique de chaque item joué. Le champ `payload` stocke les données spécifi
 **RLS :**
 - Lecture par le joueur qui l'a joué : toujours
 - Lecture par les autres membres de la ligue : uniquement après `resolved_at`
+- Écriture : aucune pour les rôles applicatifs (#264). Les items sont joués par la RPC `play_item` et résolus par `mark_items_resolved`, toutes deux réservées à `service_role`.
 
 **Index :** `(league_id, gp_id, season)`, `(gp_id)`
 
